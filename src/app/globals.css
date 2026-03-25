@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #0a0f1e;
+  --color-navy-light: #161e31;
+  --color-gold: #c9a84c;
+  --color-gold-light: #e2c97e;
+  --color-gold-dark: #a07c2d;
+  --color-gray: #8892a4;
+  
+  --background-glass: rgba(255, 255, 255, 0.05);
+  --border-glass: rgba(201, 168, 76, 0.2);
+
+  --font-cairo: var(--font-cairo);
+}
+
+@layer base {
+  body {
+    @apply bg-navy text-white font-cairo;
+  }
+}
+
+@layer components {
+  .btn-gold {
+    @apply px-8 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-105 active:scale-95;
+    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-dark));
+    color: var(--color-navy);
+    box-shadow: 0 4px 20px rgba(201, 168, 76, 0.3);
+  }
+
+  .btn-outline {
+    @apply px-8 py-3 rounded-full font-bold transition-all duration-300 border-2 border-gold text-gold hover:bg-gold/10 transform hover:scale-105;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 transition-all duration-300 hover:border-gold/30 hover:bg-white/10;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+  }
+}
+
+/* Custom Utilities & Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+.animate-slide-up { animation: slideUp 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+
+/* Luxury Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-gold);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-light);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
