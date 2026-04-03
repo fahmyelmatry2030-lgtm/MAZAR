@@ -10,9 +10,15 @@ export const translations = {
       rules: 'قوانين المكان',
       howToBook: 'طريقة الحجز',
       footerRights: 'جميع الحقوق محفوظة © 2026 لمشروع مزار.',
-      luxuryStay: 'إقامة فندقية فاخرة',
-      differentExperience: 'بتجربة مختلفة',
-      heroSubtitle: 'في مزار بنقدملك تجربة إقامة متكاملة مش مكان مفروش. ستوديوهات مجهزة بالكامل، دخول ذكي بدون مفاتيح، وخدمة ريسيبشن 24 ساعة… علشان تعيش راحتك فعلاً.',
+      luxuryStay: 'أكبر مجمع ستوديوهات',
+      differentExperience: 'بمكتبة قندهار مدينة نصر',
+      heroSubtitle: 'عيش احساس الاقامة الفندقية بأمان وثقة وفخامة تستحقها',
+      heroServices: [
+        { icon: '🕐', label: 'خدمات 24 ساعة' },
+        { icon: '💇', label: 'صالون لوك' },
+        { icon: '🧹', label: 'هاوس كيبنج' },
+        { icon: '❄️', label: 'مكيف بالكامل' }
+      ],
       features: {
         quiet: 'هدوء تام',
         quietDesc: 'تم تصميم الوحدات بعوازل صوت متطورة لتنعم بهدوء لم تشهده من قبل.',
@@ -136,6 +142,22 @@ export const translations = {
       ],
       cta: 'بدء الحجز الان',
       copyright: 'نظام جميع الحقوق محفوظة © 2026 للنخبة'
+    },
+    unitsPage: {
+      title: 'استكشف وحدات مزار السكنية',
+      subtitle: 'اختر وحدتك المفضلة من بين 24 استوديو فندقي و3 شقق فاخرة موزعـة على فروعنا.',
+      branch1: 'فرع مدينة نصر 1',
+      branch2: 'فرع مدينة نصر 2',
+      apartments: 'الشقق الفاخرة',
+      viewDetails: 'تفاصيل الوحدة',
+      unitFeatures: 'مميزات الوحدة',
+      bookThisUnit: 'احجز هذه الوحدة عبر واتساب',
+      backToList: 'العودة لقائمة الوحدات',
+      gallery: 'معرض الصور',
+      location: 'الموقع والمناطق القريبة',
+      branch: 'فرع',
+      backToCategories: 'العودة للتصنيفات',
+      availableUnits: 'وحدات متاحة'
     }
   },
   en: {
@@ -147,9 +169,15 @@ export const translations = {
       rules: 'House Rules',
       howToBook: 'How to Book',
       footerRights: 'All rights reserved © 2026 Mazar Project.',
-      luxuryStay: 'A Luxury Hotel Stay',
-      differentExperience: 'Like No Other',
-      heroSubtitle: 'At Mazar, we provide a holistic residential experience, far beyond conventional furnished apartments. Enjoy fully-equipped studios, seamless keyless entry, and a 24/7 concierge service—crafted entirely for your absolute comfort.',
+      luxuryStay: 'Largest Studio Complex',
+      differentExperience: 'Qandahar Library, Nasr City',
+      heroSubtitle: 'Live the hotel stay experience with safety, trust, and the luxury you deserve.',
+      heroServices: [
+        { icon: '🕐', label: '24/7 Services' },
+        { icon: '💇', label: 'Look Salon' },
+        { icon: '🧹', label: 'Housekeeping' },
+        { icon: '❄️', label: 'Full AC' }
+      ],
       features: {
         quiet: 'Absolute Tranquility',
         quietDesc: 'Our units feature state-of-the-art soundproofing, promising you unprecedented peace and quiet.',
@@ -273,6 +301,22 @@ export const translations = {
       ],
       cta: 'INITIALIZE BOOKING',
       copyright: 'System Copyright © 2026 ELITE_NOKBA'
+    },
+    unitsPage: {
+      title: 'Explore Mazar Residential Units',
+      subtitle: 'Choose your preferred unit from 24 hotel studios and 3 luxury apartments across our branches.',
+      branch1: 'Nasr City Branch 1',
+      branch2: 'Nasr City Branch 2',
+      apartments: 'Luxury Apartments',
+      viewDetails: 'View Details',
+      unitFeatures: 'Unit Features',
+      bookThisUnit: 'Book via WhatsApp',
+      backToList: 'Back to Units List',
+      gallery: 'Gallery',
+      location: 'Location & Nearby',
+      branch: 'Branch',
+      backToCategories: 'Back to Categories',
+      availableUnits: 'Units Available'
     }
   }
 };
