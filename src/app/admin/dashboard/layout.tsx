@@ -85,7 +85,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       {/* Sidebar */}
       <aside className="w-full md:w-72 bg-[#0a0f1e] border-l border-white/5 flex flex-col z-40">
         <div className="p-8">
-          <Link href="/" className="text-2xl font-black text-gradient block mb-1">مجمع النخبة</Link>
+          <Link href="/" className="text-2xl font-black text-gradient block mb-1">مزار</Link>
           <span className="text-[10px] text-gold/50 font-bold uppercase tracking-wider">نظام الإدارة المتكامل</span>
         </div>
 

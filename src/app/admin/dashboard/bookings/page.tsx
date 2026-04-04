@@ -11,6 +11,10 @@ export default function BookingsManagement() {
   const [paymentInfo, setPaymentInfo] = useState('');
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Dynamic calculation states
+  const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [numberOfDays, setNumberOfDays] = useState<number>(0);
 
   const refreshBookings = useCallback(async () => {
     setIsLoading(true);
@@ -48,6 +52,34 @@ export default function BookingsManagement() {
     findFreeUnits();
   }, [selectedBooking]);
 
+  // Handle Dynamic Calculations
+  useEffect(() => {
+    if (selectedBooking && selectedAptId && availableAptsForBooking.length > 0) {
+      const checkInDate = new Date(selectedBooking.checkIn);
+      const checkOutDate = new Date(selectedBooking.checkOut);
+      
+      const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
+      let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) diffDays = 1;
+      
+      setNumberOfDays(diffDays);
+
+      const apt = availableAptsForBooking.find(a => a.id === selectedAptId);
+      let calculatedTotal = 0;
+      if (apt && apt.price) {
+        const numericPrice = parseInt(apt.price.toString().replace(/[^0-9]/g, '')) || 0;
+        calculatedTotal = numericPrice * diffDays;
+      }
+      setTotalAmount(calculatedTotal);
+      
+      if (calculatedTotal > 0) {
+          setPaymentInfo(`إجمالي تكلفة الإقامة لمدة (${diffDays}) ليالي هو ${calculatedTotal} ج.م.\n\nيرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز النهائي.`);
+      } else {
+          setPaymentInfo(`يرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز.`);
+      }
+    }
+  }, [selectedBooking, selectedAptId, availableAptsForBooking]);
+
   const approveBooking = async () => {
     if (!selectedBooking || !selectedAptId) return;
     
@@ -55,7 +87,9 @@ export default function BookingsManagement() {
     await updateBookingStatus(selectedBooking.id, { 
         status: 'approved', 
         apartmentId: selectedAptId, 
-        paymentInfo 
+        paymentInfo,
+        totalAmount,
+        numberOfDays
     });
     
     // Notifications are still local preference for the admin session or could be moved to DB
@@ -226,9 +260,17 @@ export default function BookingsManagement() {
 
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">بيانات تفاصيل الحجز (ستظهر للعميل)</label>
+                
+                {totalAmount > 0 && (
+                   <div className="bg-success/10 border border-success/20 p-4 rounded-2xl mb-4">
+                     <p className="text-white font-bold text-sm">💰 الإجمالي المحسوب تلقائياً: <span className="text-gold text-lg ml-2">{totalAmount} ج.م</span></p>
+                     <p className="text-gray-400 text-[10px] mt-1">بناءً على إقامة لمدة {numberOfDays} ليالي.</p>
+                   </div>
+                )}
+                
                 <div className="flex gap-2">
-                   <button onClick={() => setPaymentInfo(`يرجى تحويل مبلغ العربون (500 ج.م) عبر إنستا باي (Instapay) برقم: 01153705134 لتأكيد الحجز.`)} className="text-[9px] bg-gold/10 text-gold px-4 py-2 rounded-full border border-gold/20 hover:bg-gold hover:text-navy transition-all font-black">إنستا باي +</button>
-                   <button onClick={() => setPaymentInfo(`يرجى تحويل العربون (500 ج.م) فودافون كاش على رقم: 01153705134 لتأكيد حجزكم.`)} className="text-[9px] bg-danger/10 text-danger px-4 py-2 rounded-full border border-danger/20 hover:bg-danger hover:text-white transition-all font-black">فودافون كاش +</button>
+                   <button onClick={() => setPaymentInfo(prev => `${prev}\n\nعبر إنستا باي (Instapay) برقم: 01153705134.`)} className="text-[9px] bg-gold/10 text-gold px-4 py-2 rounded-full border border-gold/20 hover:bg-gold hover:text-navy transition-all font-black">إنستا باي +</button>
+                   <button onClick={() => setPaymentInfo(prev => `${prev}\n\nفودافون كاش على رقم: 01153705134.`)} className="text-[9px] bg-danger/10 text-danger px-4 py-2 rounded-full border border-danger/20 hover:bg-danger hover:text-white transition-all font-black">فودافون كاش +</button>
                 </div>
                 <textarea 
                   placeholder="اكتب تفاصيل الدفع أو أي ملاحظات للعميل هنا..."

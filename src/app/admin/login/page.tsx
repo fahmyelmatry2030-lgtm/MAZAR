@@ -3,29 +3,29 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { verifyAdminAuth } from '@/lib/actions/db';
 
 export default function AdminLoginPage() {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Default admin password
-    if (password === 'admin123') {
-      setTimeout(() => {
-        sessionStorage.setItem('isAdmin', 'true');
-        router.push('/admin/dashboard');
-      }, 1000);
+    const res = await verifyAdminAuth(username, password);
+
+    if (res.success) {
+      sessionStorage.setItem('isAdmin', 'true');
+      sessionStorage.setItem('adminInfo', JSON.stringify(res.admin));
+      router.push('/admin/dashboard');
     } else {
-      setTimeout(() => {
-        setError('كلمة المرور غير صحيحة');
-        setIsLoading(false);
-      }, 800);
+      setError('بيانات الدخول غير صحيحة');
+      setIsLoading(false);
     }
   };
 
@@ -37,21 +37,36 @@ export default function AdminLoginPage() {
 
       <div className="glass-card w-full max-w-md relative z-10 p-10 border-gold/30">
         <div className="text-center mb-10">
-          <Link href="/" className="text-3xl font-black text-gradient block mb-4">مجمع النخبة</Link>
+          <Link href="/" className="text-3xl font-black text-gradient block mb-4">مزار</Link>
           <h2 className="text-xl font-bold text-gray-300">تسجيل دخول الإدارة</h2>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-400">كلمة المرور</label>
-            <input 
-              required
-              type="password" 
-              placeholder="••••••••"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold transition-colors text-center tracking-widest"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-400">اسم المستخدم</label>
+              <input 
+                required
+                type="text" 
+                placeholder="admin"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold transition-colors text-center text-white"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-400">كلمة المرور</label>
+              <input 
+                required
+                type="password" 
+                placeholder="••••••••"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold transition-colors text-center tracking-widest text-white"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                dir="ltr"
+              />
+            </div>
           </div>
 
           {error && (

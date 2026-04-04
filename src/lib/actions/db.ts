@@ -5,6 +5,7 @@ import path from 'path';
 
 const BOOKINGS_PATH = path.join(process.cwd(), 'src/data/bookings.json');
 const UNITS_PATH = path.join(process.cwd(), 'src/data/units.json');
+const ADMINS_PATH = path.join(process.cwd(), 'src/data/admins.json');
 
 // --- TELEGRAM CONFIG ---
 const TG_TOKEN = '8674061032:AAHTetftXiVZ_FqZ4X_inu7XKILLSZacN_8';
@@ -125,5 +126,22 @@ export async function updateDbUnitDetails(id: string, updates: any) {
   } catch (error) {
     console.error('Error updating unit:', error);
     throw error;
+  }
+}
+
+// --- ADMIN ---
+
+export async function verifyAdminAuth(username: string, pass: string) {
+  try {
+    const data = await fs.readFile(ADMINS_PATH, 'utf-8');
+    const admins = JSON.parse(data);
+    const validAdmin = admins.find((a: any) => a.username === username && a.password === pass);
+    if (validAdmin) {
+      return { success: true, admin: validAdmin };
+    }
+    return { success: false };
+  } catch (error) {
+    console.error('Error reading admins:', error);
+    return { success: false };
   }
 }
