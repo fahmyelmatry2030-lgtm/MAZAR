@@ -1,29 +1,356 @@
 [
-  {"id": "b1-s1", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 1", "en": "Premium Studio 1"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s2", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 2", "en": "Premium Studio 2"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s3", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 3", "en": "Premium Studio 3"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s4", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 4", "en": "Premium Studio 4"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s5", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 5", "en": "Premium Studio 5"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s6", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 6", "en": "Premium Studio 6"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s7", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 7", "en": "Premium Studio 7"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s8", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 8", "en": "Premium Studio 8"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s9", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 9", "en": "Premium Studio 9"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s10", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 10", "en": "Premium Studio 10"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s11", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 11", "en": "Premium Studio 11"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b1-s12", "branch": 1, "type": "studio", "title": {"ar": "استوديو بريميوم 12", "en": "Premium Studio 12"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s1", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 13", "en": "Premium Studio 13"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s2", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 14", "en": "Premium Studio 14"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s3", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 15", "en": "Premium Studio 15"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s4", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 16", "en": "Premium Studio 16"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s5", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 17", "en": "Premium Studio 17"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s6", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 18", "en": "Premium Studio 18"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s7", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 19", "en": "Premium Studio 19"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s8", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 20", "en": "Premium Studio 20"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s9", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 21", "en": "Premium Studio 21"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s10", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 22", "en": "Premium Studio 22"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s11", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 23", "en": "Premium Studio 23"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "b2-s12", "branch": 2, "type": "studio", "title": {"ar": "استوديو بريميوم 24", "en": "Premium Studio 24"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "apt-1", "branch": 1, "type": "apartment", "title": {"ar": "شقة فندقية فاخرة 1", "en": "Luxury Hotel Apartment 1"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "apt-2", "branch": 1, "type": "apartment", "title": {"ar": "شقة فندقية فاخرة 2", "en": "Luxury Hotel Apartment 2"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"},
-  {"id": "apt-3", "branch": 1, "type": "apartment", "title": {"ar": "شقة فندقية فاخرة 3", "en": "Luxury Hotel Apartment 3"}, "status": "متاح", "housekeeping": "نظيف", "nextBooking": "لا يوجد"}
+  {
+    "id": "b1-s1",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 1",
+      "en": "Premium Studio 1"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد",
+    "description": {
+      "ar": "استوديو فندقي فاخر مجهز بأحدث الخدمات الذكية في قلب مدينة نصر.",
+      "en": "Luxury hotel studio equipped with the latest smart services in the heart of Nasr City."
+    },
+    "images": [
+      "/images/Mazar%201%20Pictures/2026%201.jpeg",
+      "/images/Mazar%201%20Pictures/2026.jpeg",
+      "/images/Mazar%201%20Pictures/WhatsApp%20Imag6e%202025-12-31%20at%203.00.24%20PM.jpeg",
+      "/images/Mazar%201%20Pictures/WhatsApp%20Image%202025-12-15%20at%2012.39.16_ff8ccd08.jpg",
+      "/images/Mazar%201%20Pictures/WhatsApp%20Image%202025-12-15%20at%2012.39.17_3a943570.jpg"
+    ],
+    "video": "/images/video/studio 1.mp4",
+    "features": {
+      "ar": [
+        "تكييف مركزي",
+        "واي فاي سريع",
+        "دخول ذكي",
+        "شاشة سمارت",
+        "مطبخ مجهز"
+      ],
+      "en": [
+        "Central AC",
+        "Fast WiFi",
+        "Smart Entry",
+        "Smart TV",
+        "Equipped Kitchen"
+      ]
+    },
+    "originalPrice": "350",
+    "price": "200"
+  },
+  {
+    "id": "b1-s2",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 2",
+      "en": "Premium Studio 2"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s3",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 3",
+      "en": "Premium Studio 3"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s4",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 4",
+      "en": "Premium Studio 4"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s5",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 5",
+      "en": "Premium Studio 5"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s6",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 6",
+      "en": "Premium Studio 6"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s7",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 7",
+      "en": "Premium Studio 7"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s8",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 8",
+      "en": "Premium Studio 8"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s9",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 9",
+      "en": "Premium Studio 9"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s10",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 10",
+      "en": "Premium Studio 10"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s11",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 11",
+      "en": "Premium Studio 11"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b1-s12",
+    "branch": 1,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 12",
+      "en": "Premium Studio 12"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s1",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 13",
+      "en": "Premium Studio 13"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s2",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 14",
+      "en": "Premium Studio 14"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s3",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 15",
+      "en": "Premium Studio 15"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s4",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 16",
+      "en": "Premium Studio 16"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s5",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 17",
+      "en": "Premium Studio 17"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s6",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 18",
+      "en": "Premium Studio 18"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s7",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 19",
+      "en": "Premium Studio 19"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s8",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 20",
+      "en": "Premium Studio 20"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s9",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 21",
+      "en": "Premium Studio 21"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s10",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 22",
+      "en": "Premium Studio 22"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s11",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 23",
+      "en": "Premium Studio 23"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "b2-s12",
+    "branch": 2,
+    "type": "studio",
+    "title": {
+      "ar": "استوديو بريميوم 24",
+      "en": "Premium Studio 24"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "apt-1",
+    "branch": 1,
+    "type": "apartment",
+    "title": {
+      "ar": "شقة فندقية فاخرة 1",
+      "en": "Luxury Hotel Apartment 1"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "apt-2",
+    "branch": 1,
+    "type": "apartment",
+    "title": {
+      "ar": "شقة فندقية فاخرة 2",
+      "en": "Luxury Hotel Apartment 2"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  },
+  {
+    "id": "apt-3",
+    "branch": 1,
+    "type": "apartment",
+    "title": {
+      "ar": "شقة فندقية فاخرة 3",
+      "en": "Luxury Hotel Apartment 3"
+    },
+    "status": "متاح",
+    "housekeeping": "نظيف",
+    "nextBooking": "لا يوجد"
+  }
 ]

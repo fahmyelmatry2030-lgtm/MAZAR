@@ -155,7 +155,7 @@ export default function UnitsManagement() {
           <div key={unit.id} className="glass-card !p-0 overflow-hidden flex flex-col group border border-white/5 hover:border-gold/40 transition-all duration-500 hover:-translate-y-1">
             <div className="relative aspect-video overflow-hidden bg-navy-light">
               <img 
-                src={unit.images[0] || '/placeholder.png'} 
+                src={unit?.images?.[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267'} 
                 alt={unit.title.ar} 
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100"
               />
@@ -168,7 +168,7 @@ export default function UnitsManagement() {
                   {unit.status}
                 </span>
                 <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-full backdrop-blur-md shadow-lg bg-black/40 text-white border border-white/10">
-                   {unit.images.length} صور 🖼️
+                   {unit.images?.length || 0} صور 🖼️
                 </span>
               </div>
               <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold text-gold border border-gold/30">
@@ -186,17 +186,22 @@ export default function UnitsManagement() {
                       </span>
                   </div>
                 </div>
-                <div className="text-gold font-black text-sm whitespace-nowrap">
-                  {unit.price || '---'} <span className="text-[9px]">ج.م</span>
+                <div className="flex flex-col items-end">
+                  {unit.originalPrice && (
+                     <span className="text-[10px] text-gray-500 line-through decoration-danger mb-0.5">{unit.originalPrice} ج.م</span>
+                  )}
+                  <div className="text-gold font-black text-sm whitespace-nowrap">
+                    {unit.price || '---'} <span className="text-[9px]">ج.م</span>
+                  </div>
                 </div>
               </div>
 
               {/* Features Preview (mini icons) */}
               <div className="flex flex-wrap gap-1 mb-4 opacity-40">
-                  {unit.features?.ar.slice(0, 3).map((f: string, i: number) => (
+                  {(unit.features?.ar || []).slice(0, 3).map((f: string, i: number) => (
                       <span key={i} className="text-[8px] bg-white/10 px-2 py-0.5 rounded-md text-white whitespace-nowrap font-medium">{f}</span>
                   ))}
-                  {unit.features?.ar.length > 3 && <span className="text-[8px] text-gold">+{unit.features.ar.length - 3}</span>}
+                  {(unit.features?.ar?.length || 0) > 3 && <span className="text-[8px] text-gold">+{(unit.features?.ar?.length || 0) - 3}</span>}
               </div>
               
               <div className="mt-auto pt-4 flex gap-2">
@@ -225,9 +230,9 @@ export default function UnitsManagement() {
 
       {/* Advanced Edit Modal */}
       {isModalOpen && editingUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="bg-[#0a0f1e] border border-white/10 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-scale-in my-8">
-            <div className="p-8 border-b border-white/5 flex justify-between items-center px-10">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-2 pt-4 bg-black/90 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="bg-[#0a0f1e] border border-white/10 w-full max-w-4xl rounded-[24px] md:rounded-[40px] shadow-2xl overflow-hidden animate-scale-in mb-10">
+            <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center px-6 md:px-10">
               <div>
                 <h2 className="text-2xl font-black text-white">إدارة <span className="text-gold">بيانات الوحدة</span></h2>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Ref ID: {editingUnit.id}</p>
@@ -235,10 +240,75 @@ export default function UnitsManagement() {
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white text-3xl">×</button>
             </div>
             
-            <div className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar text-right" dir="rtl">
+            <div className="p-6 md:p-10 space-y-10 max-h-[75vh] overflow-y-auto custom-scrollbar text-right" dir="rtl">
               
+              {/* General Data Section */}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">العنوان (بالعربية)</label>
+                        <input 
+                            type="text" 
+                            value={editingUnit.title.ar}
+                            onChange={(e) => setEditingUnit({...editingUnit, title: {...editingUnit.title, ar: e.target.value}})}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-bold"
+                        />
+                    </div>
+                    <div className="space-y-3" dir="ltr">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest block text-left">TITLE (ENGLISH)</label>
+                        <input 
+                            type="text" 
+                            value={editingUnit.title.en}
+                            onChange={(e) => setEditingUnit({...editingUnit, title: {...editingUnit.title, en: e.target.value}})}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-bold"
+                        />
+                    </div>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">السعر لليلة (ج.م)</label>
+                        <input 
+                            type="text" 
+                            value={editingUnit.price || ''}
+                            onChange={(e) => setEditingUnit({...editingUnit, price: e.target.value})}
+                            placeholder="مثال: 1500"
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-black text-left"
+                        />
+                    </div>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">السعر الأساسي (قبل الخصم) <span className="text-gray-500 line-through text-[8px]">1500</span></label>
+                        <input 
+                            type="text" 
+                            value={editingUnit.originalPrice || ''}
+                            onChange={(e) => setEditingUnit({...editingUnit, originalPrice: e.target.value})}
+                            placeholder="اختياري: يعرض للزبائن وعليه خط كأنه خصم"
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-gray-400 focus:border-gold outline-none transition-all font-black text-left"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">الوصف (بالعربية)</label>
+                        <textarea 
+                            rows={4}
+                            value={editingUnit.description?.ar || ''}
+                            onChange={(e) => setEditingUnit({...editingUnit, description: {...(editingUnit.description || {}), ar: e.target.value}})}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all resize-none leading-relaxed"
+                        />
+                    </div>
+                    <div className="space-y-3" dir="ltr">
+                        <label className="text-[10px] font-black text-gold uppercase tracking-widest block text-left">DESCRIPTION (ENGLISH)</label>
+                        <textarea 
+                            rows={4}
+                            value={editingUnit.description?.en || ''}
+                            onChange={(e) => setEditingUnit({...editingUnit, description: {...(editingUnit.description || {}), en: e.target.value}})}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all resize-none leading-relaxed text-left"
+                        />
+                    </div>
+                </div>
+              </section>
+
               {/* Media Section */}
-              <section className="space-y-6">
+              <section className="space-y-6 pt-6 border-t border-white/5">
                 <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
                     <h3 className="text-sm font-black text-gold uppercase tracking-widest">🖼️ معرض الصور (من الديسك)</h3>
                     <div className="flex gap-4 items-center">
@@ -278,61 +348,6 @@ export default function UnitsManagement() {
                             لا توجد صور حالياً. اضغط لإضافة صور جديدة.
                         </div>
                     )}
-                </div>
-              </section>
-
-              {/* General Data Section */}
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-6">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">العنوان (بالعربية)</label>
-                        <input 
-                            type="text" 
-                            value={editingUnit.title.ar}
-                            onChange={(e) => setEditingUnit({...editingUnit, title: {...editingUnit.title, ar: e.target.value}})}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-bold"
-                        />
-                    </div>
-                    <div className="space-y-3" dir="ltr">
-                        <label className="text-[10px] font-black text-gold uppercase tracking-widest block text-left">TITLE (ENGLISH)</label>
-                        <input 
-                            type="text" 
-                            value={editingUnit.title.en}
-                            onChange={(e) => setEditingUnit({...editingUnit, title: {...editingUnit.title, en: e.target.value}})}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-bold"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">السعر لليلة (ج.م)</label>
-                        <input 
-                            type="text" 
-                            value={editingUnit.price || ''}
-                            onChange={(e) => setEditingUnit({...editingUnit, price: e.target.value})}
-                            placeholder="مثال: 1500"
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all font-black text-left"
-                        />
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-gold uppercase tracking-widest">الوصف (بالعربية)</label>
-                        <textarea 
-                            rows={4}
-                            value={editingUnit.description.ar}
-                            onChange={(e) => setEditingUnit({...editingUnit, description: {...editingUnit.description, ar: e.target.value}})}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all resize-none leading-relaxed"
-                        />
-                    </div>
-                    <div className="space-y-3" dir="ltr">
-                        <label className="text-[10px] font-black text-gold uppercase tracking-widest block text-left">DESCRIPTION (ENGLISH)</label>
-                        <textarea 
-                            rows={4}
-                            value={editingUnit.description.en}
-                            onChange={(e) => setEditingUnit({...editingUnit, description: {...editingUnit.description, en: e.target.value}})}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-gold outline-none transition-all resize-none leading-relaxed text-left"
-                        />
-                    </div>
                 </div>
               </section>
 

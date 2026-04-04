@@ -130,6 +130,19 @@ export default function UnitDetailsPage() {
                 {unit.title[language]}
              </h1>
 
+             {unit.price && (
+               <div className="flex items-center gap-4 mb-8">
+                 <div className="text-3xl font-black text-[#C1A68D]">
+                    {unit.price} <span className="text-base font-bold">/ {isRTL ? 'الليلة' : 'Night'}</span>
+                 </div>
+                 {unit.originalPrice && (
+                    <div className="text-xl text-[#9A8F82] line-through font-bold">
+                       {unit.originalPrice}
+                    </div>
+                 )}
+               </div>
+             )}
+
              <p className="text-lg text-[#5C554B] leading-loose mb-10 opacity-90">
                 {unit.description[language]}
              </p>

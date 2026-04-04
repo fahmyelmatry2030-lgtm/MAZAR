@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { getBookings, getSystemUnits } from '@/lib/data-init';
 
 export default function DashboardOverview() {
   const [stats, setStats] = useState({
@@ -15,9 +16,9 @@ export default function DashboardOverview() {
   const [todaySchedule, setTodaySchedule] = useState<{in: any[], out: any[]}>({ in: [], out: [] });
   const [apartmentMap, setApartmentMap] = useState<any[]>([]);
 
-  useEffect(() => {
-    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    const apts = JSON.parse(localStorage.getItem('apartments') || '[]');
+  const loadOverviewData = useCallback(async () => {
+    const bookings = await getBookings();
+    const apts = await getSystemUnits();
     
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -25,9 +26,8 @@ export default function DashboardOverview() {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const approved = bookings.filter((b: any) => b.status === 'approved');
+    const approved = bookings.filter((b: any) => b.status === 'مؤكد' || b.status === 'approved');
 
-    // Tomorrow's specific lists with NAMES
     setTomorrowPlans({
       in: approved.filter((b: any) => b.checkIn === tomorrowStr),
       out: approved.filter((b: any) => b.checkOut === tomorrowStr),
@@ -35,7 +35,7 @@ export default function DashboardOverview() {
 
     setStats({
       totalBookings: bookings.length,
-      pendingBookings: bookings.filter((b: any) => b.status === 'pending').length,
+      pendingBookings: bookings.filter((b: any) => ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'].includes(b.status)).length,
       approvedBookings: approved.length,
       checkInTomorrow: approved.filter((b: any) => b.checkIn === tomorrowStr).length,
       checkOutTomorrow: approved.filter((b: any) => b.checkOut === tomorrowStr).length,
@@ -51,12 +51,17 @@ export default function DashboardOverview() {
       const activeBooking = approved.find((b: any) => {
          const bIn = new Date(b.checkIn);
          const bOut = new Date(b.checkOut);
-         return b.apartmentId === apt.id && today >= bIn && today < bOut;
+         return b.unitId === apt.id && today >= bIn && today < bOut;
       });
-      return { ...apt, isOccupied: !!activeBooking, guest: activeBooking?.name };
+      return { ...apt, isOccupied: !!activeBooking || apt.status === 'مشغول', guest: activeBooking?.name };
     });
     setApartmentMap(map);
   }, []);
+
+  useEffect(() => {
+    loadOverviewData();
+  }, [loadOverviewData]);
+
 
   const kpis = [
     { label: 'إجمالي الطلبات', value: stats.totalBookings, icon: '📊', color: 'text-white' },
@@ -110,8 +115,8 @@ export default function DashboardOverview() {
                 apt.isOccupied ? 'bg-danger/5 border-danger/20' : 'bg-success/5 border-success/20'
               }`}>
                 <div className="text-[10px] font-black text-gray-400 uppercase mb-2">وحدة {apt.id}</div>
-                <div className={`text-xs font-black mb-3 ${apt.status === 'maintenance' ? 'text-gray' : apt.isOccupied ? 'text-danger' : 'text-success'}`}>
-                  {apt.status === 'maintenance' ? 'صيانة' : apt.isOccupied ? 'مشغول' : 'متاح'}
+                <div className={`text-xs font-black mb-3 ${apt.status === 'صيانة' ? 'text-gray' : apt.isOccupied ? 'text-danger' : 'text-success'}`}>
+                  {apt.status === 'صيانة' ? 'صيانة' : apt.isOccupied ? 'مشغول' : 'متاح'}
                 </div>
                 {apt.isOccupied && <div className="text-[8px] text-white/40 truncate font-bold">الضيف: {apt.guest}</div>}
               </div>
@@ -136,7 +141,7 @@ export default function DashboardOverview() {
                 <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-between group">
                    <div>
                      <div className="text-xs font-black text-white">{b.name}</div>
-                     <div className="text-[9px] text-gold mt-1">وحدة رقم {b.apartmentId}</div>
+                     <div className="text-[9px] text-gold mt-1">وحدة رقم {b.unitId}</div>
                    </div>
                    <div className="text-[10px] font-bold text-gray-500 group-hover:text-gold transition-colors">تجهيز المفتاح 🔑</div>
                 </div>
@@ -155,7 +160,7 @@ export default function DashboardOverview() {
                <h4 className="text-[10px] font-black text-success uppercase tracking-widest pl-2 border-r-2 border-success">وصول (In)</h4>
                {todaySchedule.in.map((b, i) => (
                  <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-success/10 text-success flex items-center justify-center text-xs font-black">{b.apartmentId}</div>
+                    <div className="w-8 h-8 rounded-full bg-success/10 text-success flex items-center justify-center text-xs font-black">{b.unitId || '?'}</div>
                     <div className="text-xs font-bold">{b.name}</div>
                  </div>
                ))}
@@ -165,7 +170,7 @@ export default function DashboardOverview() {
                <h4 className="text-[10px] font-black text-danger uppercase tracking-widest pl-2 border-r-2 border-danger">مغادرة (Out)</h4>
                {todaySchedule.out.map((b, i) => (
                  <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-danger/10 text-danger flex items-center justify-center text-xs font-black">{b.apartmentId}</div>
+                    <div className="w-8 h-8 rounded-full bg-danger/10 text-danger flex items-center justify-center text-xs font-black">{b.unitId || '?'}</div>
                     <div className="text-xs font-bold">{b.name}</div>
                  </div>
                ))}
@@ -179,27 +184,42 @@ export default function DashboardOverview() {
            <h3 className="font-black text-lg mb-6 flex items-center gap-2">
              <span className="text-gold">📩</span> آخر المراسلات المرسلة
            </h3>
-           <div className="space-y-4 flex-1">
-              {(typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('bookings') || '[]') : [])
-                .filter((b: any) => b.paymentInfo)
-                .slice(0, 4)
-                .map((m: any, i: number) => (
-                  <div key={i} className="p-4 bg-white/[0.02] rounded-2xl border border-white/5 hover:bg-white/[0.04] transition-all">
-                    <div className="flex justify-between items-center mb-2">
-                       <span className="text-xs font-black text-white">{m.name}</span>
-                       <span className="text-[9px] text-gray-500 font-bold">{new Date(m.id).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 line-clamp-2 italic leading-relaxed font-medium">"{m.paymentInfo}"</p>
-                  </div>
-                ))}
-              {(typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('bookings') || '[]') : []).filter((b: any) => b.paymentInfo).length === 0 && (
-                <div className="h-full flex items-center justify-center text-[10px] text-gray opacity-30 italic py-10">
-                   لم يتم إرسال أي تعليمات دفع حتى الآن.
-                </div>
-              )}
+            <div className="space-y-4 flex-1">
+              <MessagesFeed />
            </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function MessagesFeed() {
+  const [messages, setMessages] = useState<any[]>([]);
+  useEffect(() => {
+    getBookings().then(bookings => {
+      setMessages(bookings.filter((b: any) => b.paymentInfo).slice(0, 4));
+    });
+  }, []);
+
+  if (messages.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-[10px] text-gray opacity-30 italic py-10">
+         لم يتم إرسال أي تعليمات دفع متقدمة حتى الآن.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {messages.map((m: any, i: number) => (
+        <div key={i} className="p-4 bg-white/[0.02] rounded-2xl border border-white/5 hover:bg-white/[0.04] transition-all">
+          <div className="flex justify-between items-center mb-2">
+             <span className="text-xs font-black text-white">{m.name}</span>
+             <span className="text-[9px] text-gray-500 font-bold">{new Date(m.id).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
+          </div>
+          <p className="text-[10px] text-gray-400 line-clamp-2 italic leading-relaxed font-medium">"{m.paymentInfo}"</p>
+        </div>
+      ))}
+    </>
   );
 }

@@ -145,3 +145,50 @@ export async function verifyAdminAuth(username: string, pass: string) {
     return { success: false };
   }
 }
+
+export async function getDbAdmins() {
+  try {
+    const data = await fs.readFile(ADMINS_PATH, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error getting admins:', error);
+    return [];
+  }
+}
+
+export async function addDbAdmin(admin: any) {
+  try {
+    let admins = await getDbAdmins();
+    admin.id = `admin-${Date.now()}`;
+    admins.push(admin);
+    await fs.writeFile(ADMINS_PATH, JSON.stringify(admins, null, 2));
+    return { success: true, admin };
+  } catch (error) {
+    console.error('Error adding admin:', error);
+    return { success: false };
+  }
+}
+
+export async function updateDbAdmin(id: string, updates: any) {
+  try {
+    let admins = await getDbAdmins();
+    admins = admins.map((a: any) => a.id === id ? { ...a, ...updates } : a);
+    await fs.writeFile(ADMINS_PATH, JSON.stringify(admins, null, 2));
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating admin:', error);
+    return { success: false };
+  }
+}
+
+export async function deleteDbAdmin(id: string) {
+  try {
+    let admins = await getDbAdmins();
+    admins = admins.filter((a: any) => a.id !== id);
+    await fs.writeFile(ADMINS_PATH, JSON.stringify(admins, null, 2));
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting admin:', error);
+    return { success: false };
+  }
+}

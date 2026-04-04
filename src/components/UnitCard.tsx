@@ -46,8 +46,11 @@ const UnitCard: React.FC<UnitCardProps> = ({ unit }) => {
         </p>
         
         {unit.price && (
-          <div className="font-bold text-[#C1A68D] mb-4">
-            {unit.price} / الليلة
+          <div className="font-bold text-[#C1A68D] mb-4 flex items-center gap-2">
+            <span>{unit.price} / {isRTL ? 'الليلة' : 'Night'}</span>
+            {unit.originalPrice && (
+              <span className="text-sm text-[#E63946]/70 line-through font-black">{unit.originalPrice}</span>
+            )}
           </div>
         )}
         

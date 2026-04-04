@@ -12,6 +12,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [sentMessages, setSentMessages] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSent, setShowSent] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -56,11 +57,35 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     setSentMessages(sent);
   }, []);
 
+  const [adminRole, setAdminRole] = useState('Super Admin');
+  const [adminName, setAdminName] = useState('مدير النظام');
+
   useEffect(() => {
     const auth = sessionStorage.getItem('isAdmin');
+    const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
+    if (info?.role) setAdminRole(info.role);
+    if (info?.name) setAdminName(info.name);
+
     if (!auth && pathname !== '/admin/login') {
       router.push('/admin/login');
-    } else {
+    } else if (auth) {
+      // Role Guard Logic
+      const isBookingsAdmin = info?.role === 'مدير الحجوزات';
+      const isUnitsAdmin = info?.role === 'مدير الوحدات';
+      
+      const restrictedForBookings = ['/admin/dashboard/units', '/admin/dashboard/reports', '/admin/dashboard/admins'];
+      const restrictedForUnits = ['/admin/dashboard/bookings', '/admin/dashboard/reports', '/admin/dashboard/admins'];
+      
+      if (isBookingsAdmin && restrictedForBookings.includes(pathname)) {
+         router.push('/admin/dashboard/bookings');
+         return;
+      }
+      
+      if (isUnitsAdmin && restrictedForUnits.includes(pathname)) {
+         router.push('/admin/dashboard/units');
+         return;
+      }
+
       setIsAuthorized(true);
       loadData();
       
@@ -74,11 +99,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   if (pathname === '/admin/login') return <>{children}</>;
 
   const menuItems = [
-    { name: 'الاستعراض العام', href: '/admin/dashboard', icon: '📊' },
-    { name: 'طلبات الحجز', href: '/admin/dashboard/bookings', icon: '📩' },
-    { name: 'إدارة الوحدات', href: '/admin/dashboard/units', icon: '🏢' },
-    { name: 'التقارير المالي', href: '/admin/dashboard/reports', icon: '💰' },
-  ];
+    { name: 'الاستعراض العام', href: '/admin/dashboard', icon: '📊', roles: ['Super Admin', 'مدير الحجوزات', 'مدير الوحدات'] },
+    { name: 'طلبات الحجز', href: '/admin/dashboard/bookings', icon: '📩', roles: ['Super Admin', 'مدير الحجوزات'] },
+    { name: 'إدارة الوحدات', href: '/admin/dashboard/units', icon: '🏢', roles: ['Super Admin', 'مدير الوحدات'] },
+    { name: 'التقارير المالي', href: '/admin/dashboard/reports', icon: '💰', roles: ['Super Admin'] },
+    { name: 'فريق الإدارة', href: '/admin/dashboard/admins', icon: '👥', roles: ['Super Admin'] },
+  ].filter(item => item.roles.includes(adminRole as string));
 
   return (
     <div className="min-h-screen bg-[#060b18] flex flex-col md:flex-row custom-scrollbar">
@@ -186,12 +212,47 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           </div>
 
           <div className="h-10 w-px bg-white/10 mx-2" />
-          <div className="flex items-center gap-3">
-             <div className="text-right">
-               <div className="text-xs font-black text-white">مدير النظام</div>
-               <div className="text-[10px] text-gold uppercase tracking-tighter">Luxury Admin</div>
-             </div>
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-navy font-black">A</div>
+          <div className="relative">
+             <button 
+                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); setShowSent(false); }}
+                 className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-2xl transition-all outline-none"
+             >
+                <div className="text-right hidden sm:block">
+                  <div className="text-xs font-black text-white">{adminName}</div>
+                  <div className="text-[10px] text-gold uppercase tracking-tighter">{adminRole}</div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-navy font-black shadow-lg shadow-gold/20">
+                   {adminName.substring(0, 1).toUpperCase()}
+                </div>
+             </button>
+
+             {showProfile && (
+               <div className="absolute top-16 left-0 w-56 bg-[#1e293b] border border-gold/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+                  <div className="p-4 border-b border-white/5 bg-black/20 text-center sm:hidden">
+                      <div className="text-xs font-black text-white">{adminName}</div>
+                      <div className="text-[10px] text-gold uppercase">{adminRole}</div>
+                  </div>
+                  {adminRole === 'Super Admin' && (
+                    <Link 
+                      href="/admin/dashboard/admins" 
+                      onClick={() => setShowProfile(false)}
+                      className="block px-5 py-3.5 text-xs font-bold text-white hover:bg-white/5 hover:text-gold transition-colors text-right border-b border-white/5"
+                    >
+                      إدارة الصلاحيات (Admin Roles) ⚙️
+                    </Link>
+                  )}
+                  <button 
+                    onClick={() => {
+                      sessionStorage.removeItem('isAdmin');
+                      sessionStorage.removeItem('adminInfo');
+                      router.push('/admin/login');
+                    }}
+                    className="w-full text-right px-5 py-3.5 text-xs font-bold text-danger hover:bg-danger/10 transition-colors outline-none"
+                  >
+                    تسجيل الخروج 🚪
+                  </button>
+               </div>
+             )}
           </div>
         </header>
 

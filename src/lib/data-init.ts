@@ -28,7 +28,16 @@ export const getSystemUnits = async () => {
   // Try server-side first
   try {
     const dbUnits = await getDbUnits();
-    if (dbUnits && dbUnits.length > 0) return dbUnits;
+    if (dbUnits && dbUnits.length > 0) {
+      // Merge static UI data with dynamic DB data to prevent missing media properties
+      return dbUnits.map((dbUnit: any) => {
+        const baseUnit = staticUnits.find(u => u.id === dbUnit.id) || {};
+        return {
+          ...baseUnit,
+          ...dbUnit
+        };
+      });
+    }
   } catch (e) {
     console.warn('DB Fetch failed, falling back to static');
   }
@@ -55,5 +64,6 @@ export const updateBookingStatus = async (id: string, updates: any) => {
 };
 
 export const getStudios = async () => {
-  return await getDbUnits();
+  const units = await getSystemUnits();
+  return units.filter((u: any) => u.type === 'studio');
 };
