@@ -26,9 +26,11 @@ export default function MazarAdminDashboard() {
   // Initialize and Sync Data
   useEffect(() => {
     initializeData();
-    const loadData = () => {
-      setBookings(getBookings());
-      setStudiosData(getSystemUnits());
+    const loadData = async () => {
+      const bData = await getBookings();
+      const sData = await getSystemUnits();
+      setBookings(bData);
+      setStudiosData(sData);
     };
     loadData();
     window.addEventListener('storage', loadData);
@@ -80,9 +82,10 @@ export default function MazarAdminDashboard() {
     window.open(url, '_blank');
   };
 
-  const handleApprove = (id: string, studioType: string, finalPrice: string) => {
-    updateBookingStatus(id, { status: 'مؤكد', studio: studioType, amount: finalPrice });
-    setBookings(getBookings());
+  const handleApprove = async (id: string, studioType: string, finalPrice: string) => {
+    await updateBookingStatus(id, { status: 'مؤكد', studio: studioType, amount: finalPrice });
+    const bData = await getBookings();
+    setBookings(bData);
     
     if (selectedBooking) {
       const msg = `مرحباً ${selectedBooking.guest} 👋\n\nنُسعدنا ببشارتك بأنه تم الموافقة المبدئية على حجزك في *مزار للاستوديوهات الفندقية* 🏨\n\n📋 *تفاصيل حجزك:*\n• الوحدة: ${studioType}\n• الفترة: ${selectedBooking.dates}\n• المبلغ الإجمالي: *${finalPrice}*\n\n💳 *لتأكيد الحجز النهائي:*\nيرجى تحويل المبلغ عبر:\n• انستاباي: mazar@instapay\n• فودافون كاش: 01000000000\n\nبعد التحويل أرسل صورة الإيصال لتفعيل حجزك فورًا ✅\n\n_مزار - تجربة إقامة مختلفة_`;
@@ -92,9 +95,10 @@ export default function MazarAdminDashboard() {
     setSelectedBooking(null);
   };
 
-  const handleReject = (id: string) => {
-    updateBookingStatus(id, { status: 'مرفوض' });
-    setBookings(getBookings());
+  const handleReject = async (id: string) => {
+    await updateBookingStatus(id, { status: 'مرفوض' });
+    const bData = await getBookings();
+    setBookings(bData);
     
     if (selectedBooking) {
       const msg = `مرحباً ${selectedBooking.guest} 👋\n\nنأسف لإبلاغك أنه لم يتمكن النظام من تأكيد طلب حجزك للفترة ${selectedBooking.dates} في الوقت الحالي.\n\nيمكنك اختيار تواريخ أخرى أو التواصل معنا مباشرة لمساعدتك في إيجاد بديل مناسب.\n\n_فريق مزار_ 🏨`;
