@@ -1,6 +1,7 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getBookings, getSystemUnits, updateBookingStatus, updateUnitDetails, initializeData } from '@/lib/data-init';
 
 export default function MazarAdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -9,6 +10,12 @@ export default function MazarAdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showDailyBrief, setShowDailyBrief] = useState(true);
 
+  // Persistence States
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [studiosData, setStudiosData] = useState<any[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [editingStudio, setEditingStudio] = useState<any>(null);
+
   // Role Permissions
   const rolePermissions: Record<string, string[]> = {
     admin: ['overview', 'bookings', 'studios', 'users', 'reports'],
@@ -16,52 +23,41 @@ export default function MazarAdminDashboard() {
     housekeeping: ['studios'],
   };
 
+  // Initialize and Sync Data
+  useEffect(() => {
+    initializeData();
+    const loadData = () => {
+      setBookings(getBookings());
+      setStudiosData(getSystemUnits());
+    };
+    loadData();
+    window.addEventListener('storage', loadData);
+    return () => window.removeEventListener('storage', loadData);
+  }, []);
+
   const handleRoleChange = (role: string) => {
     setCurrentRole(role);
-    // Auto-switch tab if current tab is not allowed
     if (!rolePermissions[role].includes(activeTab)) {
       setActiveTab(rolePermissions[role][0]);
     }
-    // Security alert for Admin
     if (role === 'admin') {
       setShowSecurityAlert(true);
       setTimeout(() => setShowSecurityAlert(false), 5000);
     }
   };
 
-  // Stateful Data
-  const [bookings, setBookings] = useState([
-    { id: '#B-1046', guest: 'طارق عبد الله', phone: '+201012345678', studio: 'غير محدد (طلب توفر)', dates: '20 - 22 مارس', status: 'رد جديد', amount: '---' },
-    { id: '#B-1042', guest: 'أحمد محمود', phone: '+201000000000', studio: 'ستوديو A (ديلوكس)', dates: '12 - 15 مارس', status: 'مؤكد', amount: '4,500 ج.م' },
-    { id: '#B-1043', guest: 'سارة خالد', phone: '+201111111111', studio: 'ستوديو B (ستاندرد)', dates: '14 - 18 مارس', status: 'مؤكد', amount: '3,200 ج.م' },
-    { id: '#B-1044', guest: 'محمد علي', phone: '+201222222222', studio: 'ستوديو C (بريميوم)', dates: '10 - 12 مارس', status: 'مكتمل', amount: '6,000 ج.م' },
-  ]);
+  // Derived Data
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const tomorrowArrivals = bookings.filter(b => b.checkIn === tomorrowStr && b.status === 'مؤكد');
+  const tomorrowDepartures = bookings.filter(b => b.checkOut === tomorrowStr && b.status === 'مؤكد');
 
-  const tomorrowArrivals = [
-    { name: 'ياسين منصور', studio: '101 (ديلوكس)', time: '02:00 م' },
-    { name: 'هدى كريم', studio: '104 (بريميوم)', time: '04:00 م' },
-  ];
-
-  const tomorrowDepartures = [
-    { name: 'خالد صبري', studio: '102 (ستاندرد)', time: '12:00 م' },
-  ];
-
-  const activityLogs = [
-    { id: 1, type: 'booking', text: 'تم استلام طلب حجز جديد من (طارق عبد الله)', time: 'منذ 10 دقائق', icon: '📩' },
-    { id: 2, type: 'payment', text: 'تم تأكيد استلام تحويل من (أحمد محمود) بقيمة 4,500 ج.م', time: 'منذ ساعة', icon: '💰' },
-    { id: 3, type: 'cleanup', text: 'انتهت عملية تنظيف ستوديو 101 بنجاح', time: 'منذ ساعتين', icon: '🧹' },
-    { id: 4, type: 'system', text: 'تم إرسال تذكير الدخول (Check-in) التقائي لضيف الغد (ياسين منصور)', time: 'منذ 5 ساعات', icon: '🤖' },
-  ];
-
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
-
-  const studiosData = [
-    { id: '101', type: 'ديلوكس', status: 'متاح', housekeeping: 'نظيف', nextBooking: 'غداً' },
-    { id: '102', type: 'ستاندرد', status: 'مشغول', housekeeping: 'تتم النظافة (يومي)', nextBooking: '20 مارس' },
-    { id: '103', type: 'بريميوم', status: 'صيانة', housekeeping: 'غير متاح', nextBooking: '25 مارس' },
-    { id: '104', type: 'ديلوكس', status: 'متاح', housekeeping: 'بحاجة للنظافة', nextBooking: 'اليوم' },
-    { id: '105', type: 'ستاندرد', status: 'مشغول', housekeeping: 'نظيف', nextBooking: '18 مارس' },
-  ];
+  const activityLogs = bookings.slice(0, 5).map(b => ({
+    id: b.id,
+    type: 'booking',
+    text: `طلب حجز جديد من (${b.guest})`,
+    time: new Date(b.timestamp).toLocaleTimeString('ar-EG'),
+    icon: '📩'
+  }));
 
   const usersData = [
     { name: 'مدير النظام', role: 'Super Admin', email: 'admin@mazar.com', lastActive: 'الآن' },
@@ -69,17 +65,42 @@ export default function MazarAdminDashboard() {
     { name: 'مسؤول النظافة', role: 'Housekeeping', email: 'cleaning@mazar.com', lastActive: 'منذ 5 ساعات' },
   ];
 
+  // ===== WHATSAPP ADMIN NUMBER (change this to the real admin number) =====
+  const ADMIN_WHATSAPP = '201000000000'; // رقم واتساب المدير (بدون +)
+
+  const sendWhatsAppToClient = (phone: string, message: string) => {
+    // Clean phone number
+    const cleanPhone = phone.replace(/[\s+\-()]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const sendWhatsAppToAdmin = (message: string) => {
+    const url = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
   const handleApprove = (id: string, studioType: string, finalPrice: string) => {
-    setBookings(prev => prev.map(b => 
-      b.id === id ? { ...b, status: 'بانتظار التحويل', studio: studioType, amount: finalPrice } : b
-    ));
+    updateBookingStatus(id, { status: 'مؤكد', studio: studioType, amount: finalPrice });
+    setBookings(getBookings());
+    
+    if (selectedBooking) {
+      const msg = `مرحباً ${selectedBooking.guest} 👋\n\nنُسعدنا ببشارتك بأنه تم الموافقة المبدئية على حجزك في *مزار للاستوديوهات الفندقية* 🏨\n\n📋 *تفاصيل حجزك:*\n• الوحدة: ${studioType}\n• الفترة: ${selectedBooking.dates}\n• المبلغ الإجمالي: *${finalPrice}*\n\n💳 *لتأكيد الحجز النهائي:*\nيرجى تحويل المبلغ عبر:\n• انستاباي: mazar@instapay\n• فودافون كاش: 01000000000\n\nبعد التحويل أرسل صورة الإيصال لتفعيل حجزك فورًا ✅\n\n_مزار - تجربة إقامة مختلفة_`;
+      sendWhatsAppToClient(selectedBooking.phone, msg);
+    }
+    
     setSelectedBooking(null);
   };
 
   const handleReject = (id: string) => {
-    setBookings(prev => prev.map(b => 
-      b.id === id ? { ...b, status: 'مرفوض' } : b
-    ));
+    updateBookingStatus(id, { status: 'مرفوض' });
+    setBookings(getBookings());
+    
+    if (selectedBooking) {
+      const msg = `مرحباً ${selectedBooking.guest} 👋\n\nنأسف لإبلاغك أنه لم يتمكن النظام من تأكيد طلب حجزك للفترة ${selectedBooking.dates} في الوقت الحالي.\n\nيمكنك اختيار تواريخ أخرى أو التواصل معنا مباشرة لمساعدتك في إيجاد بديل مناسب.\n\n_فريق مزار_ 🏨`;
+      sendWhatsAppToClient(selectedBooking.phone, msg);
+    }
+    
     setSelectedBooking(null);
   };
 
@@ -492,15 +513,74 @@ export default function MazarAdminDashboard() {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 mt-auto">
-                       <button className="bg-[#EAE4D9] hover:bg-[#B5A898] hover:text-white transition-colors py-2 rounded-lg text-xs font-bold text-[#5C554B]">
-                          طلب نظافة
+                       <button onClick={() => setEditingStudio(s)} className="bg-[#EAE4D9] hover:bg-[#B5A898] hover:text-white transition-colors py-2 rounded-lg text-xs font-bold text-[#5C554B]">
+                          تعديل البيانات
                        </button>
                        <button className="bg-[#5C554B] hover:bg-[#2A2723] transition-colors py-2 rounded-lg text-xs font-bold text-white">
-                          إغلاق الوحدة
+                          تغيير الحالة
                        </button>
                     </div>
                  </div>
                ))}
+            </div>
+          )}
+
+          {/* EDIT STUDIO MODAL */}
+          {editingStudio && (
+            <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/80 backdrop-blur-sm flex items-center justify-center p-6 z-[100] animate-in fade-in">
+               <div className="bg-white rounded-3xl p-8 border border-[#EAE4D9] shadow-2xl w-full max-w-xl relative max-h-[90vh] overflow-y-auto">
+                  <button onClick={() => setEditingStudio(null)} className="absolute top-6 left-6 text-[#5C554B] hover:text-red-500 font-bold">✕</button>
+                  
+                  <h2 className="text-2xl font-bold text-[#2A2723] mb-6 border-b border-[#EAE4D9] pb-4">تعديل بيانات {editingStudio.title?.ar || editingStudio.id}</h2>
+                  
+                  <div className="space-y-4">
+                     <div className="flex flex-col gap-2">
+                        <label className="text-sm font-bold text-[#5C554B]">اسم الوحدة (عربي)</label>
+                        <input id="edit-title-ar" type="text" defaultValue={editingStudio.title?.ar} className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#B5A898] outline-none" />
+                     </div>
+                     <div className="flex flex-col gap-2">
+                        <label className="text-sm font-bold text-[#5C554B]">وصف الوحدة (عربي)</label>
+                        <textarea id="edit-desc-ar" defaultValue={editingStudio.description?.ar} rows={3} className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#B5A898] outline-none" />
+                     </div>
+                     <div className="flex flex-col gap-2">
+                        <label className="text-sm font-bold text-[#5C554B]">حالة الوحدة</label>
+                        <select id="edit-status" defaultValue={editingStudio.status} className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#B5A898] outline-none">
+                           <option value="متاح">متاح (Available)</option>
+                           <option value="مشغول">مشغول (Booked)</option>
+                           <option value="صيانة">صيانة (Maintenance)</option>
+                        </select>
+                     </div>
+                     <div className="flex flex-col gap-2">
+                        <label className="text-sm font-bold text-[#5C554B]">السعر أو ملاحظات أخرى</label>
+                        <input id="edit-price" type="text" defaultValue={editingStudio.price || ''} placeholder="مثال: 3000 ج.م" className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#B5A898] outline-none" />
+                     </div>
+                  </div>
+
+                  <div className="flex justify-end gap-4 mt-8 pt-4 border-t border-[#EAE4D9]">
+                     <button onClick={() => setEditingStudio(null)} className="px-6 py-2 rounded-lg text-[#5C554B] font-bold hover:bg-[#F7F5F0] transition-colors">إلغاء</button>
+                     <button 
+                        onClick={() => {
+                           const newTitleAr = (document.getElementById('edit-title-ar') as HTMLInputElement).value;
+                           const newDescAr = (document.getElementById('edit-desc-ar') as HTMLTextAreaElement).value;
+                           const newStatus = (document.getElementById('edit-status') as HTMLSelectElement).value;
+                           const newPrice = (document.getElementById('edit-price') as HTMLInputElement).value;
+                           
+                           updateUnitDetails(editingStudio.id, {
+                              title: { ...editingStudio.title, ar: newTitleAr },
+                              description: { ...editingStudio.description, ar: newDescAr },
+                              status: newStatus,
+                              price: newPrice
+                           });
+                           
+                           setStudiosData(getSystemUnits());
+                           setEditingStudio(null);
+                        }} 
+                        className="bg-[#2A2723] text-white px-8 py-2 rounded-lg font-bold shadow-md hover:bg-[#3E3A35] transition-colors"
+                     >
+                        حفظ التعديلات
+                     </button>
+                  </div>
+               </div>
             </div>
           )}
 

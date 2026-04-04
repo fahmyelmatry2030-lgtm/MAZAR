@@ -1,18 +1,23 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Logo from '@/components/Logo';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
-import { units } from '@/lib/data';
+import { getSystemUnits } from '@/lib/data-init';
 import UnitCard from '@/components/UnitCard';
 
 export default function ApartmentsListingPage() {
   const { t, isRTL } = useLanguage();
   const router = useRouter();
 
-  const luxuryApartments = units.filter(u => u.type === 'apartment');
+  const [luxuryApartments, setLuxuryApartments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const allUnits = getSystemUnits();
+    setLuxuryApartments(allUnits.filter((u:any) => u.type === 'apartment'));
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] selection:bg-[#C1A68D] selection:text-white">
@@ -52,7 +57,7 @@ export default function ApartmentsListingPage() {
 
         {/* Units Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {luxuryApartments.map(unit => (
+          {luxuryApartments.map((unit: any) => (
             <UnitCard key={unit.id} unit={unit} />
           ))}
         </div>

@@ -1,11 +1,11 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import Logo from '@/components/Logo';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
-import { units } from '@/lib/data';
+import { getSystemUnits, getStudios } from '@/lib/data-init';
 
 export default function UnitDetailsPage() {
   const { t, isRTL, language } = useLanguage();
@@ -13,8 +13,25 @@ export default function UnitDetailsPage() {
   const router = useRouter();
   const id = params.id as string;
 
-  const unit = units.find(u => u.id === id);
-  const [activeImage, setActiveImage] = useState(unit ? unit.images[0] : '');
+  const [unit, setUnit] = useState<any>(null);
+  const [activeImage, setActiveImage] = useState<string>('');
+  const [status, setStatus] = useState<string>('متاح');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const allUnits = getSystemUnits();
+    const foundUnit = allUnits.find((u: any) => u.id === id);
+    if (foundUnit) {
+      setUnit(foundUnit);
+      setActiveImage(foundUnit.video || foundUnit.images[0]);
+      setStatus(foundUnit.status || 'متاح');
+    }
+    setIsLoading(false);
+  }, [id]);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">Loading...</div>;
+  }
 
   if (!unit) {
     return (
@@ -30,11 +47,7 @@ export default function UnitDetailsPage() {
     );
   }
 
-  const whatsappMessage = encodeURIComponent(
-    isRTL 
-      ? `مرحباً مزار، أريد الاستفسار عن حجز ${unit.title.ar} (معرف: ${unit.id})`
-      : `Hello Mazar, I would like to inquire about booking ${unit.title.en} (ID: ${unit.id})`
-  );
+
 
   return (
     <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] selection:bg-[#C1A68D] selection:text-white">
@@ -64,33 +77,50 @@ export default function UnitDetailsPage() {
           
           {/* Left: Gallery Section */}
           <div className="space-y-6">
-             <div className="relative aspect-[4/3] rounded-[40px] overflow-hidden border border-[#EAE4D9] shadow-xl group">
-                <img 
-                  src={activeImage} 
-                  alt={unit.title[language]} 
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-             </div>
-             
-             {/* Thumbnail Grid (5 images) */}
-             <div className="grid grid-cols-5 gap-3">
-                {unit.images.map((img, i) => (
-                   <button 
-                     key={i} 
-                     onClick={() => setActiveImage(img)}
-                     className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-[#C1A68D] scale-95 shadow-lg' : 'border-[#EAE4D9] hover:border-[#C1A68D]/40'}`}
-                   >
-                      <img src={img} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
-                   </button>
-                ))}
-             </div>
+            {/* Main Image View */}
+            <div className="relative h-[400px] md:h-[500px] rounded-[32px] overflow-hidden shadow-sm mb-6 group bg-black flex items-center justify-center">
+               {activeImage.endsWith('.mp4') ? (
+                 <video src={activeImage} controls autoPlay muted className="w-full h-full object-contain" />
+               ) : (
+                 <img src={activeImage} alt={unit.title[language]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+               )}
+               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
+               <div className={`absolute bottom-6 ${isRTL ? 'right-6' : 'left-6'} text-white`}>
+                  <div className="text-sm font-bold bg-[#E63946] px-3 py-1 rounded-full inline-block mb-2 shadow-sm">{unit.type === 'studio' ? (isRTL ? 'استوديو' : 'Studio') : (isRTL ? 'شقة فندقية' : 'Hotel Apartment')}</div>
+               </div>
+            </div>
+            
+            {/* Thumbnail Grid (Media) */}
+            <div className="grid grid-cols-6 gap-3">
+               {unit.video && (
+                  <button 
+                    onClick={() => setActiveImage(unit.video)}
+                    className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all bg-black flex items-center justify-center ${activeImage === unit.video ? 'border-[#C1A68D] scale-95 shadow-lg' : 'border-[#EAE4D9] hover:border-[#C1A68D]/40'}`}
+                  >
+                     <span className="text-white text-2xl">▶</span>
+                  </button>
+               )}
+               {unit.images.slice(0, 5).map((img: string, i: number) => (
+                  <button 
+                    key={i} 
+                    onClick={() => setActiveImage(img)}
+                    className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-[#C1A68D] scale-95 shadow-lg' : 'border-[#EAE4D9] hover:border-[#C1A68D]/40'}`}
+                  >
+                     <img src={img} alt={`Thumb ${i}`} className="w-full h-full object-cover" />
+                  </button>
+               ))}
+            </div>
           </div>
 
           {/* Right: Info Section */}
           <div className={`flex flex-col ${isRTL ? 'text-right' : 'text-left'}`}>
-             <div className="inline-block bg-[#F7F5F0] border border-[#C1A68D]/30 px-3 py-1 rounded-lg text-[10px] font-bold text-[#C1A68D] mb-4 uppercase tracking-widest">
-                {unit.type}
+             <div className="flex items-center gap-3 mb-4">
+                <div className="inline-block bg-[#F7F5F0] border border-[#C1A68D]/30 px-3 py-1 rounded-lg text-[10px] font-bold text-[#C1A68D] uppercase tracking-widest">
+                   {unit.type}
+                </div>
+                <div className={`inline-block px-3 py-1 rounded-lg text-white text-[10px] font-bold tracking-widest shadow-md ${status === 'متاح' ? 'bg-green-500' : status === 'مشغول' ? 'bg-blue-500' : 'bg-red-500'}`}>
+                   {status}
+                </div>
              </div>
              
              <h1 className="text-4xl md:text-5xl font-black text-[#2A2723] mb-6 leading-tight">
@@ -107,7 +137,7 @@ export default function UnitDetailsPage() {
                    {t.unitsPage.unitFeatures}
                 </h3>
                 <div className="grid grid-cols-2 gap-y-4 gap-x-2">
-                   {unit.features[language].map((feat, i) => (
+                   {unit.features[language].map((feat: string, i: number) => (
                       <div key={i} className="flex items-center gap-3 text-sm text-[#4A3F2F] font-bold">
                          <span className="text-green-500">✓</span>
                          {feat}
@@ -116,15 +146,13 @@ export default function UnitDetailsPage() {
                 </div>
              </div>
 
-             <a 
-               href={`https://wa.me/201234567890?text=${whatsappMessage}`} 
-               target="_blank"
-               rel="noopener noreferrer"
+             <Link 
+               href={`/mazar/book?unit=${unit.id}`} 
                className="w-full bg-[#E63946] text-white text-lg font-black py-5 rounded-3xl text-center hover:bg-[#c1121f] transition-all shadow-2xl shadow-red-500/30 active:scale-95 transform flex items-center justify-center gap-4"
              >
-                <span className="text-2xl">📱</span>
+                <span className="text-2xl">🗓️</span>
                 {t.unitsPage.bookThisUnit}
-             </a>
+             </Link>
 
              <div className="mt-8 flex items-center gap-4 justify-center">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#9A8F82] uppercase tracking-[0.2em]">
@@ -145,7 +173,7 @@ export default function UnitDetailsPage() {
         <section className="mt-24 pt-20 border-t border-[#EAE4D9]">
            <h2 className="text-2xl font-black text-[#2A2723] mb-10">{t.unitsPage.gallery}</h2>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {unit.images.slice(1).map((img, i) => (
+              {unit.images.slice(1).map((img: string, i: number) => (
                  <div key={i} className={`rounded-3xl overflow-hidden border border-[#EAE4D9] ${i === 0 ? 'md:col-span-2' : ''}`}>
                     <img src={img} alt={`Detail ${i}`} className="w-full h-80 object-cover" />
                  </div>

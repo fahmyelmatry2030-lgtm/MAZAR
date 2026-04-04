@@ -1,13 +1,29 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
 import { units } from '@/lib/data';
+import { getStudios } from '@/lib/data-init';
 
 export default function UnitsListingPage() {
   const { t, isRTL, language } = useLanguage();
+  
+  const [counts, setCounts] = useState({ branch1: 12, branch2: 12, apts: 3 });
+
+  useEffect(() => {
+    const studios = getStudios();
+    // Assuming studios array matches the units array order exactly as initialized
+    const availableStudios = studios.filter((s:any) => s.status === 'متاح');
+    
+    // Simulate mapping by type (in reality, you'd match unit IDs to branches)
+    const availableBranch1 = units.filter(u => u.branch === 1 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+    const availableBranch2 = units.filter(u => u.branch === 2 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+    const availableApts = units.filter(u => u.type === 'apartment' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+    
+    setCounts({ branch1: availableBranch1, branch2: availableBranch2, apts: availableApts });
+  }, []);
 
   const categories = [
     {
@@ -16,7 +32,7 @@ export default function UnitsListingPage() {
       subtitle: isRTL ? '١٢ استوديو فاخر' : '12 Premium Studios',
       image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267',
       link: '/mazar/units/branch/1',
-      count: 12
+      count: counts.branch1
     },
     {
       id: 'branch-2',
@@ -24,7 +40,7 @@ export default function UnitsListingPage() {
       subtitle: isRTL ? '١٢ استوديو فاخر' : '12 Premium Studios',
       image: 'https://images.unsplash.com/photo-1554995207-c18c20360a59',
       link: '/mazar/units/branch/2',
-      count: 12
+      count: counts.branch2
     },
     {
       id: 'apartments',
@@ -32,7 +48,7 @@ export default function UnitsListingPage() {
       subtitle: isRTL ? '٣ شقق فندقية واسعة' : '3 Spacious Apartments',
       image: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb',
       link: '/mazar/units/apartments',
-      count: 3
+      count: counts.apts
     }
   ];
 

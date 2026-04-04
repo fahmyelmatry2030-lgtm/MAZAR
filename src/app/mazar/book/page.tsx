@@ -1,15 +1,14 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
+import { saveBooking, initializeData, getSystemUnits, getBookings } from '@/lib/data-init';
 
 export default function BookingPage() {
-  const { t, isRTL } = useLanguage();
-  const TOTAL_STUDIOS = 10;
-  
-  // Basic states for the form
+  const { t, isRTL, language } = useLanguage();
+
   const [step, setStep] = useState(1);
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
@@ -17,335 +16,343 @@ export default function BookingPage() {
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [selectedUnitId, setSelectedUnitId] = useState('');
+  const [availableUnits, setAvailableUnits] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(3);
 
-  // Simulated backend logic
-  const [bookedStudios, setBookedStudios] = useState(0);
+  const ADMIN_WHATSAPP = '201153705134';
 
-   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-   const [selectedStudio, setSelectedStudio] = useState(1);
-   const [availableStudioNumbers, setAvailableStudioNumbers] = useState<number[]>([]);
+  useEffect(() => {
+    const init = async () => {
+        await initializeData();
+        const params = new URLSearchParams(window.location.search);
+        const unitParam = params.get('unit');
+        if (unitParam) {
+          setSelectedUnitId(unitParam);
+        }
+    };
+    init();
+  }, []);
 
-  // Handle date selection
-   const handleDateSelection = (e: React.FormEvent) => {
+  const openWhatsAppAdmin = useCallback(() => {
+    const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
+    const adminMsg = `🔔 *طلب حجز جديد من الموقع!*\n\n👤 *العميل:* ${name}\n📱 *الموبايل:* ${phone}\n🏠 *الوحدة:* ${selectedUnit ? selectedUnit.title['ar'] : selectedUnitId}\n📅 *الفترة:* ${checkIn} إلى ${checkOut}\n\nيرجى تأكيد الحجز معي.`;
+    const waUrl = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(adminMsg)}`;
+    window.open(waUrl, '_blank');
+  }, [availableUnits, checkIn, checkOut, name, phone, selectedUnitId]);
+
+  useEffect(() => {
+    if (isSuccess && redirectCountdown > 0) {
+      const timer = setTimeout(() => setRedirectCountdown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (isSuccess && redirectCountdown === 0) {
+      openWhatsAppAdmin();
+    }
+  }, [isSuccess, redirectCountdown, openWhatsAppAdmin]);
+
+  const isDateOverlap = (start1: string, end1: string, start2: string, end2: string) => {
+    return (start1 < end2 && end1 > start2);
+  };
+
+  const handleDateSelection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkIn || !checkOut) return;
     
-    // Simulate picking 8 specific available studios out of 10
-    const all = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    const shuffled = all.sort(() => 0.5 - Math.random());
-    const picked = shuffled.slice(0, 8).sort((a,b) => a-b);
-    
-    setAvailableStudioNumbers(picked);
-    setSelectedStudio(picked[0]);
-    setBookedStudios(2); // 10 - 8 = 2 booked
-    setStep(2);
+    setIsLoading(true);
+    try {
+        const allUnits = await getSystemUnits();
+        const allBookings = await getBookings();
+        
+        const activeUnitsByStatus = allUnits.filter((u: any) => u.status === 'متاح' || !u.status);
+        const available = activeUnitsByStatus.filter((unit: any) => {
+            const unitBookings = allBookings.filter((b: any) => 
+                b.apartmentId === unit.id && b.status !== 'cancelled' && b.status !== 'deleted'
+            );
+            const hasOverlap = unitBookings.some((b: any) => 
+                isDateOverlap(checkIn, checkOut, b.checkIn, b.checkOut)
+            );
+            return !hasOverlap;
+        });
+
+        setAvailableUnits(available);
+        if (available.length > 0) {
+            const currentSTillAvailable = available.find(u => u.id === selectedUnitId);
+            if (!currentSTillAvailable) setSelectedUnitId(available[0].id);
+        } else {
+            setSelectedUnitId('');
+        }
+        setStep(2);
+    } catch (err) {
+        console.error('Availability check failed:', err);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleSubmitBooking = (e: React.FormEvent) => {
+  const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
-    
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 1500);
+    const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
+    const bookingData = {
+      name,
+      phone,
+      checkIn,
+      checkOut,
+      apartmentId: selectedUnitId,
+      dates: `${checkIn} - ${checkOut}`,
+      guest: name,
+      studio: selectedUnit ? selectedUnit.title[language] : selectedUnitId,
+    };
+
+    try {
+        await saveBooking(bookingData);
+        setIsSubmitting(false);
+        setIsSuccess(true);
+    } catch (err) {
+        console.error(err);
+        setIsSubmitting(false);
+        alert('حدث خطأ أثناء حفظ الطلب.');
+    }
   };
 
-  const availableStudios = TOTAL_STUDIOS - bookedStudios;
+  const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
+
+  // Grouped Available Units
+  const mazar1Units = availableUnits.filter(u => u.branch === 1 && u.type === 'studio');
+  const mazar2Units = availableUnits.filter(u => u.branch === 2 && u.type === 'studio');
+  const familyApartments = availableUnits.filter(u => u.type === 'apartment');
 
   if (isSuccess) {
     return (
-      <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] flex flex-col justify-center items-center p-6">
-        <div className="bg-white p-12 rounded-3xl border border-[#EAE4D9] shadow-xl text-center max-w-lg w-full">
-           <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
+      <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] flex flex-col justify-center items-center p-6 animate-fade-in font-sans">
+        <div className="bg-white p-12 md:p-16 rounded-[60px] border border-[#EAE4D9] shadow-2xl text-center max-w-2xl w-full relative overflow-hidden">
+           <div className="absolute top-0 left-0 h-1.5 bg-[#25D366] transition-all duration-1000 ease-linear" style={{ width: `${(3 - redirectCountdown) * 33.33}%` }} />
+           
+           <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center text-5xl mx-auto mb-8 border border-green-100 shadow-sm animate-bounce">
               ✓
            </div>
-           <h2 className="text-3xl font-bold text-[#2A2723] mb-4">{t.bookingPage.successTitle}</h2>
-           <div className="bg-[#F7F5F0] py-3 px-6 rounded-2xl mb-6 border border-[#EAE4D9] inline-block">
-              <span className="text-sm font-bold text-[#5C554B]">{t.bookingPage.selectedStudio}: </span>
-              <span className="text-xl font-bold text-[#C1A68D]">{isRTL ? 'رقم' : '#'} {selectedStudio}</span>
+           
+           <h2 className="text-4xl md:text-5xl font-black text-[#2A2723] mb-6 tracking-tighter">
+             {isRTL ? 'تهانينا، تم استلام طلبك!' : 'Congratulations, request received!'}
+           </h2>
+           
+           <div className="bg-[#F7F5F0] py-8 px-10 rounded-[40px] mb-8 border border-[#EAE4D9]">
+              <p className="text-[11px] font-black text-[#C1A68D] uppercase tracking-widest mb-2">{isRTL ? 'الوحدة المختارة' : 'Selected Unit'}</p>
+              <p className="text-3xl font-black text-[#2A2723] mb-1">{selectedUnit ? selectedUnit.title[language] : selectedUnitId}</p>
+              <div className="flex justify-center gap-6 mt-4">
+                 <div className="text-center">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase">{isRTL ? 'من' : 'From'}</p>
+                    <p className="text-xs font-black">{checkIn}</p>
+                 </div>
+                 <div className="text-center">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase">{isRTL ? 'إلى' : 'To'}</p>
+                    <p className="text-xs font-black">{checkOut}</p>
+                 </div>
+              </div>
            </div>
-           <p className="text-[#5C554B] mb-8 leading-relaxed">
-              {t.bookingPage.successDesc}
+
+           <p className="text-[#5C554B] text-lg leading-relaxed font-bold mb-10">
+              {isRTL 
+                ? 'لقد تم تسجيل طلبك بنجاح وجاري مراجعته.' 
+                : 'Your booking has been saved successfully and is under review.'}
+              <br/>
+              <span className="text-[#25D366] font-black p-2 block animate-pulse">
+                {isRTL 
+                  ? `جاري تحويلك للواتساب للتأكيد تلقائياً خلال ${redirectCountdown}...` 
+                  : `Redirecting to WhatsApp for confirmation in ${redirectCountdown}...`}
+              </span>
            </p>
-           <Link href="/" className="inline-block bg-[#2A2723] text-white px-8 py-3 rounded-full hover:bg-[#3E3A35] transition-all">
-              {t.bookingPage.backToHome}
-           </Link>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button 
+                onClick={openWhatsAppAdmin}
+                className="w-full bg-[#25D366] text-white font-black py-5 rounded-[28px] hover:bg-[#128C7E] shadow-xl shadow-green-500/20 transition-all flex items-center justify-center gap-3 text-lg"
+              >
+                💬 {isRTL ? 'تأكيد عبر واتساب الآن' : 'Confirm via WhatsApp'}
+              </button>
+              <Link href="/" className="w-full bg-[#2A2723] text-white font-black py-5 rounded-[28px] hover:bg-black transition-all text-sm flex items-center justify-center gap-3">
+                 🏠 {isRTL ? 'العودة للرئيسية' : 'Back to Home'}
+              </Link>
+           </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] selection:bg-[#C1A68D] selection:text-white overflow-hidden relative">
+    <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] selection:bg-[#C1A68D] selection:text-white relative overflow-x-hidden font-sans">
       
-      {/* Background Decorative Blur */}
-      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-[#EAE4D9]/30 rounded-full blur-[100px] -z-10 pointer-events-none" />
+      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-[#EAE4D9]/30 rounded-full blur-[120px] -z-10 pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#D5C5B3]/20 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
       {/* Navigation */}
-      <nav className="w-full px-8 py-5 flex justify-between items-center max-w-screen-2xl mx-auto z-50 sticky top-0 bg-white/80 backdrop-blur-xl border-b border-[#EAE4D9]">
+      <nav className="w-full px-8 py-5 flex justify-between items-center max-w-screen-2xl mx-auto z-50 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-[#EAE4D9]">
         <Link href="/">
-           <Logo size={40} />
+           <Logo size={42} />
         </Link>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-8">
           <LanguageSwitcher />
-          <Link href="/" className="text-xs font-bold text-[#7A7061] hover:text-[#2A2723]">
+          <Link href="/" className="text-xs font-black text-[#7A7061] hover:text-[#2A2723] uppercase tracking-tighter">
             {isRTL ? 'العودة للرئيسية ←' : '← Back to Home'}
           </Link>
         </div>
       </nav>
 
-      <div className="max-w-screen-2xl mx-auto min-h-[calc(100vh-80px)] flex flex-col justify-center items-center">
+      <div className="max-w-screen-2xl mx-auto flex flex-col items-center">
          
          {step === 1 ? (
-           /* STEP 1: CENTERED HERO DATE SELECTION */
-           <div className="w-full max-w-2xl p-6 animate-in fade-in zoom-in duration-700">
-              <div className="text-center mb-10">
-                 <h1 className="text-5xl font-bold text-[#2A2723] mb-4">{t.bookingPage.step1Title}</h1>
-                 <p className="text-lg text-[#7A7061]">{t.bookingPage.step1Subtitle}</p>
+           /* STEP 1: DATE SELECTION */
+           <div className="w-full max-w-3xl p-6 py-12 md:py-24 animate-in fade-in zoom-in duration-700">
+              <div className="text-center mb-12">
+                 <div className="inline-block px-4 py-1.5 rounded-full bg-[#C1A68D]/10 text-[#C1A68D] text-[10px] font-black uppercase tracking-widest mb-4 border border-[#C1A68D]/20">Step 01 / Booking</div>
+                 <h1 className="text-5xl md:text-6xl font-black text-[#2A2723] mb-4 tracking-tighter">{isRTL ? 'اختر مواعيدك' : 'Choose Your Dates'}</h1>
+                 <p className="text-lg text-[#7A7061] font-medium">{isRTL ? 'حدد مواعيد الوصول والمغادرة للبدء' : 'Select arrival and departure dates to start'}</p>
               </div>
 
-              <div className="bg-white p-10 rounded-[40px] border border-[#EAE4D9] shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative overflow-hidden">
-                 {/* Progress Indicator */}
-                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
-                    <div className={`h-full bg-[#C1A68D] w-1/2 transition-all duration-700 ${isRTL ? 'float-right' : 'float-left'}`} />
-                 </div>
-
-                 <form onSubmit={handleDateSelection} className="space-y-8 pt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-3">
-                          <label htmlFor="check-in" className="text-sm font-bold text-[#5C554B] pr-1">{t.bookingPage.checkIn}</label>
-                          <input 
-                             id="check-in"
-                             type="date" 
-                             required
-                             min={new Date().toISOString().split('T')[0]}
-                             value={checkIn}
-                             onChange={(e) => setCheckIn(e.target.value)}
-                             className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-2xl px-6 py-4 focus:outline-none focus:border-[#C1A68D] focus:ring-4 focus:ring-[#C1A68D]/5 transition-all text-lg"
-                          />
+              <div className="bg-white p-12 rounded-[48px] border border-[#EAE4D9] shadow-[0_30px_100px_rgba(0,0,0,0.04)] relative overflow-hidden group">
+                 <div className={`absolute top-0 ${isRTL ? 'right-0' : 'left-0'} w-24 h-24 bg-[#C1A68D]/5 rounded-br-full -z-0`} />
+                 
+                 <form onSubmit={handleDateSelection} className="space-y-10 relative z-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       <div className="space-y-4">
+                          <label htmlFor="check-in" className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-1 flex items-center gap-2">
+                             <span>📅</span> {isRTL ? 'تاريخ الوصول' : 'Check-in'}
+                          </label>
+                          <div className="relative">
+                            <input 
+                               id="check-in"
+                               type="date" required min={new Date().toISOString().split('T')[0]}
+                               value={checkIn} onChange={(e) => setCheckIn(e.target.value)}
+                               className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-3xl px-8 py-5 focus:outline-none focus:border-[#C1A68D] transition-all text-xl font-bold"
+                            />
+                          </div>
                        </div>
-                       <div className="space-y-3">
-                          <label htmlFor="check-out" className="text-sm font-bold text-[#5C554B] pr-1">{t.bookingPage.checkOut}</label>
-                          <input 
-                             id="check-out"
-                             type="date" 
-                             required
-                             min={checkIn || new Date().toISOString().split('T')[0]}
-                             value={checkOut}
-                             onChange={(e) => setCheckOut(e.target.value)}
-                             className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-2xl px-6 py-4 focus:outline-none focus:border-[#C1A68D] focus:ring-4 focus:ring-[#C1A68D]/5 transition-all text-lg"
-                          />
+                       <div className="space-y-4">
+                          <label htmlFor="check-out" className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-1 flex items-center gap-2">
+                             <span>🏁</span> {isRTL ? 'تاريخ المغادرة' : 'Check-out'}
+                          </label>
+                          <div className="relative">
+                            <input 
+                               id="check-out"
+                               type="date" required min={checkIn || new Date().toISOString().split('T')[0]}
+                               value={checkOut} onChange={(e) => setCheckOut(e.target.value)}
+                               className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-3xl px-8 py-5 focus:outline-none focus:border-[#C1A68D] transition-all text-xl font-bold"
+                            />
+                          </div>
                        </div>
                     </div>
 
                     <button 
-                       type="submit"
-                       disabled={!checkIn || !checkOut}
-                       className="w-full bg-[#2A2723] text-white font-bold py-5 rounded-2xl text-xl hover:bg-[#3E3A35] hover:shadow-2xl disabled:opacity-30 disabled:cursor-not-allowed transition-all transform active:scale-95"
+                       type="submit" disabled={!checkIn || !checkOut || isLoading}
+                       className="w-full bg-[#2A2723] text-white font-black py-6 rounded-3xl text-2xl hover:bg-black transition-all"
                     >
-                       {t.bookingPage.checkAvailability}
+                       {isLoading ? '...' : (isRTL ? 'تأكد من التوافر' : 'Check Availability')}
                     </button>
-                    
-                    <div className="flex justify-center gap-8 pt-4 border-t border-gray-50">
-                       <span className="text-[11px] font-bold text-[#7A7061] flex items-center gap-1">✓ {t.bookingPage.instantConfirm}</span>
-                       <span className="text-[11px] font-bold text-[#7A7061] flex items-center gap-1">✓ {t.bookingPage.service24h}</span>
-                       <span className="text-[11px] font-bold text-[#7A7061] flex items-center gap-1">✓ {t.bookingPage.smartSecurity}</span>
-                    </div>
                  </form>
               </div>
            </div>
          ) : (
-           /* STEP 2: SPLIT SCREEN (FORM + GALLERY) */
-           <div className="w-full flex flex-col lg:flex-row animate-in slide-in-from-right-8 duration-700">
+           /* STEP 2: COMPACT SELECTION */
+           <div className="w-full max-w-7xl px-6 pb-24 animate-in slide-in-from-bottom-12 duration-1000">
               
-              {/* FORM COLUMN */}
-              <div className="w-full lg:w-[55%] p-6 md:p-12 lg:p-20 flex flex-col justify-center">
-                 <div className={`max-w-xl mx-auto w-full ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <h1 className="text-3xl font-bold text-[#2A2723] mb-8">{t.bookingPage.step2Title}</h1>
-                    
-                    <div className="bg-white p-8 md:p-10 rounded-3xl border border-[#EAE4D9] shadow-2xl relative overflow-hidden mb-8">
-                       <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#C1A68D]" />
-                       
-                       <form onSubmit={handleSubmitBooking} className="space-y-6 pt-4">
-                          <button type="button" onClick={() => setStep(1)} className="text-xs font-bold text-[#7A7061] hover:text-[#2A2723] mb-4 flex items-center gap-1">{t.bookingPage.backToDates}</button>
-                          
-                          <div className="bg-[#F7F5F0] border border-[#C1A68D]/30 p-5 rounded-2xl flex items-center justify-between mb-6">
-                             <div>
-                                <p className="text-[#5C554B] text-[10px] mb-1 font-bold">{isRTL ? 'إقامتك من' : 'Your stay from'} {checkIn} {isRTL ? 'إلى' : 'to'} {checkOut}</p>
-                                <p className="text-xl font-bold text-[#2A2723]">
-                                   {isRTL ? 'ستوديو رقم' : 'Studio #'} <span className="text-[#C1A68D]">({selectedStudio})</span> {isRTL ? 'متاح لك' : 'is available for you'}
-                                </p>
+              <div className="flex flex-col lg:flex-row gap-12 items-start">
+                 
+                 {/* UNIT SELECTION SIDE (Left/Main) */}
+                 <div className="flex-1 space-y-12 w-full">
+                    <header className={`space-y-2 ${isRTL ? 'text-right' : 'text-left'}`}>
+                       <button type="button" onClick={() => setStep(1)} className="text-[10px] font-black text-[#C1A68D] hover:text-[#2A2723] mb-4 inline-flex items-center gap-2 uppercase tracking-widest transition-colors">
+                           {isRTL ? '← المواعيد' : '← Dates'}
+                       </button>
+                       <h2 className="text-4xl font-black text-[#2A2723] tracking-tighter">{isRTL ? 'الوحدات المتاحة حالياً' : 'Currently Available Units'}</h2>
+                    </header>
+
+                    {/* BRANCH GROUPS */}
+                    <div className="space-y-10">
+                       <div className="space-y-6">
+                           <div className={`flex items-center justify-between pb-2 border-b border-[#EAE4D9] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                               <h3 className="text-xs font-black uppercase text-[#C1A68D] tracking-[0.2em]">📍 {isRTL ? 'مجموعة مزار 1' : 'Mazar 1 Collection'}</h3>
+                               <p className="text-[10px] font-black text-[#7A7061]">{mazar1Units.length} {isRTL ? 'متاح' : 'Available'}</p>
+                           </div>
+                           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                              {mazar1Units.map((u) => (
+                                 <button key={u.id} onClick={() => setSelectedUnitId(u.id)}
+                                    className={`p-5 rounded-3xl border-2 transition-all text-center ${selectedUnitId === u.id ? 'bg-[#2A2723] border-[#2A2723] text-white shadow-lg' : 'bg-white border-[#EAE4D9]/50 text-[#2A2723]'}`}
+                                 >
+                                    <span className="text-sm font-black">{u.title[language]}</span>
+                                 </button>
+                              ))}
+                           </div>
+                       </div>
+                       <div className="space-y-6">
+                           <div className={`flex items-center justify-between pb-2 border-b border-[#EAE4D9] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                               <h3 className="text-xs font-black uppercase text-[#C1A68D] tracking-[0.2em]">🏩 {isRTL ? 'مجموعة مزار 2' : 'Mazar 2 Collection'}</h3>
+                               <p className="text-[10px] font-black text-[#7A7061]">{mazar2Units.length} {isRTL ? 'متاح' : 'Available'}</p>
+                           </div>
+                           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                              {mazar2Units.map((u) => (
+                                 <button key={u.id} onClick={() => setSelectedUnitId(u.id)}
+                                    className={`p-5 rounded-3xl border-2 transition-all text-center ${selectedUnitId === u.id ? 'bg-[#2A2723] border-[#2A2723] text-white shadow-lg' : 'bg-white border-[#EAE4D9]/50 text-[#2A2723]'}`}
+                                 >
+                                    <span className="text-sm font-black">{u.title[language]}</span>
+                                 </button>
+                              ))}
+                           </div>
+                       </div>
+                       <div className="space-y-6">
+                           <div className={`flex items-center justify-between pb-2 border-b border-[#EAE4D9] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                               <h3 className="text-xs font-black uppercase text-[#C1A68D] tracking-[0.2em]">🏠 {isRTL ? 'شقق فندقية عائلية' : 'Family Apartments'}</h3>
+                               <p className="text-[10px] font-black text-[#7A7061]">{familyApartments.length} {isRTL ? 'متاح' : 'Available'}</p>
+                           </div>
+                           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                              {familyApartments.map((u) => (
+                                 <button key={u.id} onClick={() => setSelectedUnitId(u.id)}
+                                    className={`p-5 rounded-3xl border-2 transition-all text-center ${selectedUnitId === u.id ? 'bg-[#2A2723] border-[#2A2723] text-white shadow-lg' : 'bg-white border-[#EAE4D9]/50 text-[#2A2723]'}`}
+                                 >
+                                    <span className="text-sm font-black">{u.title[language]}</span>
+                                 </button>
+                              ))}
+                           </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* FINAL FORM SIDE (Right/Sticky) */}
+                 <div className="w-full lg:w-[400px] sticky top-32">
+                    <div className="bg-white p-8 md:p-10 rounded-[48px] border border-[#EAE4D9] shadow-2xl space-y-10">
+                       <header className={`space-y-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                          <h3 className="text-2xl font-black text-[#2A2723] tracking-tighter">{isRTL ? 'بيانات الاتصال' : 'Contact Details'}</h3>
+                       </header>
+                       <form onSubmit={handleSubmitBooking} className="space-y-6">
+                          <div className="space-y-4">
+                             <div className="space-y-2">
+                                <label className={`block text-[10px] font-black text-[#5C554B] uppercase px-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                   👤 {isRTL ? 'اسم الضيف' : 'Guest Name'}
+                                </label>
+                                <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                                   className={`w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-2xl px-6 py-4 outline-none font-bold ${isRTL ? 'text-right' : 'text-left'}`}
+                                />
                              </div>
-                             <div className="text-green-600 font-bold text-xs bg-green-50 px-3 py-1.5 rounded-full border border-green-100 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                {t.bookingPage.availableNow}
+                             <div className="space-y-2">
+                                <label className={`block text-[10px] font-black text-[#5C554B] uppercase px-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                   📱 {isRTL ? 'رقم الواتساب' : 'WhatsApp Number'}
+                                </label>
+                                <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)}
+                                   className={`w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-2xl px-6 py-4 outline-none font-bold ${isRTL ? 'text-right' : 'text-left'}`}
+                                />
                              </div>
                           </div>
-
-                          <div className="space-y-5">
-                             <div className="space-y-2">
-                                <label htmlFor="full-name" className="text-xs font-bold text-[#5C554B] pr-1">{t.bookingPage.guestName}</label>
-                                <input 
-                                   id="full-name"
-                                   type="text" 
-                                   required
-                                   placeholder={isRTL ? "ادخل اسمك الثلاثي" : "Enter your full name"}
-                                   value={name}
-                                   onChange={(e) => setName(e.target.value)}
-                                   className="w-full bg-[#F7F5F0]/50 border border-[#EAE4D9] rounded-xl px-4 py-4 focus:outline-none focus:border-[#C1A68D]"
-                                />
-                             </div>
-                             <div className="space-y-2">
-                                <label htmlFor="phone-number" className="text-xs font-bold text-[#5C554B] pr-1">{t.bookingPage.phoneWhatsapp}</label>
-                                <input 
-                                   id="phone-number"
-                                   type="tel" 
-                                   required
-                                   dir="ltr"
-                                   placeholder="+20"
-                                   value={phone}
-                                   onChange={(e) => setPhone(e.target.value)}
-                                   className={`w-full bg-[#F7F5F0]/50 border border-[#EAE4D9] rounded-xl px-4 py-4 focus:outline-none focus:border-[#C1A68D] ${isRTL ? 'text-right' : 'text-left'}`}
-                                />
-                             </div>
-
-                             <div className="space-y-2">
-                                <label htmlFor="studio-number" className="text-xs font-bold text-[#5C554B] pr-1">{t.bookingPage.selectedStudio}</label>
-                                <div className="relative">
-                                   <input 
-                                      id="studio-number"
-                                      type="text" 
-                                      readOnly
-                                      value={`${isRTL ? 'استوديو رقم' : 'Studio #'} (${selectedStudio})`}
-                                      className="w-full bg-[#F7F5F0] border border-[#C1A68D]/40 rounded-xl px-4 py-4 focus:outline-none text-[#2A2723] font-bold cursor-default"
-                                   />
-                                   <span className={`absolute ${isRTL ? 'left-4' : 'right-4'} top-1/2 -translate-y-1/2 text-[10px] text-[#C1A68D] font-bold`}>✓ {isRTL ? 'تم الاختيار' : 'Selected'}</span>
-                                </div>
-                             </div>
-                             
-                             <button 
-                                type="submit"
-                                disabled={isSubmitting || !name || !phone}
-                                className="w-full bg-[#C1A68D] text-white font-bold py-5 rounded-2xl mt-4 hover:bg-[#A88B6E] shadow-xl hover:shadow-[0_10px_30px_rgba(193,166,141,0.3)] disabled:opacity-50 transition-all flex items-center justify-center gap-3"
+                          <div className="pt-4">
+                             <button type="submit" disabled={isSubmitting || !name || !phone || !selectedUnitId}
+                                className="w-full bg-[#E63946] text-white font-black py-5 rounded-[22px] hover:bg-[#c1121f] transition-all flex items-center justify-center gap-4 text-xl disabled:opacity-20"
                              >
-                                {isSubmitting ? (
-                                   <>
-                                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                      {t.bookingPage.submitting}
-                                   </>
-                                ) : t.bookingPage.confirmBooking}
+                                {isSubmitting ? '...' : (isRTL ? 'تأكيد الحجز' : 'Confirm Booking')}
                              </button>
                           </div>
                        </form>
                     </div>
-
-                    <p className="text-center text-[10px] text-[#7A7061] leading-relaxed">
-                       {t.bookingPage.policyAgreement} <Link href="/mazar/rules" className="underline">{t.common.rules}</Link>. <br/>
-                       {isRTL ? 'سيصلك الرد خلال دقائق لتأكيد الحجز النهائي.' : 'You will receive a response within minutes to confirm the final booking.'}
-                    </p>
-                 </div>
-              </div>
-
-              {/* MEDIA GALLERY COLUMN (Sticky Side Panel) */}
-              <div className={`w-full lg:w-[45%] bg-[#F7F5F0] ${isRTL ? 'border-r' : 'border-l'} border-[#EAE4D9] p-8 lg:p-12 overflow-y-auto max-h-screen ${isRTL ? 'text-right' : 'text-left'}`}>
-                 <div className="sticky top-0 space-y-8">
-                    <div className="flex flex-col gap-4">
-                       <h2 className="text-2xl font-bold text-[#2A2723]">{isRTL ? 'اختر استوديو متاح' : 'Choose available studio'} ({availableStudios})</h2>
-                       <div className="grid grid-cols-4 gap-3">
-                          {availableStudioNumbers.map((num) => (
-                             <button 
-                                key={num}
-                                onClick={() => setSelectedStudio(num)}
-                                className={`px-2 py-3 rounded-xl font-bold text-[10px] md:text-sm transition-all border ${
-                                   selectedStudio === num 
-                                   ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md scale-105' 
-                                   : 'bg-white text-[#5C554B] border-[#EAE4D9] hover:border-[#C1A68D]'
-                                }`}
-                             >
-                                {isRTL ? 'استوديو' : 'Studio'} {num}
-                             </button>
-                          ))}
-                       </div>
-                    </div>
-
-                    {/* VIDEO TOUR */}
-                    <div className="aspect-video bg-black rounded-3xl overflow-hidden relative shadow-[0_20px_40px_rgba(0,0,0,0.2)] group border border-[#EAE4D9]">
-                       {!isVideoPlaying ? (
-                         <>
-                           <img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&q=80&w=800" alt="Video Preview" className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" />
-                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                             <button 
-                                onClick={() => setIsVideoPlaying(true)}
-                                className="w-20 h-20 bg-white/10 backdrop-blur-xl rounded-full flex items-center justify-center text-white text-3xl hover:bg-[#C1A68D] hover:scale-110 transition-all duration-300 border border-white/40 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                             >
-                                ▶
-                             </button>
-                             <p className="text-white text-[10px] font-bold tracking-widest uppercase bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">{isRTL ? 'شاهد جولة مزار (Premium Tour)' : 'Watch Mazar Premium Tour'}</p>
-                           </div>
-                         </>
-                       ) : (
-                         <iframe 
-                           className="w-full h-full"
-                           src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1" 
-                           title="Studio Tour"
-                           frameBorder="0"
-                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                           allowFullScreen
-                         ></iframe>
-                       )}
-                       {!isVideoPlaying && (
-                         <div className="absolute bottom-4 left-4 right-4 py-2.5 px-5 bg-white/10 backdrop-blur-md rounded-2xl text-[10px] text-white font-medium border border-white/10 text-center">
-                            🎥 {isRTL ? 'جولة حقيقية من داخل "مزار ستوديوز" في مدينة نصر' : 'Real tour inside "Mazar Studios" in Nasr City'}
-                         </div>
-                       )}
-                    </div>
-
-                    {/* IMAGES GRID */}
-                    <div className="grid grid-cols-2 gap-5">
-                       {[
-                          { src: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267', label_ar: 'غرفة النوم الفاخرة', label_en: 'Luxury Bedroom' },
-                          { src: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb', label_ar: 'منطقة المعيشة', label_en: 'Living Area' },
-                          { src: 'https://images.unsplash.com/photo-1484154218962-a197022b5858', label_ar: 'المطبخ المتكامل', label_en: 'Integrated Kitchen' },
-                          { src: 'https://images.unsplash.com/photo-1507089947368-19c1da97753e', label_ar: 'جماليات التصميم', label_en: 'Design Aesthetics' },
-                       ].map((img, i) => (
-                          <div key={i} className="aspect-square bg-white rounded-2xl overflow-hidden shadow-sm group relative border border-[#EAE4D9]">
-                             <img src={`${img.src}?auto=format&fit=crop&q=80&w=400`} alt={isRTL ? img.label_ar : img.label_en} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-4">
-                                <span className="text-white text-[10px] font-bold">{isRTL ? img.label_ar : img.label_en}</span>
-                             </div>
-                             <div className={`absolute top-2 ${isRTL ? 'right-2' : 'left-2'} bg-white/80 backdrop-blur-sm w-6 h-6 rounded-full flex items-center justify-center text-[10px] shadow-sm border border-gray-100`}>
-                                {i+1}
-                             </div>
-                          </div>
-                       ))}
-                    </div>
-
-                    <div className="bg-[#2A2723] p-7 rounded-3xl text-white relative overflow-hidden transition-all duration-500">
-                       <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-10 -mt-10" />
-                       <div className="relative z-10 text-xs leading-relaxed">
-                          <p className="font-bold text-[#C1A68D] mb-3 text-sm flex items-center gap-2">
-                             <span className="w-2 h-2 rounded-full bg-[#C1A68D]"></span>
-                             {isRTL ? `مميزات استوديو رقم ${selectedStudio}:` : `Features of Studio #${selectedStudio}:`}
-                          </p>
-                          <div className="grid grid-cols-2 gap-y-3 opacity-90">
-                             <p>• {selectedStudio % 2 === 0 ? (isRTL ? "إطلالة بانورامية" : "Panoramic View") : (isRTL ? "تصميم عصري هادئ" : "Quiet Modern Design")}</p>
-                             <p>• {selectedStudio < 5 ? (isRTL ? "سرير كينج سايز" : "King Size Bed") : (isRTL ? "2 سرير فردي فخم" : "2 Luxury Twin Beds")}</p>
-                             <p>• {isRTL ? "نظام دخول ذكي (Smart Lock)" : "Smart Lock System"}</p>
-                             <p>• {isRTL ? "تكييف مركزي منفصل" : "Separate Central AC"}</p>
-                             <p>• {isRTL ? "إنترنت فايبر (600 Mbps)" : "Fiber Internet (600 Mbps)"}</p>
-                             <p>• {isRTL ? "مكنسة وشاشة سمارت" : "Vacuum & Smart Screen"}</p>
-                          </div>
-                       </div>
-                    </div>
-                    
-                    <style jsx global>{`
-                       .no-scrollbar::-webkit-scrollbar { display: none; }
-                       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-                    `}</style>
                  </div>
               </div>
            </div>

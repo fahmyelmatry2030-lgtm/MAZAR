@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { getBookings } from '@/lib/data-init';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -14,54 +15,60 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const router = useRouter();
   const pathname = usePathname();
 
+  const loadData = useCallback(async () => {
+    const bookings = await getBookings();
+    
+    // Notifications logic (Daily Reminders)
+    let notifs = JSON.parse(localStorage.getItem('admin_notifs') || '[]');
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    const lastCheck = localStorage.getItem('last_notif_check');
+    if (lastCheck !== tomorrowStr) {
+      const checkIns = bookings.filter((b: any) => b.status === 'approved' && b.checkIn === tomorrowStr);
+      const checkOuts = bookings.filter((b: any) => b.status === 'approved' && b.checkOut === tomorrowStr);
+      
+      if (checkIns.length > 0) {
+        notifs.unshift({ id: Date.now(), msg: `🔔 تنبيه: غداً يوجد ${checkIns.length} عملية وصول (Check-in).`, read: false });
+      }
+      if (checkOuts.length > 0) {
+        notifs.unshift({ id: Date.now() + 1, msg: `🔔 تنبيه: غداً يوجد ${checkOuts.length} عملية مغادرة (Check-out).`, read: false });
+      }
+      localStorage.setItem('admin_notifs', JSON.stringify(notifs.slice(0, 50)));
+      localStorage.setItem('last_notif_check', tomorrowStr);
+    }
+
+    const pendingCount = bookings.filter((b: any) => b.status === 'رد جديد').length;
+    setUnreadNotifs(pendingCount + notifs.filter((n: any) => !n.read).length);
+    setNotifications(notifs);
+
+    // Sent Messages Log
+    const sent = bookings
+      .filter((b: any) => b.paymentInfo)
+      .map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        msg: b.paymentInfo,
+        time: new Date(b.timestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      }));
+    setSentMessages(sent);
+  }, []);
+
   useEffect(() => {
     const auth = sessionStorage.getItem('isAdmin');
     if (!auth && pathname !== '/admin/login') {
       router.push('/admin/login');
     } else {
       setIsAuthorized(true);
+      loadData();
       
-      // Load Data
-      const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-      let notifs = JSON.parse(localStorage.getItem('admin_notifs') || '[]');
-      
-      // Generate Daily Reminders logic
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-      
-      const lastCheck = localStorage.getItem('last_notif_check');
-      if (lastCheck !== tomorrowStr) {
-        const checkIns = bookings.filter((b: any) => b.status === 'approved' && b.checkIn === tomorrowStr);
-        const checkOuts = bookings.filter((b: any) => b.status === 'approved' && b.checkOut === tomorrowStr);
-        
-        if (checkIns.length > 0) {
-          notifs.unshift({ id: Date.now(), msg: `🔔 تنبيه: غداً يوجد ${checkIns.length} عملية وصول (Check-in).`, read: false });
-        }
-        if (checkOuts.length > 0) {
-          notifs.unshift({ id: Date.now() + 1, msg: `🔔 تنبيه: غداً يوجد ${checkOuts.length} عملية مغادرة (Check-out).`, read: false });
-        }
-        localStorage.setItem('admin_notifs', JSON.stringify(notifs.slice(0, 50))); // Keep last 50
-        localStorage.setItem('last_notif_check', tomorrowStr);
-      }
-
-      const pendingCount = bookings.filter((b: any) => b.status === 'pending').length;
-      setUnreadNotifs(pendingCount + notifs.filter((n: any) => !n.read).length);
-      setNotifications(notifs);
-
-      // Simulate Sent Messages Log
-      const sent = bookings
-        .filter((b: any) => b.paymentInfo)
-        .map((b: any) => ({
-          id: b.id,
-          name: b.name,
-          msg: b.paymentInfo,
-          time: new Date(b.id).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        }));
-      setSentMessages(sent);
+      // Basic polling for "Knowing" if a user booked
+      const interval = setInterval(loadData, 30000); // Poll every 30s
+      return () => clearInterval(interval);
     }
-  }, [pathname, router]);
+  }, [pathname, router, loadData]);
 
   if (!isAuthorized && pathname !== '/admin/login') return null;
   if (pathname === '/admin/login') return <>{children}</>;
@@ -69,7 +76,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const menuItems = [
     { name: 'الاستعراض العام', href: '/admin/dashboard', icon: '📊' },
     { name: 'طلبات الحجز', href: '/admin/dashboard/bookings', icon: '📩' },
-    { name: 'إدارة الشقق', href: '/admin/dashboard/apartments', icon: '🏢' },
+    { name: 'إدارة الوحدات', href: '/admin/dashboard/units', icon: '🏢' },
     { name: 'التقارير المالي', href: '/admin/dashboard/reports', icon: '💰' },
   ];
 
@@ -122,7 +129,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Header - High Visibility */}
+        {/* Top Header */}
         <header className="h-20 bg-[#0a0f1e]/50 backdrop-blur-xl border-b border-white/5 flex items-center justify-end px-8 gap-6 z-30 sticky top-0">
           <div className="relative">
             <button 
@@ -148,7 +155,6 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                        <p className="text-[10px] text-gray-300 leading-relaxed font-medium">"{m.msg}"</p>
                     </div>
                   ))}
-                  {sentMessages.length === 0 && <p className="text-[10px] text-gray text-center py-8">لا توجد سجلات.</p>}
                 </div>
               </div>
             )}
@@ -174,7 +180,6 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                       {n.msg}
                     </div>
                   ))}
-                  {notifications.length === 0 && <p className="text-[10px] text-gray text-center py-8">كل شيء تمام! لا تنبيهات.</p>}
                 </div>
               </div>
             )}

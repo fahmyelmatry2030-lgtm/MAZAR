@@ -9,8 +9,11 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "مزار | تجربة إقامة فندقية فاخرة في مدينة نصر",
+  title: "MAZAR",
   description: "اكتشف أرقى الاستوديوهات الفندقية في مزار، مع دخول ذكي وخدمة ريسيبشن 24 ساعة.",
+  icons: {
+     icon: '/images/logo-en.jpg'
+  }
 };
 
 import { LanguageProvider } from "@/lib/LanguageContext";

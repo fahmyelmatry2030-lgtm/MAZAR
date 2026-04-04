@@ -1,11 +1,11 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import Logo from '@/components/Logo';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
-import { units } from '@/lib/data';
+import { getSystemUnits } from '@/lib/data-init';
 import UnitCard from '@/components/UnitCard';
 
 export default function BranchUnitsPage() {
@@ -14,7 +14,13 @@ export default function BranchUnitsPage() {
   const router = useRouter();
   const branchId = parseInt(params.id as string);
 
-  const branchUnits = units.filter(u => u.branch === branchId && u.type === 'studio');
+  const [branchUnits, setBranchUnits] = useState<any[]>([]);
+
+  useEffect(() => {
+    const allUnits = getSystemUnits();
+    setBranchUnits(allUnits.filter((u:any) => u.branch === branchId && u.type === 'studio'));
+  }, [branchId]);
+
   const branchName = branchId === 1 ? t.unitsPage.branch1 : t.unitsPage.branch2;
 
   return (
@@ -55,7 +61,7 @@ export default function BranchUnitsPage() {
 
         {/* Units Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {branchUnits.map(unit => (
+          {branchUnits.map((unit: any) => (
             <UnitCard key={unit.id} unit={unit} />
           ))}
         </div>
