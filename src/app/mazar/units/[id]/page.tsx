@@ -19,14 +19,17 @@ export default function UnitDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const allUnits = getSystemUnits();
-    const foundUnit = allUnits.find((u: any) => u.id === id);
-    if (foundUnit) {
-      setUnit(foundUnit);
-      setActiveImage(foundUnit.video || foundUnit.images[0]);
-      setStatus(foundUnit.status || 'متاح');
-    }
-    setIsLoading(false);
+    const loadUnit = async (): Promise<void> => {
+        const allUnits = await getSystemUnits();
+        const foundUnit = allUnits.find((u: any) => u.id === id);
+        if (foundUnit) {
+          setUnit(foundUnit);
+          setActiveImage(foundUnit.video || foundUnit.images[0]);
+          setStatus(foundUnit.status || 'متاح');
+        }
+        setIsLoading(false);
+    };
+    loadUnit();
   }, [id]);
 
   if (isLoading) {

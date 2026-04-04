@@ -14,11 +14,14 @@ const UnitCard: React.FC<UnitCardProps> = ({ unit }) => {
   const [status, setStatus] = useState<string>('متاح');
 
   useEffect(() => {
-    const studios = getStudios();
-    const studio = studios.find((s: any) => s.id === unit.id);
-    if (studio) {
-      setStatus(studio.status);
-    }
+    const loadStatus = async () => {
+      const studios = await getStudios();
+      const studio = studios.find((s: any) => s.id === unit.id);
+      if (studio) {
+        setStatus(studio.status);
+      }
+    };
+    loadStatus();
   }, [unit.id]);
 
   return (

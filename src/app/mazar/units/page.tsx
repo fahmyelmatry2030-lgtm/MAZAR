@@ -13,16 +13,16 @@ export default function UnitsListingPage() {
   const [counts, setCounts] = useState({ branch1: 12, branch2: 12, apts: 3 });
 
   useEffect(() => {
-    const studios = getStudios();
-    // Assuming studios array matches the units array order exactly as initialized
-    const availableStudios = studios.filter((s:any) => s.status === 'متاح');
-    
-    // Simulate mapping by type (in reality, you'd match unit IDs to branches)
-    const availableBranch1 = units.filter(u => u.branch === 1 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
-    const availableBranch2 = units.filter(u => u.branch === 2 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
-    const availableApts = units.filter(u => u.type === 'apartment' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
-    
-    setCounts({ branch1: availableBranch1, branch2: availableBranch2, apts: availableApts });
+    const loadCounts = async () => {
+      const studios = await getStudios();
+      
+      const availableBranch1 = units.filter(u => u.branch === 1 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+      const availableBranch2 = units.filter(u => u.branch === 2 && u.type === 'studio' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+      const availableApts = units.filter(u => u.type === 'apartment' && studios.find((s:any) => s.id === u.id)?.status === 'متاح').length;
+      
+      setCounts({ branch1: availableBranch1, branch2: availableBranch2, apts: availableApts });
+    };
+    loadCounts();
   }, []);
 
   const categories = [

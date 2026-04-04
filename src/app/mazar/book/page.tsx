@@ -77,7 +77,7 @@ export default function BookingPage() {
 
         setAvailableUnits(available);
         if (available.length > 0) {
-            const currentSTillAvailable = available.find(u => u.id === selectedUnitId);
+            const currentSTillAvailable = available.find((u: any) => u.id === selectedUnitId);
             if (!currentSTillAvailable) setSelectedUnitId(available[0].id);
         } else {
             setSelectedUnitId('');
@@ -121,9 +121,9 @@ export default function BookingPage() {
   const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
 
   // Grouped Available Units
-  const mazar1Units = availableUnits.filter(u => u.branch === 1 && u.type === 'studio');
-  const mazar2Units = availableUnits.filter(u => u.branch === 2 && u.type === 'studio');
-  const familyApartments = availableUnits.filter(u => u.type === 'apartment');
+  const mazar1Units = availableUnits.filter((u: any) => u.branch === 1 && u.type === 'studio');
+  const mazar2Units = availableUnits.filter((u: any) => u.branch === 2 && u.type === 'studio');
+  const familyApartments = availableUnits.filter((u: any) => u.type === 'apartment');
 
   if (isSuccess) {
     return (

@@ -17,8 +17,11 @@ export default function BranchUnitsPage() {
   const [branchUnits, setBranchUnits] = useState<any[]>([]);
 
   useEffect(() => {
-    const allUnits = getSystemUnits();
-    setBranchUnits(allUnits.filter((u:any) => u.branch === branchId && u.type === 'studio'));
+    const loadUnits = async () => {
+      const allUnits = await getSystemUnits();
+      setBranchUnits(allUnits.filter((u: any) => u.branch === branchId && u.type === 'studio'));
+    };
+    loadUnits();
   }, [branchId]);
 
   const branchName = branchId === 1 ? t.unitsPage.branch1 : t.unitsPage.branch2;

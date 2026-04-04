@@ -15,8 +15,11 @@ export default function ApartmentsListingPage() {
   const [luxuryApartments, setLuxuryApartments] = useState<any[]>([]);
 
   useEffect(() => {
-    const allUnits = getSystemUnits();
-    setLuxuryApartments(allUnits.filter((u:any) => u.type === 'apartment'));
+    const loadUnits = async () => {
+      const allUnits = await getSystemUnits();
+      setLuxuryApartments(allUnits.filter((u: any) => u.type === 'apartment'));
+    };
+    loadUnits();
   }, []);
 
   return (

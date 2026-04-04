@@ -474,7 +474,7 @@ export default function MazarAdminDashboard() {
                        <div className="flex justify-end gap-4">
                           <button onClick={() => handleReject(selectedBooking.id)} className="px-6 py-2 rounded-lg text-red-600 font-bold hover:bg-red-50 transition-colors">رفض الطلب</button>
                           <button 
-                             onClick={() => {
+                             onClick={async () => {
                                 const select = document.getElementById('studio-select') as HTMLSelectElement;
                                 const priceInput = document.getElementById('price-input') as HTMLInputElement;
                                 handleApprove(selectedBooking.id, select?.value || 'محدد', priceInput?.value || 'محسوب');
@@ -563,20 +563,21 @@ export default function MazarAdminDashboard() {
                   <div className="flex justify-end gap-4 mt-8 pt-4 border-t border-[#EAE4D9]">
                      <button onClick={() => setEditingStudio(null)} className="px-6 py-2 rounded-lg text-[#5C554B] font-bold hover:bg-[#F7F5F0] transition-colors">إلغاء</button>
                      <button 
-                        onClick={() => {
+                        onClick={async () => {
                            const newTitleAr = (document.getElementById('edit-title-ar') as HTMLInputElement).value;
                            const newDescAr = (document.getElementById('edit-desc-ar') as HTMLTextAreaElement).value;
                            const newStatus = (document.getElementById('edit-status') as HTMLSelectElement).value;
                            const newPrice = (document.getElementById('edit-price') as HTMLInputElement).value;
                            
-                           updateUnitDetails(editingStudio.id, {
+                           await updateUnitDetails(editingStudio.id, {
                               title: { ...editingStudio.title, ar: newTitleAr },
                               description: { ...editingStudio.description, ar: newDescAr },
                               status: newStatus,
                               price: newPrice
                            });
                            
-                           setStudiosData(getSystemUnits());
+                           const sData = await getSystemUnits();
+                           setStudiosData(sData);
                            setEditingStudio(null);
                         }} 
                         className="bg-[#2A2723] text-white px-8 py-2 rounded-lg font-bold shadow-md hover:bg-[#3E3A35] transition-colors"
