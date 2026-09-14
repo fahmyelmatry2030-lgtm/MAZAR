@@ -127,7 +127,11 @@ export default function ExpensesTab() {
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
-  const isOwner = adminRole === 'Owner' || adminRole === 'Super Admin';
+  const isOwner = adminRole === 'Owner' || adminRole === 'Super Admin' || adminRole === 'Admin' ||
+    ['مؤمن', 'مدحت', 'mo2men', 'medhat'].includes(currentUserName.toLowerCase().trim());
+  const approverDisplayName = currentUserName.includes('مدحت') ? 'مدحت' : currentUserName.includes('مؤمن') ? 'مؤمن' : (currentUserName || 'مؤمن');
+
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Sync branch filter with form branch field
   useEffect(() => {
@@ -176,7 +180,6 @@ export default function ExpensesTab() {
     if (!exp) return false;
     if (exp.status && (exp.status.includes('تم الموافقة') || exp.status === 'APPROVED')) return true;
     if (exp.approved_by && exp.approved_by !== '') return true;
-    if (exp.status === undefined || exp.status === null || exp.status === '') return true;
     return false;
   };
 
@@ -281,17 +284,51 @@ export default function ExpensesTab() {
     }
   };
 
-  const handleApproveExpense = async (expense: any) => {
-    const approverName = currentUserName || 'الأونر';
-    const statusText = `تم الموافقة بواسطة: ${approverName}`;
+  const handleToggleApproval = async (exp: any) => {
+    if (!isOwner) {
+      alert('عفواً، هذه الصلاحية مقتصرة على الأونر فقط (مؤمن ومدحت)');
+      return;
+    }
+    if (togglingId) return;
+
+    const currentlyApproved = isExpenseApproved(exp);
+    const newStatus = currentlyApproved ? 'PENDING' : `تم الموافقة بواسطة: ${approverDisplayName}`;
+    const newApprovedBy = currentlyApproved ? '' : approverDisplayName;
+
+    // Optimistic Update
+    setExpenses(prev => prev.map(item => item.id === exp.id ? { ...item, status: newStatus, approved_by: newApprovedBy } : item));
+    setTogglingId(exp.id);
+
     try {
-      await updateDbExpense(expense.id, {
-        status: statusText,
-        approved_by: approverName,
+      await updateDbExpense(exp.id, {
+        status: newStatus,
+        approved_by: newApprovedBy,
+        description: exp.description,
+        branch: exp.branch,
+        amount: exp.amount,
+        date: exp.date,
+        from_entity: exp.from_entity,
+        to_entity: exp.to_entity,
+        ordered_by: exp.ordered_by,
+        invoice_number: exp.invoice_number,
+        notes: exp.notes,
       });
-      loadExpenses();
+      // Refresh to ensure exact DB sync
+      const freshData = await getDbExpenses();
+      if (freshData) {
+        let clean = freshData;
+        if (typeof window !== 'undefined') {
+          const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
+          if (info?.role === 'Akoura') clean = clean.filter((e: any) => e.branch === 3);
+        }
+        setExpenses(clean);
+      }
     } catch (error: any) {
-      alert('حدث خطأ أثناء الاعتماد: ' + error.message);
+      console.error('Error toggling approval:', error);
+      alert('حدث خطأ أثناء تحديث حالة الاعتماد: ' + (error.message || 'خطأ غير معروف'));
+      loadExpenses();
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -531,7 +568,7 @@ export default function ExpensesTab() {
         
         <div className="glass-card overflow-hidden border-[#EAE4D9]/60 shadow-2xl rounded-[1.5rem]">
           <div className="overflow-x-auto">
-            <table className="w-full text-center border-collapse">
+            <table className="w-full text-center border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-[#2A2723] text-white text-xs font-black uppercase tracking-widest">
                   <th className="px-4 py-5 border-x border-white/10 w-12">No</th>
@@ -545,7 +582,7 @@ export default function ExpensesTab() {
                   <th className="px-4 py-5 border-x border-white/10 w-32">الآمر بالصرف</th>
                   <th className="px-4 py-5 border-x border-white/10 w-36">الفرع</th>
                   <th className="px-4 py-5 border-x border-white/10 w-48">حالة الاعتماد</th>
-                  <th className="px-4 py-5 border-x border-white/10 w-32">الإجراءات</th>
+                  <th className="px-4 py-5 border-x border-white/10 w-28">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -556,7 +593,7 @@ export default function ExpensesTab() {
                 ) : filteredExpenses.map((exp, i) => {
                   const approved = isExpenseApproved(exp);
                   return (
-                    <tr key={exp.id} className={`transition-colors group ${approved ? 'hover:bg-[#FDFBF7] bg-white' : 'bg-amber-50/40 opacity-80 hover:opacity-100'}`}>
+                    <tr key={exp.id} className={`transition-colors group ${approved ? 'hover:bg-[#FDFBF7] bg-white' : 'bg-amber-50/40 opacity-90 hover:opacity-100'}`}>
                       <td className="px-4 py-5 border border-[#EAE4D9]/40 text-sm font-black text-mazar-gray">{i + 1}</td>
                       <td className="px-4 py-5 border border-[#EAE4D9]/40 text-sm font-black whitespace-nowrap">{formatDate(exp.date)}</td>
                       <td className={`px-4 py-5 border border-[#EAE4D9]/40 text-base font-black ${approved ? 'text-red-600' : 'text-amber-700'}`}>{exp.amount?.toLocaleString()}</td>
@@ -567,24 +604,88 @@ export default function ExpensesTab() {
                       <td className="px-4 py-5 border border-[#EAE4D9]/40 text-sm font-bold text-mazar-coffee">{exp.to_entity || '—'}</td>
                       <td className="px-4 py-5 border border-[#EAE4D9]/40 text-sm font-bold text-mazar-coffee">{exp.ordered_by || '—'}</td>
                       <td className="px-4 py-5 border border-[#EAE4D9]/40 text-xs font-black text-mazar-gold">{getBranchLabel(exp.branch)}</td>
-                      <td className="px-4 py-5 border border-[#EAE4D9]/40 text-xs font-black">
-                        {approved ? (
-                          <div className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-200 font-black">
-                            <CheckCircle2 size={14} className="text-green-600" />
-                            <span>{exp.status && exp.status.includes('تم الموافقة') ? exp.status : `تم الموافقة بواسطة: ${exp.approved_by || 'الأونر'}`}</span>
-                          </div>
+                      
+                      {/* حالة الاعتماد */}
+                      <td className="px-4 py-4 border border-[#EAE4D9]/40 text-xs font-black">
+                        {isOwner ? (
+                          <button
+                            type="button"
+                            disabled={togglingId === exp.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleApproval(exp);
+                            }}
+                            title={approved ? "اضغط لإلغاء الاعتماد (تحويل إلى غير معتمد)" : "اضغط للاعتماد الفوري بضغطة واحدة"}
+                            className={`group/btn relative inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl font-black text-xs transition-all duration-200 shadow-sm active:scale-95 cursor-pointer border select-none ${
+                              approved
+                                ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-emerald-500/20'
+                                : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300 shadow-amber-500/10'
+                            }`}
+                          >
+                            {togglingId === exp.id ? (
+                              <div className="flex items-center gap-2 px-2 py-0.5">
+                                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                <span className="text-[10px]">جاري التحديث...</span>
+                              </div>
+                            ) : approved ? (
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-white text-emerald-600 flex items-center justify-center text-xs font-black shadow-xs shrink-0">✓</span>
+                                <div className="flex flex-col text-right leading-tight">
+                                  <span className="text-[11px] font-black">{exp.status && exp.status.includes('تم الموافقة') ? exp.status : `معتمد (${exp.approved_by || approverDisplayName})`}</span>
+                                  <span className="text-[9px] text-emerald-100 font-bold opacity-80 group-hover/btn:opacity-100">اضغط للإلغاء ✕</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-amber-400/80 text-amber-950 flex items-center justify-center text-xs font-black shadow-xs shrink-0">⏳</span>
+                                <div className="flex flex-col text-right leading-tight">
+                                  <span className="text-[11px] font-black text-amber-950">غير معتمد</span>
+                                  <span className="text-[9px] text-emerald-800 font-black bg-emerald-100/90 px-1.5 py-0.5 rounded-md mt-0.5 group-hover/btn:bg-emerald-200">⚡ اضغط للموافقة</span>
+                                </div>
+                              </div>
+                            )}
+                          </button>
                         ) : (
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full border border-amber-300 font-black"><Clock size={14} className="text-amber-600 animate-pulse" /><span>⏳ غير معتمد</span></div>
-                            {isOwner && <button onClick={() => handleApproveExpense(exp)} className="bg-green-600 hover:bg-green-700 text-white font-black text-[10px] px-4 py-1.5 rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1"><span>🟢 موافقة وتأكيد</span></button>}
-                          </div>
+                          approved ? (
+                            <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3.5 py-1.5 rounded-full border border-emerald-200 font-black text-xs">
+                              <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                              <span>معتمد ✅ {exp.approved_by ? `(${exp.approved_by})` : ''}</span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 px-3.5 py-1.5 rounded-full border border-amber-200 font-black text-xs">
+                              <Clock size={15} className="text-amber-600 shrink-0" />
+                              <span>غير معتمد ⏳</span>
+                            </div>
+                          )
                         )}
                       </td>
-                      <td className="px-4 py-5 border border-[#EAE4D9]/40">
+
+                      {/* الإجراءات */}
+                      <td className="px-4 py-4 border border-[#EAE4D9]/40">
                         {isOwner ? (
-                          <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={() => handleEdit(exp)} title="تعديل المصروف" className="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all shadow-sm"><Pencil size={15} strokeWidth={2.5} /></button>
-                            <button onClick={() => handleDelete(exp.id)} title="حذف المصروف" className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm"><Trash2 size={15} strokeWidth={2.5} /></button>
+                          <div className="flex gap-2 justify-center items-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(exp);
+                              }}
+                              title="تعديل المصروف"
+                              className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-xs flex items-center justify-center active:scale-90 border border-blue-200 cursor-pointer"
+                            >
+                              <Pencil size={15} strokeWidth={2.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(exp.id);
+                              }}
+                              title="حذف المصروف"
+                              className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-xs flex items-center justify-center active:scale-90 border border-red-200 cursor-pointer"
+                            >
+                              <Trash2 size={15} strokeWidth={2.5} />
+                            </button>
                           </div>
                         ) : (
                           <span className="text-[10px] text-gray-400 font-bold">🔒 للمسؤولين فقط</span>

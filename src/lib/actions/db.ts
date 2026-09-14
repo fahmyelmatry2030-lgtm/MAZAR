@@ -1100,66 +1100,127 @@ export async function updateDbExpense(id: string, updates: any) {
 
   const { error } = await supabase.from('expenses').update(updates).eq('id', id);
   if (error) {
-    console.warn('⚠️ Standard update failed. Retrying update with fallback...', error.message);
-    const fallbackUpdates = { ...updates };
-    let metaTags = [];
+    console.warn('⚠️ Standard update failed. Retrying update with robust metadata fallback...', error.message);
 
-    if (updates.invoice_number !== undefined) {
-      if (updates.invoice_number) metaTags.push(`[فاتورة: ${updates.invoice_number}]`);
-      delete fallbackUpdates.invoice_number;
-    }
-    if (updates.notes !== undefined) {
-      if (updates.notes) metaTags.push(`[ملاحظات: ${updates.notes}]`);
-      delete fallbackUpdates.notes;
-    }
-    if (updates.status !== undefined) {
-      if (updates.status && updates.status.includes('تم الموافقة')) {
-        metaTags.push(`[اعتماد: ${updates.approved_by || 'الأونر'}]`);
-      } else if (updates.status) {
-        metaTags.push(`[حالة: ${updates.status}]`);
-      }
-      delete fallbackUpdates.status;
-    }
-    if (updates.approved_by !== undefined) {
-      delete fallbackUpdates.approved_by;
-    }
-
-    if (metaTags.length > 0 && updates.description) {
-      fallbackUpdates.description = `${metaTags.join(' ')} ${updates.description || ''}`.trim();
-    }
-
-    const { error: retryError1 } = await supabase.from('expenses').update(fallbackUpdates).eq('id', id);
-    if (retryError1) {
-      console.warn('⚠️ Level 1 update fallback failed. Attempting level 2 ultra-safe update...', retryError1.message);
-      
-      const fallback2Updates: any = {};
-      let meta2 = [...metaTags];
-
-      if (updates.from_entity) {
-        meta2.push(`[من: ${updates.from_entity}]`);
-        delete fallbackUpdates.from_entity;
-      }
-      if (updates.to_entity) {
-        meta2.push(`[إلى: ${updates.to_entity}]`);
-        delete fallbackUpdates.to_entity;
-      }
-      if (updates.ordered_by) {
-        meta2.push(`[بطلب: ${updates.ordered_by}]`);
-        delete fallbackUpdates.ordered_by;
+    try {
+      // 1. Fetch current expense data from database
+      const { data: existing, error: fetchErr } = await supabase.from('expenses').select('*').eq('id', id).single();
+      if (fetchErr || !existing) {
+        throw new Error(fetchErr?.message || 'المصروف غير موجود');
       }
 
-      if (updates.amount !== undefined) fallback2Updates.amount = Number(updates.amount);
-      if (updates.category !== undefined) fallback2Updates.category = updates.category;
-      if (updates.date !== undefined) fallback2Updates.date = updates.date;
-      if (meta2.length > 0 || updates.description) {
-        fallback2Updates.description = `${meta2.join(' ')} ${updates.description || ''}`.trim();
+      // 2. Parse existing description and tags
+      let rawDesc = existing.description || '';
+      let existingInvoice = existing.invoice_number || '';
+      let existingFrom = existing.from_entity || '';
+      let existingTo = existing.to_entity || '';
+      let existingOrderedBy = existing.ordered_by || '';
+      let existingNotes = existing.notes || '';
+      let existingStatus = existing.status || '';
+      let existingApprovedBy = existing.approved_by || '';
+      let existingBranch = existing.branch || 12;
+
+      const extractAndStrip = (regex: RegExp) => {
+        const match = rawDesc.match(regex);
+        if (match) {
+          rawDesc = rawDesc.replace(regex, '').trim();
+          return match[1];
+        }
+        return '';
+      };
+
+      const tInv = extractAndStrip(/\[فاتورة:\s*([^\]]+)\]/);
+      if (tInv) existingInvoice = tInv;
+      const tFrom = extractAndStrip(/\[من:\s*([^\]]+)\]/);
+      if (tFrom) existingFrom = tFrom;
+      const tTo = extractAndStrip(/\[إلى:\s*([^\]]+)\]/);
+      if (tTo) existingTo = tTo;
+      const tOrd = extractAndStrip(/\[بطلب:\s*([^\]]+)\]/);
+      if (tOrd) existingOrderedBy = tOrd;
+      const tBranch = extractAndStrip(/\[فرع:\s*([^\]]+)\]/);
+      if (tBranch) existingBranch = parseInt(tBranch) || 12;
+      const tNotes = extractAndStrip(/\[ملاحظات:\s*([^\]]+)\]/);
+      if (tNotes) existingNotes = tNotes;
+      const tStatus = extractAndStrip(/\[حالة:\s*([^\]]+)\]/);
+      if (tStatus) existingStatus = tStatus;
+      const tAppr = extractAndStrip(/\[اعتماد:\s*([^\]]+)\]/);
+      if (tAppr) {
+        existingApprovedBy = tAppr;
+        existingStatus = `تم الموافقة بواسطة: ${tAppr}`;
       }
 
-      const { error: retryError2 } = await supabase.from('expenses').update(fallback2Updates).eq('id', id);
-      if (retryError2) {
-        console.error('CRITICAL: All expense update fallbacks failed:', retryError2);
-        throw new Error('تعذر تعديل الفاتورة في قاعدة البيانات: ' + (retryError2.message || 'خطأ في الاتصال'));
+      // Base description (strip any lingering tags)
+      let baseDesc = (updates.description !== undefined ? updates.description : rawDesc) || '';
+      baseDesc = baseDesc
+        .replace(/\[فاتورة:\s*([^\]]+)\]/g, '')
+        .replace(/\[من:\s*([^\]]+)\]/g, '')
+        .replace(/\[إلى:\s*([^\]]+)\]/g, '')
+        .replace(/\[بطلب:\s*([^\]]+)\]/g, '')
+        .replace(/\[فرع:\s*([^\]]+)\]/g, '')
+        .replace(/\[ملاحظات:\s*([^\]]+)\]/g, '')
+        .replace(/\[حالة:\s*([^\]]+)\]/g, '')
+        .replace(/\[اعتماد:\s*([^\]]+)\]/g, '')
+        .trim();
+
+      // Resolve final field values
+      const finalInvoice = updates.invoice_number !== undefined ? updates.invoice_number : existingInvoice;
+      const finalFrom = updates.from_entity !== undefined ? updates.from_entity : existingFrom;
+      const finalTo = updates.to_entity !== undefined ? updates.to_entity : existingTo;
+      const finalOrderedBy = updates.ordered_by !== undefined ? updates.ordered_by : existingOrderedBy;
+      const finalNotes = updates.notes !== undefined ? updates.notes : existingNotes;
+      const finalStatus = updates.status !== undefined ? updates.status : existingStatus;
+      const finalApprovedBy = updates.approved_by !== undefined ? updates.approved_by : existingApprovedBy;
+      const finalBranch = updates.branch !== undefined ? updates.branch : existingBranch;
+      const finalAmount = updates.amount !== undefined ? Number(updates.amount) : existing.amount;
+      const finalDate = updates.date !== undefined ? updates.date : existing.date;
+      const finalCategory = updates.category !== undefined ? updates.category : existing.category || 'عام';
+
+      // 3. Assemble metadata tags
+      const metaTags: string[] = [];
+      if (finalInvoice) metaTags.push(`[فاتورة: ${finalInvoice}]`);
+      if (finalFrom) metaTags.push(`[من: ${finalFrom}]`);
+      if (finalTo) metaTags.push(`[إلى: ${finalTo}]`);
+      if (finalOrderedBy) metaTags.push(`[بطلب: ${finalOrderedBy}]`);
+      if (finalBranch) metaTags.push(`[فرع: ${finalBranch}]`);
+      if (finalNotes) metaTags.push(`[ملاحظات: ${finalNotes}]`);
+      if (finalApprovedBy) {
+        metaTags.push(`[اعتماد: ${finalApprovedBy}]`);
+      } else if (finalStatus) {
+        metaTags.push(`[حالة: ${finalStatus}]`);
       }
+
+      const reconstructedDesc = `${metaTags.join(' ')} ${baseDesc}`.trim();
+
+      // 4. Try updating with safe columns
+      const safePayload: any = {
+        category: finalCategory,
+        amount: finalAmount,
+        date: finalDate,
+        description: reconstructedDesc,
+        branch: parseInt(finalBranch) || 12,
+        from_entity: finalFrom,
+        to_entity: finalTo,
+        ordered_by: finalOrderedBy,
+      };
+
+      const { error: fallbackError } = await supabase.from('expenses').update(safePayload).eq('id', id);
+      if (fallbackError) {
+        // Minimum core fallback: category, amount, date, description
+        const corePayload = {
+          category: finalCategory,
+          amount: finalAmount,
+          date: finalDate,
+          description: reconstructedDesc,
+        };
+        const { error: coreErr } = await supabase.from('expenses').update(corePayload).eq('id', id);
+        if (coreErr) {
+          console.error('CRITICAL: All expense update fallbacks failed:', coreErr);
+          throw new Error('تعذر تعديل المصروف في قاعدة البيانات: ' + (coreErr.message || 'خطأ غير معروف'));
+        }
+      }
+    } catch (fallbackCatch: any) {
+      console.error('CRITICAL: Fallback execution error:', fallbackCatch);
+      throw new Error(fallbackCatch.message || 'خطأ أثناء تعديل المصروف');
     }
   }
 

@@ -179,7 +179,15 @@ export default function FinancePage() {
       });
 
       // Month expenses
+      const isApprovedExpense = (e: any) => {
+        if (!e) return false;
+        if (e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) return true;
+        if (e.approved_by && e.approved_by !== '') return true;
+        return false;
+      };
+
       const mExpenses = expenses.filter((e: any) => {
+        if (!isApprovedExpense(e)) return false;
         if (!e.date) return false;
         const parts = e.date.split('-');
         if (parts.length < 2) return false;
@@ -228,7 +236,15 @@ export default function FinancePage() {
 
   // ── المصروفات الشهرية ──
   const monthlyExpenses = useMemo(() => {
+    const isApprovedExpense = (e: any) => {
+      if (!e) return false;
+      if (e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) return true;
+      if (e.approved_by && e.approved_by !== '') return true;
+      return false;
+    };
+
     return expenses.filter((e: any) => {
+      if (!isApprovedExpense(e)) return false;
       if (!e.date) return false;
       const parts = e.date.split('-');
       if (parts.length < 2) return false;

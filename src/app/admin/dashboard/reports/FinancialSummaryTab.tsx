@@ -91,7 +91,6 @@ export default function FinancialSummaryTab({
         if (!e) return false;
         if (e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) return true;
         if (e.approved_by && e.approved_by !== '') return true;
-        if (e.status === undefined || e.status === null || e.status === '') return true;
         return false;
       };
 
@@ -185,7 +184,7 @@ export default function FinancialSummaryTab({
     );
 
     const expensesAmount = entityExpensesList.reduce((acc, e) => {
-      const isApproved = !e.status || e.status.includes('تم الموافقة') || e.status === 'APPROVED' || (e.approved_by && e.approved_by !== '');
+      const isApproved = e && ((e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) || (e.approved_by && e.approved_by !== ''));
       return isApproved ? acc + parseFloat(e.amount || 0) : acc;
     }, 0);
 
