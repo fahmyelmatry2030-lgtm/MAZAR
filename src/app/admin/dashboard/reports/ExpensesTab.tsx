@@ -152,9 +152,9 @@ export default function ExpensesTab() {
     const b = parseInt(branch);
     if (b === 1 || b === 2 || b === 12) return 'مزار 1 و 2';
     if (b === 3) return 'مزار 3';
-    if (b === 4) return 'شقة 1';
-    if (b === 5) return 'شقة 2';
-    if (b === 6) return 'شقة 3';
+    if (b === 4) return 'شقة ذكي رستم';
+    if (b === 5) return 'شقة سين';
+    if (b === 6) return 'شقة عباس الرئيسي';
     return 'مزار 1 و 2';
   };
 
@@ -441,36 +441,58 @@ export default function ExpensesTab() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap justify-between items-center gap-4 bg-white/80 p-4 rounded-2xl border border-[#EAE4D9] shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-black text-[#2A2723]">تصفية الفرع:</span>
-          {!isAkoura && (
-            <select
-              value={selectedBranch}
-              onChange={e => setSelectedBranch(e.target.value)}
-              className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-4 py-2 text-xs font-black text-[#2A2723] outline-none"
-            >
-              <option value="all">عرض الجميع</option>
-              <option value="12">مزار 1 و 2</option>
-              <option value="3">مزار 3</option>
-              <option value="4">شقة 1</option>
-              <option value="5">شقة 2</option>
-              <option value="6">شقة 3</option>
-            </select>
-          )}
-        </div>
+      {/* Filters Bar & Section Tabs */}
+      <div className="space-y-4">
+        {/* Branch Circle Tabs (مطابقة لتقسيمة الكشكول) */}
+        {!isAkoura && (
+          <div className="flex flex-wrap items-center gap-2.5 bg-white/90 p-3.5 rounded-3xl border border-[#EAE4D9] shadow-sm">
+            <span className="text-[11px] font-black text-mazar-coffee px-2">الأقسام:</span>
+            {[
+              { id: 'all', label: 'الكل' },
+              { id: '12', label: 'مزار 1 + مزار 2' },
+              { id: '3', label: 'مزار 3' },
+              { id: '4', label: 'شقة ذكي رستم' },
+              { id: '5', label: 'شقة سين' },
+              { id: '6', label: 'شقة عباس الرئيسي' },
+            ].map(tab => {
+              const isActive = selectedBranch === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedBranch(tab.id)}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black transition-all duration-200 border cursor-pointer active:scale-95 ${
+                    isActive
+                      ? 'bg-mazar-coffee text-mazar-gold border-mazar-gold shadow-md scale-105'
+                      : 'bg-[#FDFBF7] text-gray-700 hover:bg-gray-100 border-[#EAE4D9]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-black text-[#2A2723]">الشهر والسنوات:</span>
-          <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
-            className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-4 py-2 text-xs font-black outline-none">
-            {MONTHS_AR.map((m, idx) => <option key={idx} value={idx}>{m}</option>)}
-          </select>
-          <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-            className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-4 py-2 text-xs font-black outline-none">
-            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+        <div className="flex flex-wrap justify-between items-center gap-4 bg-white/80 p-4 rounded-2xl border border-[#EAE4D9] shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-[#2A2723]">القسم المختار:</span>
+            <span className="text-xs font-black text-mazar-gold bg-mazar-coffee/10 px-3 py-1 rounded-xl">
+              {selectedBranch === 'all' ? 'عرض جميع الأقسام' : getBranchLabel(selectedBranch)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-[#2A2723]">الشهر والسنوات:</span>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-4 py-2 text-xs font-black outline-none cursor-pointer">
+              {MONTHS_AR.map((m, idx) => <option key={idx} value={idx}>{m}</option>)}
+            </select>
+            <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
+              className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-4 py-2 text-xs font-black outline-none cursor-pointer">
+              {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -515,9 +537,9 @@ export default function ExpensesTab() {
               <select disabled={isAkoura} value={newExpense.branch} onChange={e => setNewExpense({...newExpense, branch: e.target.value})} className="w-full bg-transparent border-b-2 border-gray-100 px-0 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all cursor-pointer">
                 <option value="12">مزار 1 و 2</option>
                 <option value="3">مزار 3</option>
-                <option value="4">شقة 1</option>
-                <option value="5">شقة 2</option>
-                <option value="6">شقة 3</option>
+                <option value="4">شقة ذكي رستم</option>
+                <option value="5">شقة سين</option>
+                <option value="6">شقة عباس الرئيسي</option>
               </select>
             </div>
             <div className="space-y-3 group">
@@ -722,7 +744,7 @@ export default function ExpensesTab() {
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الآمر بالصرف</label><input value={editingExpense.ordered_by} onChange={e => setEditingExpense({...editingExpense, ordered_by: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">من</label><input value={editingExpense.from_entity} onChange={e => setEditingExpense({...editingExpense, from_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">إلى</label><input value={editingExpense.to_entity} onChange={e => setEditingExpense({...editingExpense, to_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الفرع / القسم</label><select disabled={isAkoura} value={editingExpense.branch} onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all"><option value="12">مزار 1 و 2</option><option value="3">مزار 3</option><option value="4">شقة 1</option><option value="5">شقة 2</option><option value="6">شقة 3</option></select></div>
+                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الفرع / القسم</label><select disabled={isAkoura} value={editingExpense.branch} onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all"><option value="12">مزار 1 و 2</option><option value="3">مزار 3</option><option value="4">شقة ذكي رستم</option><option value="5">شقة سين</option><option value="6">شقة عباس الرئيسي</option></select></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">السبب / البيان</label><input required value={editingExpense.description} onChange={e => setEditingExpense({...editingExpense, description: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
 
                 {/* حالة الاعتماد */}
