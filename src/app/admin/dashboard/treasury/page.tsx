@@ -102,6 +102,17 @@ export default function TreasuryPage() {
     return adminInfo?.name || adminInfo?.username || 'مؤمن';
   }, [adminInfo]);
 
+  const isOwner = useMemo(() => {
+    const name = (adminInfo?.name || '').trim();
+    const username = (adminInfo?.username || '').toLowerCase().trim();
+    const role = (adminInfo?.role || '').toLowerCase().trim();
+    return (
+      ['مؤمن', 'مدحت'].some(n => name.includes(n)) ||
+      ['mo2men', 'medhat'].some(u => username.includes(u)) ||
+      role === 'owner'
+    );
+  }, [adminInfo]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -250,6 +261,19 @@ export default function TreasuryPage() {
       alert('خطأ أثناء الحذف: ' + err.message);
     }
   };
+
+  // Security: Non-owners see access denied
+  if (!isOwner && !isLoading) {
+    return (
+      <div className="p-12 text-center rounded-3xl bg-amber-50/50 border border-amber-200" dir="rtl">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-black text-amber-900 mb-2">إدارة الخزنة</h2>
+        <p className="text-sm font-bold text-amber-800/80">
+          هذه الصفحة مخصصة لأصحاب المكان (مؤمن ومدحت) فقط.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-20 animate-fade-in font-sans" dir="rtl">
