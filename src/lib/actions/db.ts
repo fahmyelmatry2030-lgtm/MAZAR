@@ -1264,8 +1264,27 @@ export async function getDbTreasuryTransfers() {
   return (data || []).map((t: any) => {
     let notes = t.notes || '';
     let handedBy = t.handed_by || '';
+    let receivedBy = t.received_by || '';
+    let type = 'deposit';
+    let reason = '';
+    let actor = '';
 
-    if (!notes && handedBy.includes('[ملاحظة:')) {
+    if (handedBy.includes('[نوع:')) {
+      const match = handedBy.match(/\[نوع:\s*([^\]]+)\]/);
+      if (match) {
+        type = match[1];
+        handedBy = handedBy.replace(/\[نوع:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+    if (notes.includes('[نوع:')) {
+      const match = notes.match(/\[نوع:\s*([^\]]+)\]/);
+      if (match) {
+        type = match[1];
+        notes = notes.replace(/\[نوع:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    if (handedBy.includes('[ملاحظة:')) {
       const match = handedBy.match(/\[ملاحظة:\s*([^\]]+)\]/);
       if (match) {
         notes = match[1];
@@ -1273,10 +1292,32 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
+    if (handedBy.includes('[سبب:')) {
+      const match = handedBy.match(/\[سبب:\s*([^\]]+)\]/);
+      if (match) {
+        reason = match[1];
+        handedBy = handedBy.replace(/\[سبب:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    if (handedBy === 'الخزنة الرئيسية' || type === 'withdrawal' || type === 'سحب') {
+      type = 'withdrawal';
+      actor = receivedBy || 'مؤمن';
+      reason = reason || notes || 'سحب من الخزنة الرئيسية';
+    } else {
+      type = 'deposit';
+      actor = handedBy || 'مزار';
+      reason = notes || reason || 'توريد للخزنة الرئيسية';
+    }
+
     return {
       ...t,
       handed_by: handedBy,
+      received_by: receivedBy,
       notes,
+      type,
+      reason,
+      actor,
     };
   });
 }
@@ -1285,12 +1326,22 @@ export async function saveDbTreasuryTransfer(transfer: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) throw new Error('Supabase configuration missing on server');
 
+  const type = transfer.type || (transfer.handed_by === 'الخزنة الرئيسية' ? 'withdrawal' : 'deposit');
+  const metaTags: string[] = [];
+  if (type === 'withdrawal') metaTags.push('[نوع: سحب]');
+  if (transfer.reason) metaTags.push(`[سبب: ${transfer.reason}]`);
+  if (transfer.notes) metaTags.push(`[ملاحظة: ${transfer.notes}]`);
+
+  const handedByText = transfer.handed_by || (type === 'withdrawal' ? 'الخزنة الرئيسية' : 'مزار');
+  const receivedByText = transfer.received_by || (type === 'withdrawal' ? (transfer.actor || 'مؤمن') : 'الخزنة الرئيسية');
+  const fullNotes = transfer.notes || transfer.reason || (type === 'withdrawal' ? 'سحب من الخزنة الرئيسية' : 'توريد للخزنة الرئيسية');
+
   const row: any = {
     amount: Number(transfer.amount) || 0,
-    handed_by: String(transfer.handed_by || '').trim(),
-    received_by: String(transfer.received_by || '').trim(),
+    handed_by: handedByText,
+    received_by: receivedByText,
     transfer_date: transfer.transfer_date || new Date().toISOString().slice(0, 10),
-    notes: String(transfer.notes || '').trim(),
+    notes: metaTags.length > 0 ? `${metaTags.join(' ')} ${fullNotes}`.trim() : fullNotes,
   };
 
   const { data, error } = await supabase.from('treasury_transfers').insert([row]).select().single();
@@ -1300,10 +1351,11 @@ export async function saveDbTreasuryTransfer(transfer: any) {
     }
     
     console.warn('⚠️ Standard treasury insert failed. Retrying with schema fallback...', error.message);
+    const fallbackHanded = metaTags.length > 0 ? `${metaTags.join(' ')} ${handedByText}`.trim() : handedByText;
     const fallbackRow = {
       amount: Number(transfer.amount) || 0,
-      handed_by: transfer.notes ? `[ملاحظة: ${transfer.notes}] ${String(transfer.handed_by || '').trim()}`.trim() : String(transfer.handed_by || '').trim(),
-      received_by: String(transfer.received_by || '').trim(),
+      handed_by: fallbackHanded,
+      received_by: receivedByText,
       transfer_date: transfer.transfer_date || new Date().toISOString().slice(0, 10),
     };
 
