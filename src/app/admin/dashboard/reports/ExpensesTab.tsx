@@ -114,12 +114,14 @@ export default function ExpensesTab() {
 
   const [adminRole, setAdminRole] = useState<string>('Super Admin');
   const [currentUserName, setCurrentUserName] = useState<string>('');
+  const [currentUsername, setCurrentUsername] = useState<string>('');
 
   useEffect(() => {
     const info = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('adminInfo') || '{}') : {};
-    if (info?.role) {
-      setAdminRole(info.role);
-      setCurrentUserName(info.name || info.username || 'الأونر');
+    if (info) {
+      setAdminRole(info.role || '');
+      setCurrentUserName(info.name || '');
+      setCurrentUsername(info.username || '');
       if (info.role === 'Akoura' || info.role === 'Aura') {
         setNewExpense(prev => ({ ...prev, branch: '3' }));
       }
@@ -127,9 +129,14 @@ export default function ExpensesTab() {
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
-  const isOwner = adminRole === 'Owner' || adminRole === 'Super Admin' || adminRole === 'Admin' ||
-    ['مؤمن', 'مدحت', 'mo2men', 'medhat'].includes(currentUserName.toLowerCase().trim());
-  const approverDisplayName = currentUserName.includes('مدحت') ? 'مدحت' : currentUserName.includes('مؤمن') ? 'مؤمن' : (currentUserName || 'مؤمن');
+  // ONLY Mo2men and Medhat can approve/toggle expenses
+  const isOwner = 
+    ['مؤمن', 'مدحت'].includes((currentUserName || '').trim()) ||
+    ['mo2men', 'medhat'].includes((currentUsername || '').toLowerCase().trim()) ||
+    ['mo2men', 'medhat'].includes((currentUserName || '').toLowerCase().trim());
+
+  const approverDisplayName = 
+    (currentUserName.includes('مدحت') || currentUsername.toLowerCase().includes('medhat')) ? 'مدحت' : 'مؤمن';
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -520,13 +527,13 @@ export default function ExpensesTab() {
             
             {/* حالة الاعتماد */}
             <div className="space-y-3 group">
-              <label className="text-[10px] font-black text-green-700 uppercase tracking-widest opacity-70 group-focus-within:opacity-100 transition-opacity">حالة الاعتماد (Approval Status)</label>
+              <label className="text-[10px] font-black text-green-700 uppercase tracking-widest opacity-70 group-focus-within:opacity-100 transition-opacity">حالة الاعتماد (مؤمن ومدحت فقط)</label>
               <select
                 disabled={!isOwner}
                 value={newExpense.status}
                 onChange={e => {
                   const val = e.target.value;
-                  const approver = val.includes('مؤمن') ? 'مؤمن' : val.includes('مدحت') ? 'مدحت' : (currentUserName || 'Owner');
+                  const approver = val.includes('مدحت') ? 'مدحت' : val.includes('مؤمن') ? 'مؤمن' : approverDisplayName;
                   setNewExpense({ ...newExpense, status: val, approved_by: val === 'PENDING' ? '' : approver });
                 }}
                 className="w-full bg-transparent border-b-2 border-green-200 px-0 py-4 text-sm font-bold text-green-800 outline-none focus:border-mazar-gold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
@@ -536,7 +543,6 @@ export default function ExpensesTab() {
                   <>
                     <option value="تم الموافقة بواسطة: مؤمن">✅ تم الموافقة بواسطة: مؤمن</option>
                     <option value="تم الموافقة بواسطة: مدحت">✅ تم الموافقة بواسطة: مدحت</option>
-                    <option value="تم الموافقة بواسطة: Owner">✅ تم الموافقة بواسطة: Owner</option>
                   </>
                 )}
               </select>
@@ -721,13 +727,14 @@ export default function ExpensesTab() {
 
                 {/* حالة الاعتماد */}
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-green-700 uppercase tracking-widest opacity-80">حالة الاعتماد (Approval)</label>
+                  <label className="text-[9px] font-black text-green-700 uppercase tracking-widest opacity-80">حالة الاعتماد (مؤمن ومدحت فقط)</label>
                   <select
+                    disabled={!isOwner}
                     value={
                       isExpenseApproved(editingExpense)
                         ? (editingExpense.status && editingExpense.status.includes('تم الموافقة')
                             ? editingExpense.status
-                            : `تم الموافقة بواسطة: ${editingExpense.approved_by || currentUserName || 'الأونر'}`)
+                            : `تم الموافقة بواسطة: ${editingExpense.approved_by || approverDisplayName}`)
                         : 'PENDING'
                     }
                     onChange={e => {
@@ -735,16 +742,15 @@ export default function ExpensesTab() {
                       if (val === 'PENDING') {
                         setEditingExpense({ ...editingExpense, status: 'PENDING', approved_by: '' });
                       } else {
-                        const approver = val.includes('مؤمن') ? 'مؤمن' : val.includes('مدحت') ? 'مدحت' : (currentUserName || 'Owner');
+                        const approver = val.includes('مدحت') ? 'مدحت' : 'مؤمن';
                         setEditingExpense({ ...editingExpense, status: val, approved_by: approver });
                       }
                     }}
-                    className="w-full bg-green-50 border border-green-200 rounded-2xl px-6 py-4 text-sm font-bold text-green-900 outline-none focus:border-green-500 transition-all cursor-pointer"
+                    className="w-full bg-green-50 border border-green-200 rounded-2xl px-6 py-4 text-sm font-bold text-green-900 outline-none focus:border-green-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="PENDING">⏳ غير معتمد (قيد الانتظار)</option>
                     <option value="تم الموافقة بواسطة: مؤمن">✅ تم الموافقة بواسطة: مؤمن</option>
                     <option value="تم الموافقة بواسطة: مدحت">✅ تم الموافقة بواسطة: مدحت</option>
-                    <option value="تم الموافقة بواسطة: Owner">✅ تم الموافقة بواسطة: Owner</option>
                   </select>
                 </div>
 
