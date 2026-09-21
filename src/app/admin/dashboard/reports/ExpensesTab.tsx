@@ -103,13 +103,44 @@ export default function ExpensesTab() {
     return displayStr;
   };
 
-  // Validate date is in YYYY-MM-DD format
+  // Robust Date Parser supporting YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, ISO strings
+  const parseDateYearMonth = (dateStr: any): { year: number; month: number } | null => {
+    if (!dateStr) return null;
+    const str = String(dateStr).trim();
+    
+    // Format: YYYY-MM-DD or YYYY/MM/DD or ISO 2026-08-15T...
+    const ymdMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (ymdMatch) {
+      return {
+        year: parseInt(ymdMatch[1], 10),
+        month: parseInt(ymdMatch[2], 10) - 1, // 0-indexed
+      };
+    }
+
+    // Format: DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmyMatch) {
+      return {
+        year: parseInt(dmyMatch[3], 10),
+        month: parseInt(dmyMatch[2], 10) - 1, // 0-indexed
+      };
+    }
+
+    // Fallback with Date object
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth(),
+      };
+    }
+
+    return null;
+  };
+
+  // Validate date is valid
   const isValidDate = (dateStr: string) => {
-    if (!dateStr) return false;
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateStr)) return false;
-    const d = new Date(dateStr);
-    return !isNaN(d.getTime());
+    return parseDateYearMonth(dateStr) !== null;
   };
 
   const [adminRole, setAdminRole] = useState<string>('Super Admin');
@@ -194,11 +225,9 @@ export default function ExpensesTab() {
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e: any) => {
       if (!e.date) return false;
-      const parts = e.date.split('-');
-      if (parts.length < 2) return false;
-      const year = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1;
-      if (month !== selectedMonth || year !== selectedYear) return false;
+      const parsed = parseDateYearMonth(e.date);
+      if (!parsed) return false;
+      if (parsed.month !== selectedMonth || parsed.year !== selectedYear) return false;
 
       // Branch filter
       if (selectedBranch !== 'all') {

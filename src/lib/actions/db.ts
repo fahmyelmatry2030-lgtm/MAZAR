@@ -1300,6 +1300,23 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
+    let time = '';
+
+    if (handedBy.includes('[وقت:')) {
+      const match = handedBy.match(/\[وقت:\s*([^\]]+)\]/);
+      if (match) {
+        time = match[1];
+        handedBy = handedBy.replace(/\[وقت:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+    if (notes.includes('[وقت:')) {
+      const match = notes.match(/\[وقت:\s*([^\]]+)\]/);
+      if (match) {
+        time = match[1];
+        notes = notes.replace(/\[وقت:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
     if (handedBy === 'الخزنة الرئيسية' || type === 'withdrawal' || type === 'سحب') {
       type = 'withdrawal';
       actor = receivedBy || 'مؤمن';
@@ -1318,6 +1335,7 @@ export async function getDbTreasuryTransfers() {
       type,
       reason,
       actor,
+      time,
     };
   });
 }
@@ -1330,6 +1348,7 @@ export async function saveDbTreasuryTransfer(transfer: any) {
   const metaTags: string[] = [];
   if (type === 'withdrawal') metaTags.push('[نوع: سحب]');
   if (transfer.reason) metaTags.push(`[سبب: ${transfer.reason}]`);
+  if (transfer.time) metaTags.push(`[وقت: ${transfer.time}]`);
   if (transfer.notes) metaTags.push(`[ملاحظة: ${transfer.notes}]`);
 
   const handedByText = transfer.handed_by || (type === 'withdrawal' ? 'الخزنة الرئيسية' : 'مزار');
