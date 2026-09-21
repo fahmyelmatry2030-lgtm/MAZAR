@@ -51,7 +51,6 @@ export default function TreasuryPage() {
     date: today.toISOString().slice(0, 10),
   });
 
-  const [activeTab, setActiveTab] = useState<'withdrawals' | 'deposits'>('withdrawals');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,28 +62,39 @@ export default function TreasuryPage() {
   useEffect(() => {
     const info = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('adminInfo') || '{}') : {};
     setAdminInfo(info);
-    if (info?.name) {
-      setDepositForm(prev => ({ ...prev, handedBy: info.name }));
+    if (info?.name || info?.username) {
+      const displayName = info.name || info.username;
+      setDepositForm(prev => ({ ...prev, handedBy: displayName }));
     }
   }, []);
 
   const currentUserName = useMemo(() => {
     if (adminInfo?.name?.includes('مدحت') || adminInfo?.username?.toLowerCase()?.includes('medhat')) return 'مدحت';
     if (adminInfo?.name?.includes('مؤمن') || adminInfo?.username?.toLowerCase()?.includes('mo2men')) return 'مؤمن';
-    return adminInfo?.name || adminInfo?.username || 'مؤمن';
+    return adminInfo?.name || adminInfo?.username || 'Admin';
   }, [adminInfo]);
 
   const isOwner = useMemo(() => {
     const name = (adminInfo?.name || '').trim();
     const username = (adminInfo?.username || '').toLowerCase().trim();
-    const role = (adminInfo?.role || '');
+    const role = (adminInfo?.role || '').toLowerCase().trim();
     return (
-      ['مؤمن', 'مدحت'].includes(name) ||
-      ['mo2men', 'medhat'].includes(username) ||
-      ['mo2men', 'medhat'].includes(name.toLowerCase()) ||
-      role === 'Owner'
+      ['مؤمن', 'مدحت'].some(n => name.includes(n)) ||
+      ['mo2men', 'medhat'].some(u => username.includes(u)) ||
+      role === 'owner'
     );
   }, [adminInfo]);
+
+  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals'>('deposits');
+
+  // If user is owner, default to withdrawals tab or allow toggle; if not owner, force deposits
+  useEffect(() => {
+    if (isOwner) {
+      setActiveTab('withdrawals');
+    } else {
+      setActiveTab('deposits');
+    }
+  }, [isOwner]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -281,32 +291,27 @@ export default function TreasuryPage() {
     }
   };
 
-  // Security Check: If not owner
-  if (!isOwner && !isLoading) {
-    return (
-      <div className="p-12 text-center glass-card border-amber-200 bg-amber-50/50 rounded-3xl" dir="rtl">
-        <ShieldAlert className="w-16 h-16 text-amber-600 mx-auto mb-4 animate-bounce" />
-        <h2 className="text-2xl font-black text-amber-900 mb-2">إدارة الخزنة الرئيسية</h2>
-        <p className="text-sm font-bold text-amber-800/80 max-w-md mx-auto">
-          عفواً، هذه الصفحة مخصصة وحصرية لأصحاب المكان (مؤمن ومدحت) فقط.
-        </p>
-      </div>
-    );
-  }
-
+  // Render
   return (
     <div className="space-y-10 pb-20 animate-fade-in font-sans" dir="rtl">
       
       {/* Top Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[#EAE4D9] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 bg-[#2A2723] text-mazar-gold px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-xs mb-3">
-            <Lock size={13} />
-            <span>تظهر لمؤمن + مدحت فقط</span>
-          </div>
-          <h1 className="text-3xl md:text-5xl font-black text-[#2A2723] tracking-tight">إدارة الخزنة الرئيسية</h1>
+          {isOwner ? (
+            <div className="inline-flex items-center gap-2 bg-[#2A2723] text-mazar-gold px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-xs mb-3">
+              <Lock size={13} />
+              <span>خاص بأصحاب المكان (مؤمن + مدحت)</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 bg-[#2A2723] text-white px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-xs mb-3">
+              <Wallet size={13} className="text-mazar-gold" />
+              <span>إدارة تحويلات وتوريدات الخزنة</span>
+            </div>
+          )}
+          <h1 className="text-3xl md:text-5xl font-black text-[#2A2723] tracking-tight">إدارة الخزنة</h1>
           <p className="text-xs md:text-sm font-bold text-[#7A7061] mt-2">
-            متابعة الرصيد المتبقي وجدول المسحوبات والتوريدات الخاصة بالخزنة الرئيسية
+            متابعة أرصدة الخزنة الرئيسية والفرعية والتحويلات المالية والتوريدات
           </p>
         </div>
 
@@ -355,10 +360,10 @@ export default function TreasuryPage() {
       {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-xs font-black">{error}</div>}
       {successMsg && <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-4 text-xs font-black">{successMsg}</div>}
 
-      {/* Main Balance Hero Card (المبلغ اللي في الخزنة الرئيسية) */}
+      {/* Main Balance Hero Cards (الخزنة الرئيسية + الخزنة الفرعية) */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* Main Treasury Balance (Big Centerpiece matching notebook) */}
+        {/* Main Treasury Balance */}
         <div className="md:col-span-2 glass-card bg-gradient-to-br from-[#2A2723] via-[#35312C] to-[#1F1C18] text-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col justify-between border border-white/10">
           <div className="flex justify-between items-start z-10">
             <div>
@@ -380,10 +385,17 @@ export default function TreasuryPage() {
               <span className="text-[10px] text-white/60 font-bold block">إجمالي الوارد للخزنة الرئيسية</span>
               <span className="text-lg font-black text-emerald-400 mt-1 block">+{money(totalDepositsAllTime)}</span>
             </div>
-            <div>
-              <span className="text-[10px] text-white/60 font-bold block">إجمالي المسحوبات</span>
-              <span className="text-lg font-black text-rose-400 mt-1 block">-{money(totalWithdrawalsAllTime)}</span>
-            </div>
+            {isOwner ? (
+              <div>
+                <span className="text-[10px] text-white/60 font-bold block">إجمالي المسحوبات</span>
+                <span className="text-lg font-black text-rose-400 mt-1 block">-{money(totalWithdrawalsAllTime)}</span>
+              </div>
+            ) : (
+              <div>
+                <span className="text-[10px] text-white/60 font-bold block">حالة الخزنة</span>
+                <span className="text-sm font-black text-mazar-gold mt-1 block">🟢 نشطة ومحدثة</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -411,22 +423,24 @@ export default function TreasuryPage() {
         </div>
       </section>
 
-      {/* Action Forms Section (سحب جديد / توريد جديد) */}
+      {/* Action Forms Section (سحب جديد للمالك / توريد جديد للكل) */}
       <section className="glass-card bg-white p-8 md:p-10 rounded-[2.5rem] border border-[#EAE4D9] shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setActiveTab('withdrawals')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${
-                activeTab === 'withdrawals'
-                  ? 'bg-rose-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <TrendingDown size={16} />
-              <span>تسجيل سحب من الخزنة الرئيسية</span>
-            </button>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('withdrawals')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'withdrawals'
+                    ? 'bg-rose-600 text-white shadow-lg scale-105'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <TrendingDown size={16} />
+                <span>تسجيل سحب من الخزنة الرئيسية</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -438,17 +452,17 @@ export default function TreasuryPage() {
               }`}
             >
               <TrendingUp size={16} />
-              <span>إيداع / توريد إلى الخزنة الرئيسية</span>
+              <span>تحويل / توريد من الخزنة الفرعية إلى الخزنة الرئيسية</span>
             </button>
           </div>
 
           <span className="text-xs font-black text-[#7A7061]">
-            الرصيد المتاح للسحب: <b className="text-emerald-700">{money(currentMainTreasuryBalance)}</b>
+            رصيد الخزنة الفرعية المتاح: <b className="text-emerald-700">{money(subTreasuryCalculated)}</b>
           </span>
         </div>
 
-        {/* 1. Withdrawal Form */}
-        {activeTab === 'withdrawals' && (
+        {/* 1. Withdrawal Form (Owner Only) */}
+        {isOwner && activeTab === 'withdrawals' && (
           <form onSubmit={handleWithdrawSubmit} className="space-y-6 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               
@@ -509,13 +523,13 @@ export default function TreasuryPage() {
           </form>
         )}
 
-        {/* 2. Deposit Form */}
+        {/* 2. Deposit / Transfer Form (Accessible to Admin & Owners) */}
         {activeTab === 'deposits' && (
           <form onSubmit={handleDepositSubmit} className="space-y-6 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest">مبلغ التوريد (ج.م) *</label>
+                <label className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest">المبلغ المراد تحويله (ج.م) *</label>
                 <input
                   required
                   type="number"
@@ -529,10 +543,10 @@ export default function TreasuryPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest">مُسلّم المبلغ (المصدر) *</label>
+                <label className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest">مُسلّم المبلغ / القائم بالتحويل *</label>
                 <input
                   required
-                  placeholder="مثلاً: الخزنة الفرعية، مؤمن، مدحت..."
+                  placeholder="مثلاً: الخزنة الفرعية، Admin، مؤمن..."
                   value={depositForm.handedBy}
                   onChange={(e) => setDepositForm({ ...depositForm, handedBy: e.target.value })}
                   className="w-full bg-[#FDFBF7] border-2 border-gray-100 focus:border-mazar-gold rounded-2xl px-5 py-4 text-sm font-bold text-[#2A2723] outline-none transition-all"
@@ -553,7 +567,7 @@ export default function TreasuryPage() {
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest">ملاحظات / البيان</label>
                 <input
-                  placeholder="توريد أرباح شهرية..."
+                  placeholder="تحويل أرباح الخزنة الفرعية للخزنة الرئيسية..."
                   value={depositForm.notes}
                   onChange={(e) => setDepositForm({ ...depositForm, notes: e.target.value })}
                   className="w-full bg-[#FDFBF7] border-2 border-gray-100 focus:border-mazar-gold rounded-2xl px-5 py-4 text-sm font-bold text-[#2A2723] outline-none transition-all"
@@ -568,95 +582,97 @@ export default function TreasuryPage() {
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl transition-all shadow-lg active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <TrendingUp size={18} />
-              <span>{isSaving ? 'جاري تسجيل التوريد...' : 'إضافة مبلغ إلى الخزنة الرئيسية'}</span>
+              <span>{isSaving ? 'جاري تسجيل التحويل...' : 'إتمام التحويل إلى الخزنة الرئيسية'}</span>
             </button>
           </form>
         )}
       </section>
 
-      {/* Main Table: جدول سحب من الخزنة الرئيسية (مطابق بالكامل للورقة) */}
-      <section className="space-y-6">
-        <div className="flex justify-between items-end px-2">
-          <div>
-            <h2 className="text-2xl font-black text-[#2A2723] flex items-center gap-3">
-              <span>* جدول سحب من الخزنة الرئيسية</span>
-              <span className="text-xs bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-black">
-                {withdrawalsList.length} حركة سحب
-              </span>
-            </h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-1">
-              سحب بواسطة يكتب تلقائياً، والرصيد المتبقي في الخزنة يُحسب تراكمياً وتلقائياً بعد كل سحب
-            </p>
+      {/* Main Table: جدول سحب من الخزنة الرئيسية (يظهر لمؤمن ومدحت فقط) */}
+      {isOwner && (
+        <section className="space-y-6">
+          <div className="flex justify-between items-end px-2">
+            <div>
+              <h2 className="text-2xl font-black text-[#2A2723] flex items-center gap-3">
+                <span>* جدول سحب من الخزنة الرئيسية</span>
+                <span className="text-xs bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-black">
+                  {withdrawalsList.length} حركة سحب
+                </span>
+              </h2>
+              <p className="text-[11px] font-bold text-[#7A7061] mt-1">
+                سحب بواسطة يكتب تلقائياً، والرصيد المتبقي في الخزنة يُحسب تراكمياً وتلقائياً بعد كل سحب
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="glass-card overflow-hidden border-[#EAE4D9] shadow-2xl rounded-[2rem] bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-center border-collapse min-w-[750px]">
-              <thead>
-                <tr className="bg-[#2A2723] text-white text-xs font-black uppercase tracking-widest">
-                  <th className="px-4 py-5 border-x border-white/10 w-16">م</th>
-                  <th className="px-6 py-5 border-x border-white/10 w-36">المبلغ</th>
-                  <th className="px-6 py-5 border-x border-white/10 w-36">التاريخ</th>
-                  <th className="px-8 py-5 border-x border-white/10 text-right">السبب</th>
-                  <th className="px-6 py-5 border-x border-white/10 w-44">سحب بواسطة</th>
-                  <th className="px-6 py-5 border-x border-white/10 w-44">المتبقي في الخزنة</th>
-                  <th className="px-4 py-5 border-x border-white/10 w-24">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAE4D9]/60">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="p-16 text-center">
-                      <div className="inline-block w-8 h-8 border-4 border-mazar-gold border-t-transparent rounded-full animate-spin"></div>
-                    </td>
+          <div className="glass-card overflow-hidden border-[#EAE4D9] shadow-2xl rounded-[2rem] bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-center border-collapse min-w-[750px]">
+                <thead>
+                  <tr className="bg-[#2A2723] text-white text-xs font-black uppercase tracking-widest">
+                    <th className="px-4 py-5 border-x border-white/10 w-16">م</th>
+                    <th className="px-6 py-5 border-x border-white/10 w-36">المبلغ</th>
+                    <th className="px-6 py-5 border-x border-white/10 w-36">التاريخ</th>
+                    <th className="px-8 py-5 border-x border-white/10 text-right">السبب</th>
+                    <th className="px-6 py-5 border-x border-white/10 w-44">سحب بواسطة</th>
+                    <th className="px-6 py-5 border-x border-white/10 w-44">المتبقي في الخزنة</th>
+                    <th className="px-4 py-5 border-x border-white/10 w-24">إجراءات</th>
                   </tr>
-                ) : withdrawalsWithRunningBalance.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-20 text-center text-[#7A7061] font-black text-sm">
-                      لا توجد أي حركات سحب مسجلة من الخزنة الرئيسية حتى الآن
-                    </td>
-                  </tr>
-                ) : (
-                  withdrawalsWithRunningBalance.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#FDFBF7] transition-colors">
-                      <td className="px-4 py-5 text-sm font-black text-gray-500">{item.index}</td>
-                      <td className="px-6 py-5 text-base font-black text-rose-600 whitespace-nowrap">
-                        -{Number(item.amount).toLocaleString()} ج.م
-                      </td>
-                      <td className="px-6 py-5 text-xs font-bold text-gray-600 whitespace-nowrap">
-                        {item.transfer_date}
-                      </td>
-                      <td className="px-8 py-5 text-sm font-bold text-[#2A2723] text-right">
-                        {item.reason || item.notes || '—'}
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-full text-xs font-black">
-                          <UserCheck size={14} className="text-emerald-600" />
-                          <span>{item.actor || item.received_by || 'مؤمن'}</span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-5 text-base font-black text-[#2A2723] whitespace-nowrap bg-[#FDFBF7]/80">
-                        {money(item.remaining)}
-                      </td>
-                      <td className="px-4 py-5">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTransfer(item.id)}
-                          title="حذف حركة السحب"
-                          className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-xs flex items-center justify-center active:scale-90 mx-auto cursor-pointer"
-                        >
-                          <Trash2 size={16} strokeWidth={2.5} />
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-[#EAE4D9]/60">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={7} className="p-16 text-center">
+                        <div className="inline-block w-8 h-8 border-4 border-mazar-gold border-t-transparent rounded-full animate-spin"></div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : withdrawalsWithRunningBalance.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-20 text-center text-[#7A7061] font-black text-sm">
+                        لا توجد أي حركات سحب مسجلة من الخزنة الرئيسية حتى الآن
+                      </td>
+                    </tr>
+                  ) : (
+                    withdrawalsWithRunningBalance.map((item) => (
+                      <tr key={item.id} className="hover:bg-[#FDFBF7] transition-colors">
+                        <td className="px-4 py-5 text-sm font-black text-gray-500">{item.index}</td>
+                        <td className="px-6 py-5 text-base font-black text-rose-600 whitespace-nowrap">
+                          -{Number(item.amount).toLocaleString()} ج.م
+                        </td>
+                        <td className="px-6 py-5 text-xs font-bold text-gray-600 whitespace-nowrap">
+                          {item.transfer_date}
+                        </td>
+                        <td className="px-8 py-5 text-sm font-bold text-[#2A2723] text-right">
+                          {item.reason || item.notes || '—'}
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-full text-xs font-black">
+                            <UserCheck size={14} className="text-emerald-600" />
+                            <span>{item.actor || item.received_by || 'مؤمن'}</span>
+                          </span>
+                        </td>
+                        <td className="px-6 py-5 text-base font-black text-[#2A2723] whitespace-nowrap bg-[#FDFBF7]/80">
+                          {money(item.remaining)}
+                        </td>
+                        <td className="px-4 py-5">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTransfer(item.id)}
+                            title="حذف حركة السحب"
+                            className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-xs flex items-center justify-center active:scale-90 mx-auto cursor-pointer"
+                          >
+                            <Trash2 size={16} strokeWidth={2.5} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Secondary Table: سجل التوريدات الواردة للخزنة الرئيسية */}
       <section className="space-y-6 pt-6 border-t border-[#EAE4D9]">
