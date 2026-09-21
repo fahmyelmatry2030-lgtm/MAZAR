@@ -153,7 +153,7 @@ export default function ExpensesTab() {
     if (b === 1 || b === 2 || b === 12) return 'مزار 1 و 2';
     if (b === 3) return 'مزار 3';
     if (b === 4) return 'شقة ذكي رستم';
-    if (b === 5) return 'شقة سين';
+    if (b === 5) return 'شقة سيتي';
     if (b === 6) return 'شقة عباس الرئيسي';
     return 'مزار 1 و 2';
   };
@@ -452,7 +452,7 @@ export default function ExpensesTab() {
               { id: '12', label: 'مزار 1 + مزار 2' },
               { id: '3', label: 'مزار 3' },
               { id: '4', label: 'شقة ذكي رستم' },
-              { id: '5', label: 'شقة سين' },
+              { id: '5', label: 'شقة سيتي' },
               { id: '6', label: 'شقة عباس الرئيسي' },
             ].map(tab => {
               const isActive = selectedBranch === tab.id;
@@ -538,7 +538,7 @@ export default function ExpensesTab() {
                 <option value="12">مزار 1 و 2</option>
                 <option value="3">مزار 3</option>
                 <option value="4">شقة ذكي رستم</option>
-                <option value="5">شقة سين</option>
+                <option value="5">شقة سيتي</option>
                 <option value="6">شقة عباس الرئيسي</option>
               </select>
             </div>
@@ -744,7 +744,7 @@ export default function ExpensesTab() {
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الآمر بالصرف</label><input value={editingExpense.ordered_by} onChange={e => setEditingExpense({...editingExpense, ordered_by: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">من</label><input value={editingExpense.from_entity} onChange={e => setEditingExpense({...editingExpense, from_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">إلى</label><input value={editingExpense.to_entity} onChange={e => setEditingExpense({...editingExpense, to_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الفرع / القسم</label><select disabled={isAkoura} value={editingExpense.branch} onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all"><option value="12">مزار 1 و 2</option><option value="3">مزار 3</option><option value="4">شقة ذكي رستم</option><option value="5">شقة سين</option><option value="6">شقة عباس الرئيسي</option></select></div>
+                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الفرع / القسم</label><select disabled={isAkoura} value={editingExpense.branch} onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all"><option value="12">مزار 1 و 2</option><option value="3">مزار 3</option><option value="4">شقة ذكي رستم</option><option value="5">شقة سيتي</option><option value="6">شقة عباس الرئيسي</option></select></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">السبب / البيان</label><input required value={editingExpense.description} onChange={e => setEditingExpense({...editingExpense, description: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
 
                 {/* حالة الاعتماد */}
