@@ -78,18 +78,21 @@ export default function TreasuryPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [bookingData, expenseData, transferData] = await Promise.all([
+      // Phase 1: load transfers fast (tiny table) → show page immediately
+      const transferData = await getDbTreasuryTransfers();
+      setTransfers(transferData || []);
+      setIsLoading(false); // show page with transfers right away
+
+      // Phase 2: load bookings + expenses in background for summary cards
+      const [bookingData, expenseData] = await Promise.all([
         getBookings(),
         getDbExpenses(),
-        getDbTreasuryTransfers(),
       ]);
       setBookings(bookingData || []);
       setExpenses(expenseData || []);
-      setTransfers(transferData || []);
     } catch (loadError) {
       console.error(loadError);
-      setError('تعذر تحميل بيانات الخزنة. تأكد من تطبيق جدول treasury_transfers في Supabase.');
-    } finally {
+      setError('تعذر تحميل بيانات الخزنة.');
       setIsLoading(false);
     }
   };
