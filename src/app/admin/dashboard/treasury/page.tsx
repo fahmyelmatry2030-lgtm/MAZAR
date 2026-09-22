@@ -11,6 +11,19 @@ import {
 import { ArrowLeftRight, Plus, Trash2, Wallet } from 'lucide-react';
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+// Robust date parser: supports YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, ISO
+const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) return { year: +ymd[1], month: +ymd[2] - 1 };
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) return { year: +dmy[3], month: +dmy[2] - 1 };
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() };
+  return null;
+};
 const CONFIRMED_STATUSES = ['approved', 'مؤكد', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 
 type TreasuryTransfer = {
@@ -85,13 +98,13 @@ export default function TreasuryPage() {
 
   const monthlyBookings = useMemo(() => bookings.filter((booking) => {
     if (!CONFIRMED_STATUSES.includes(String(booking.status))) return false;
-    const date = new Date(`${booking.checkIn}T00:00:00`);
-    return date.getMonth() === month && date.getFullYear() === year;
+    const parsed = parseDateYM(booking.checkIn);
+    return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
 
   const monthlyExpenses = useMemo(() => expenses.filter((expense) => {
-    const date = new Date(`${expense.date}T00:00:00`);
-    return date.getMonth() === month && date.getFullYear() === year;
+    const parsed = parseDateYM(expense.date);
+    return parsed ? parsed.month === month && parsed.year === year : false;
   }), [expenses, month, year]);
 
   const grossTreasury = useMemo(() => {
