@@ -78,22 +78,26 @@ export default function TreasuryPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // Phase 1: load transfers fast (tiny table) → show page immediately
+      // Phase 1: load transfers (fast small table)
       const transferData = await getDbTreasuryTransfers();
       setTransfers(transferData || []);
-      setIsLoading(false); // show page with transfers right away
+    } catch (e) {
+      console.error('Treasury transfers load error:', e);
+    } finally {
+      setIsLoading(false);
+    }
 
-      // Phase 2: load bookings + expenses in background for summary cards
+    // Phase 2: load bookings + expenses in background (separate try, won't block page)
+    try {
       const [bookingData, expenseData] = await Promise.all([
         getBookings(),
         getDbExpenses(),
       ]);
       setBookings(bookingData || []);
       setExpenses(expenseData || []);
-    } catch (loadError) {
-      console.error(loadError);
-      setError('تعذر تحميل بيانات الخزنة.');
-      setIsLoading(false);
+    } catch (e) {
+      console.error('Bookings/expenses load error:', e);
+      // Don't show error to user — summary cards will just show 0
     }
   };
 
@@ -118,8 +122,8 @@ export default function TreasuryPage() {
   }, [monthlyBookings, monthlyExpenses]);
 
   const monthlyTransfers = useMemo(() => transfers.filter((transfer) => {
-    const date = new Date(`${transfer.transfer_date}T00:00:00`);
-    return date.getMonth() === month && date.getFullYear() === year;
+    const parsed = parseDateYM(transfer.transfer_date);
+    return parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
   const mainTreasury = monthlyTransfers.reduce((sum, transfer) => sum + (Number(transfer.amount) || 0), 0);
@@ -128,8 +132,8 @@ export default function TreasuryPage() {
   // Withdrawals from main treasury = transfers where notes contains [نوع: سحب من الرئيسية]
   const mainWithdrawals = useMemo(() => transfers.filter(t => {
     const isWithdraw = (t.notes || '').includes('[نوع: سحب من الرئيسية]');
-    const date = new Date(`${t.transfer_date}T00:00:00`);
-    return isWithdraw && date.getMonth() === month && date.getFullYear() === year;
+    const parsed = parseDateYM(t.transfer_date);
+    return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
   const submitTransfer = async (event: React.FormEvent) => {
