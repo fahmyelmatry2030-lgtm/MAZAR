@@ -239,61 +239,6 @@ export default function TreasuryPage() {
         </div>
       </section>
 
-      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-        <h2 className="text-lg font-black text-[#2A2723] mb-6">إضافة مبلغ من الخزنة الفرعية إلى الرئيسية</h2>
-        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
-          <label className="text-[10px] font-black text-[#7A7061]">المبلغ<input required type="number" min="1" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
-          <label className="text-[10px] font-black text-[#7A7061]">مسلم<input required value={form.handedBy} onChange={(event) => setForm({ ...form, handedBy: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
-          <label className="text-[10px] font-black text-[#7A7061]">مستلم<input required value={form.receivedBy} onChange={(event) => setForm({ ...form, receivedBy: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
-          <label className="text-[10px] font-black text-[#7A7061]">ملاحظة<input placeholder="أضف ملاحظة..." value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
-          <label className="text-[10px] font-black text-[#7A7061]">التاريخ<input required type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
-          <button disabled={isSaving} className="bg-[#2A2723] text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px]"><Plus size={16} /> {isSaving ? 'جاري الحفظ' : 'إضافة'}</button>
-        </form>
-      </section>
-
-      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] overflow-hidden shadow-sm">
-        <div className="p-6 border-b border-[#EAE4D9] flex justify-between items-center">
-          <h2 className="text-lg font-black text-[#2A2723]">حركات التوريد</h2>
-          <span className="text-xs font-black text-[#7A7061]">{monthlyTransfers.filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]')).length} حركة</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
-              <tr>
-                <th className="p-5">المبلغ</th>
-                <th className="p-5">مسلم</th>
-                <th className="p-5">مستلم</th>
-                <th className="p-5">ملاحظة</th>
-                <th className="p-5">التاريخ</th>
-                <th className="p-5">حذف</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyTransfers.filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]')).length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-[#7A7061] font-bold">لا توجد تحويلات لهذا الشهر</td></tr>
-              ) : (
-                monthlyTransfers
-                  .filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]'))
-                  .map((transfer) => (
-                    <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold">
-                      <td className="p-5 text-[#C1A68D] font-black">{money(Number(transfer.amount))}</td>
-                      <td className="p-5">{transfer.handed_by}</td>
-                      <td className="p-5">{transfer.received_by}</td>
-                      <td className="p-5 text-[#7A7061]">{transfer.notes || '—'}</td>
-                      <td className="p-5">{transfer.transfer_date}</td>
-                      <td className="p-5">
-                        <button onClick={() => removeTransfer(transfer.id)} title="حذف الحركة" className="text-red-500">
-                          <Trash2 size={17} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
       {/* Withdrawal from main treasury — OWNERS ONLY (مؤمن & مدحت) */}
       {isOwner && (
         <section className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
@@ -358,6 +303,61 @@ export default function TreasuryPage() {
           </div>
         </section>
       )}
+
+      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
+        <h2 className="text-lg font-black text-[#2A2723] mb-6">إضافة مبلغ من الخزنة الفرعية إلى الرئيسية</h2>
+        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
+          <label className="text-[10px] font-black text-[#7A7061]">المبلغ<input required type="number" min="1" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
+          <label className="text-[10px] font-black text-[#7A7061]">مسلم<input required value={form.handedBy} onChange={(event) => setForm({ ...form, handedBy: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
+          <label className="text-[10px] font-black text-[#7A7061]">مستلم<input required value={form.receivedBy} onChange={(event) => setForm({ ...form, receivedBy: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
+          <label className="text-[10px] font-black text-[#7A7061]">ملاحظة<input placeholder="أضف ملاحظة..." value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
+          <label className="text-[10px] font-black text-[#7A7061]">التاريخ<input required type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black" /></label>
+          <button disabled={isSaving} className="bg-[#2A2723] text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px]"><Plus size={16} /> {isSaving ? 'جاري الحفظ' : 'إضافة'}</button>
+        </form>
+      </section>
+
+      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-[#EAE4D9] flex justify-between items-center">
+          <h2 className="text-lg font-black text-[#2A2723]">حركات التوريد</h2>
+          <span className="text-xs font-black text-[#7A7061]">{monthlyTransfers.filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]')).length} حركة</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
+              <tr>
+                <th className="p-5">المبلغ</th>
+                <th className="p-5">مسلم</th>
+                <th className="p-5">مستلم</th>
+                <th className="p-5">ملاحظة</th>
+                <th className="p-5">التاريخ</th>
+                <th className="p-5">حذف</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyTransfers.filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]')).length === 0 ? (
+                <tr><td colSpan={6} className="p-12 text-center text-[#7A7061] font-bold">لا توجد تحويلات لهذا الشهر</td></tr>
+              ) : (
+                monthlyTransfers
+                  .filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]'))
+                  .map((transfer) => (
+                    <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold">
+                      <td className="p-5 text-[#C1A68D] font-black">{money(Number(transfer.amount))}</td>
+                      <td className="p-5">{transfer.handed_by}</td>
+                      <td className="p-5">{transfer.received_by}</td>
+                      <td className="p-5 text-[#7A7061]">{transfer.notes || '—'}</td>
+                      <td className="p-5">{transfer.transfer_date}</td>
+                      <td className="p-5">
+                        <button onClick={() => removeTransfer(transfer.id)} title="حذف الحركة" className="text-red-500">
+                          <Trash2 size={17} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
