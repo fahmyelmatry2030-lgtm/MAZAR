@@ -1696,7 +1696,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                               'bg-emerald-100 text-emerald-800'
                             }`}>
                               {apt.isExtension ? '🔁 تمديد اليوم' :
-                               apt.isTurnover ? '🔄 تبديل اليوم' : 
+                               apt.isTurnover ? '🔄 تبادل اليوم' : 
                                apt.isCheckingOut ? '🛫 خروج اليوم' :
                                apt.isCheckingOutTomorrow ? `🛫 خروج غداً (${formatMiniDate(apt.checkOut || apt.leavingCheckOut)})` :
                                apt.isCheckingIn ? '🛬 وصول اليوم' :
