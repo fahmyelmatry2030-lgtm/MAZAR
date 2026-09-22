@@ -1684,7 +1684,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           {/* STATUS COLUMN (RIGHT AFTER NOTES) */}
                           <td className="px-4 py-3 text-center">
                             <span className={`text-xs font-black px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap ${
-                              apt.isExtension ? 'bg-purple-600 text-white' :
+                              apt.isExtension ? 'bg-purple-100 text-purple-700' :
                               apt.isTurnover ? 'bg-orange-500 text-white animate-pulse' :
                               apt.isCheckingOut ? 'bg-rose-600 text-white font-black' :
                               apt.isCheckingOutTomorrow ? 'bg-amber-500 text-white font-black' :
@@ -1693,7 +1693,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                               apt.isOccupied ? 'bg-red-100 text-red-700' : 
                               'bg-emerald-100 text-emerald-800'
                             }`}>
-                              {apt.isExtension ? '🔁 تمديد اليوم' :
+                              {apt.isExtension ? '🔁 تمديد' :
                                apt.isTurnover ? '🔄 تبادل اليوم' : 
                                apt.isCheckingOut ? '🛫 خروج اليوم' :
                                apt.isCheckingOutTomorrow ? `🛫 خروج غداً (${formatMiniDate(apt.checkOut || apt.leavingCheckOut)})` :
