@@ -199,12 +199,10 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       }
 
       let isTurnover = !!outToday && !!inToday;
-      // تمديد: نفس الضيف خارج وداخل في نفس اليوم (تمديد الإقامة)
+      // تمديد: نفس الضيف بيخرج ويدخل تاني في نفس اليوم
       const sameGuestName = outToday?.name && inToday?.name &&
         outToday.name.trim().toLowerCase() === inToday.name.trim().toLowerCase();
-      const sameApartment = outToday?.apartmentId && inToday?.apartmentId &&
-        outToday.apartmentId === inToday.apartmentId;
-      let isExtension = isTurnover && (sameGuestName || sameApartment);
+      let isExtension = isTurnover && !!sameGuestName;
       let isCheckingOut = !!outToday && !inToday;
       let isCheckingIn = !!inToday && !outToday;
       let isCheckingOutTomorrow = !isCheckingOut && !isTurnover && (!!outTomorrow || (!!activeBooking && activeBooking.checkOut === nextDayStr));
