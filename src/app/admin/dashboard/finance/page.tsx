@@ -98,6 +98,19 @@ function ProfitDistribution({
   );
 }
 
+// Robust date parser: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, ISO
+const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) return { year: +ymd[1], month: +ymd[2] - 1 };
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) return { year: +dmy[3], month: +dmy[2] - 1 };
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() };
+  return null;
+};
+
 export default function FinancePage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -164,11 +177,8 @@ export default function FinancePage() {
       const mBookings = bookings.filter((b: any) => {
         if (b.status === 'deleted') return false;
         if (b.status !== 'approved' && b.status !== 'مؤكد') return false;
-        const parts = b.checkIn?.split('-');
-        if (!parts || parts.length < 2) return false;
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        if (month !== m || year !== activeYear) return false;
+        const parsed = parseDateYM(b.checkIn);
+        if (!parsed || parsed.month !== m || parsed.year !== activeYear) return false;
 
         const u = units.find((unit: any) => unit.id === b.apartmentId);
         if (isAkoura) {
@@ -189,11 +199,8 @@ export default function FinancePage() {
       const mExpenses = expenses.filter((e: any) => {
         if (!isApprovedExpense(e)) return false;
         if (!e.date) return false;
-        const parts = e.date.split('-');
-        if (parts.length < 2) return false;
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        if (month !== m || year !== activeYear) return false;
+        const parsed = parseDateYM(e.date);
+        if (!parsed || parsed.month !== m || parsed.year !== activeYear) return false;
 
         if (isAkoura) {
           return e.branch === 3 || e.branch === '3' || String(e.unitId || '').startsWith('p-s');
@@ -225,9 +232,8 @@ export default function FinancePage() {
     return bookings.filter((b: any) => {
       if (b.status === 'deleted') return false;
       if (b.status !== 'approved' && b.status !== 'مؤكد') return false;
-      const parts = b.checkIn?.split('-');
-      if (!parts || parts.length < 2) return false;
-      if (parseInt(parts[1], 10) - 1 !== selectedMonth || parseInt(parts[0], 10) !== selectedYear) return false;
+      const parsed = parseDateYM(b.checkIn);
+      if (!parsed || parsed.month !== selectedMonth || parsed.year !== selectedYear) return false;
       if (!isMohsen) return true;
       const unit = units.find((candidate: any) => candidate.id === b.apartmentId);
       return unit?.branch === 1 || unit?.branch === 2;
@@ -246,11 +252,8 @@ export default function FinancePage() {
     return expenses.filter((e: any) => {
       if (!isApprovedExpense(e)) return false;
       if (!e.date) return false;
-      const parts = e.date.split('-');
-      if (parts.length < 2) return false;
-      const year = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1;
-      if (month !== selectedMonth || year !== selectedYear) return false;
+      const parsed = parseDateYM(e.date);
+      if (!parsed || parsed.month !== selectedMonth || parsed.year !== selectedYear) return false;
       return !isMohsen || [1, 2, 12].includes(Number(e.branch) || 12);
     });
   }, [expenses, selectedMonth, selectedYear, isMohsen]);
