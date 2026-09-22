@@ -216,7 +216,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     { name: 'الموظفين', href: '/admin/dashboard/hr/staff', icon: '👥', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'إدارة المحتوى', href: '/admin/dashboard/content', icon: '📝', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'المصروفات', href: '/admin/dashboard/reports', icon: '💰', roles: ['Owner', 'Admin', 'Super Admin', 'Akoura', 'Aura'] },
-    { name: 'الخزنة', href: '/admin/dashboard/treasury', icon: '🔐', roles: ['Owner'] },
+    { name: 'الخزنة', href: '/admin/dashboard/treasury', icon: '🔐', roles: ['Owner', 'Admin'] },
     { name: 'قائمة المهام', href: '/admin/dashboard/tasks', icon: '📋', roles: ['Owner', 'Admin', 'Super Admin', 'Moderator', 'Mohsen'] },
     { name: 'كشف الحساب الشهري', href: '/admin/dashboard/finance', icon: '🏛️', roles: ['Owner', 'Mohsen', 'Super Admin', 'Akoura', 'Aura'] },
     { name: 'فريق الإدارة', href: '/admin/dashboard/admins', icon: '👥', roles: ['Owner', 'Admin', 'Super Admin'] },
