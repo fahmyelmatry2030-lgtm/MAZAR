@@ -199,6 +199,12 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       }
 
       let isTurnover = !!outToday && !!inToday;
+      // تمديد: نفس الضيف خارج وداخل في نفس اليوم (تمديد الإقامة)
+      const sameGuestName = outToday?.name && inToday?.name &&
+        outToday.name.trim().toLowerCase() === inToday.name.trim().toLowerCase();
+      const sameApartment = outToday?.apartmentId && inToday?.apartmentId &&
+        outToday.apartmentId === inToday.apartmentId;
+      let isExtension = isTurnover && (sameGuestName || sameApartment);
       let isCheckingOut = !!outToday && !inToday;
       let isCheckingIn = !!inToday && !outToday;
       let isCheckingOutTomorrow = !isCheckingOut && !isTurnover && (!!outTomorrow || (!!activeBooking && activeBooking.checkOut === nextDayStr));
@@ -235,6 +241,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         upcomingBookingsCount: upcomingBookings.length,
         daysUntilNextBooking,
         isTurnover,
+        isExtension,
         notes: activeBooking?.notes || (outToday?.notes ? outToday.notes : inToday?.notes ? inToday.notes : ''),
         leavingNotes: outToday?.notes || '',
         arrivingNotes: inToday?.notes || '',
@@ -1679,6 +1686,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           {/* STATUS COLUMN (RIGHT AFTER NOTES) */}
                           <td className="px-4 py-3 text-center">
                             <span className={`text-xs font-black px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap ${
+                              apt.isExtension ? 'bg-purple-600 text-white' :
                               apt.isTurnover ? 'bg-orange-500 text-white animate-pulse' :
                               apt.isCheckingOut ? 'bg-rose-600 text-white font-black' :
                               apt.isCheckingOutTomorrow ? 'bg-amber-500 text-white font-black' :
@@ -1687,7 +1695,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                               apt.isOccupied ? 'bg-red-100 text-red-700' : 
                               'bg-emerald-100 text-emerald-800'
                             }`}>
-                              {apt.isTurnover ? '🔄 تبديل اليوم' : 
+                              {apt.isExtension ? '🔁 تمديد اليوم' :
+                               apt.isTurnover ? '🔄 تبديل اليوم' : 
                                apt.isCheckingOut ? '🛫 خروج اليوم' :
                                apt.isCheckingOutTomorrow ? `🛫 خروج غداً (${formatMiniDate(apt.checkOut || apt.leavingCheckOut)})` :
                                apt.isCheckingIn ? '🛬 وصول اليوم' :
