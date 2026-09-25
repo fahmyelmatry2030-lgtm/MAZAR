@@ -189,11 +189,11 @@ export default function FinancePage() {
       });
 
       // Month expenses
+      // Include all expenses except explicitly rejected — old data may have no status
       const isApprovedExpense = (e: any) => {
         if (!e) return false;
-        if (e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) return true;
-        if (e.approved_by && e.approved_by !== '') return true;
-        return false;
+        if (e.status === 'REJECTED' || e.status === 'مرفوض') return false;
+        return true;
       };
 
       const mExpenses = expenses.filter((e: any) => {
@@ -242,15 +242,9 @@ export default function FinancePage() {
 
   // ── المصروفات الشهرية ──
   const monthlyExpenses = useMemo(() => {
-    const isApprovedExpense = (e: any) => {
-      if (!e) return false;
-      if (e.status && (e.status.includes('تم الموافقة') || e.status === 'APPROVED')) return true;
-      if (e.approved_by && e.approved_by !== '') return true;
-      return false;
-    };
-
+    // Include all expenses except explicitly rejected — old data may have no status
     return expenses.filter((e: any) => {
-      if (!isApprovedExpense(e)) return false;
+      if (!e || e.status === 'REJECTED' || e.status === 'مرفوض') return false;
       if (!e.date) return false;
       const parsed = parseDateYM(e.date);
       if (!parsed || parsed.month !== selectedMonth || parsed.year !== selectedYear) return false;
