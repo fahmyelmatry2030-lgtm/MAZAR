@@ -103,33 +103,40 @@ export default function TreasuryPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // حجوزات الشهر المختار
   const monthlyBookings = useMemo(() => bookings.filter((booking) => {
     if (!CONFIRMED_STATUSES.includes(String(booking.status))) return false;
     const parsed = parseDateYM(booking.checkIn);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
 
+  // مصروفات الشهر المختار
   const monthlyExpenses = useMemo(() => expenses.filter((expense) => {
+    if (!expense || expense.status === 'REJECTED' || expense.status === 'مرفوض') return false;
     const parsed = parseDateYM(expense.date);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [expenses, month, year]);
 
+  // الإجمالي الشامل = إيرادات الشهر - عمولاته - مصروفاته
   const grossTreasury = useMemo(() => {
-    const revenue = monthlyBookings.reduce((sum, booking) => sum + (Number(booking.totalAmount) || 0), 0);
-    const commissions = monthlyBookings.reduce((sum, booking) => sum + (Number(booking.commission) || 0), 0);
-    const expensesTotal = monthlyExpenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+    const revenue = monthlyBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const commissions = monthlyBookings.reduce((sum, b) => sum + (Number(b.commission) || 0), 0);
+    const expensesTotal = monthlyExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     return Math.max(0, revenue - commissions - expensesTotal);
   }, [monthlyBookings, monthlyExpenses]);
 
+  // تحويلات الشهر للخزنة الرئيسية (بدون السحوبات)
   const monthlyTransfers = useMemo(() => transfers.filter((transfer) => {
     const parsed = parseDateYM(transfer.transfer_date);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
-  const mainTreasury = monthlyTransfers.reduce((sum, transfer) => sum + (Number(transfer.amount) || 0), 0);
+  const mainTreasury = monthlyTransfers
+    .filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]'))
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const subTreasury = Math.max(0, grossTreasury - mainTreasury);
 
-  // Withdrawals from main treasury = transfers where notes contains [نوع: سحب من الرئيسية]
+  // سحوبات الخزنة الرئيسية للشهر
   const mainWithdrawals = useMemo(() => transfers.filter(t => {
     const isWithdraw = (t.notes || '').includes('[نوع: سحب من الرئيسية]');
     const parsed = parseDateYM(t.transfer_date);
