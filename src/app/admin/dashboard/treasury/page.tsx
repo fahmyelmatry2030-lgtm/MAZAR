@@ -106,38 +106,40 @@ export default function TreasuryPage() {
   // ── الكروت: رصيد متراكم كلي (الخزنة الفعلية) ──
   // كل الحجوزات المؤكدة
   const allConfirmedBookings = useMemo(() =>
-    bookings.filter(b => CONFIRMED_STATUSES.includes(String(b.status)))
+    (bookings || []).filter(b => b && CONFIRMED_STATUSES.includes(String(b.status)))
   , [bookings]);
 
   // كل المصروفات
   const allExpenses = useMemo(() =>
-    expenses.filter(e => e && e.status !== 'REJECTED' && e.status !== 'مرفوض')
+    (expenses || []).filter(e => e && e.status !== 'REJECTED' && e.status !== 'مرفوض')
   , [expenses]);
 
   // الإجمالي الشامل = كل الإيرادات - كل العمولات - كل المصروفات
   const grossTreasury = useMemo(() => {
-    const revenue = allConfirmedBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const commissions = allConfirmedBookings.reduce((sum, b) => sum + (Number(b.commission) || 0), 0);
-    const expensesTotal = allExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    return Math.max(0, revenue - commissions - expensesTotal);
+    const revenue = allConfirmedBookings.reduce((sum, b) => sum + (Number(b?.totalAmount) || 0), 0);
+    const commissions = allConfirmedBookings.reduce((sum, b) => sum + (Number(b?.commission) || 0), 0);
+    const expensesTotal = allExpenses.reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
+    return Math.max(0, (revenue || 0) - (commissions || 0) - (expensesTotal || 0));
   }, [allConfirmedBookings, allExpenses]);
 
   // كل التحويلات للخزنة الرئيسية
   const allRegularTransfers = useMemo(() =>
-    transfers.filter(t => !(t.notes || '').includes('[نوع: سحب من الرئيسية]'))
+    (transfers || []).filter(t => t && !(t.notes || '').includes('[نوع: سحب من الرئيسية]'))
   , [transfers]);
   
-  const mainTreasury = allRegularTransfers.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-  const subTreasury = grossTreasury - mainTreasury;
+  const mainTreasury = allRegularTransfers.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
+  const subTreasury = (grossTreasury || 0) - (mainTreasury || 0);
 
   // ── الجدول: مفلتر بالشهر المختار فقط ──
-  const monthlyTransfers = useMemo(() => transfers.filter((transfer) => {
+  const monthlyTransfers = useMemo(() => (transfers || []).filter((transfer) => {
+    if (!transfer) return false;
     const parsed = parseDateYM(transfer.transfer_date);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
   // سحوبات الخزنة الرئيسية (مفلترة بالشهر للعرض)
-  const mainWithdrawals = useMemo(() => transfers.filter(t => {
+  const mainWithdrawals = useMemo(() => (transfers || []).filter(t => {
+    if (!t) return false;
     const isWithdraw = (t.notes || '').includes('[نوع: سحب من الرئيسية]');
     const parsed = parseDateYM(t.transfer_date);
     return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
