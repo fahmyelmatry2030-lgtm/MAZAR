@@ -520,10 +520,42 @@ export default function StaffManagement() {
             })}
           </div>
         )}
+
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#EAE4D9]/60">
+          <span className="text-[11px] font-black text-gray-400">الانتقال السريع لأقسام الصفحة:</span>
+          <button 
+            type="button" 
+            onClick={() => document.getElementById('section-profile')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-black text-[#2A2723] transition-all flex items-center gap-1 cursor-pointer"
+          >
+            📋 بيانات وبدلات الموظف
+          </button>
+          <button 
+            type="button" 
+            onClick={() => document.getElementById('section-payments')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-xs font-black text-emerald-900 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            💸 الفلوس والدفعات (الخزنة الصغيرة)
+          </button>
+          <button 
+            type="button" 
+            onClick={() => document.getElementById('section-vacations')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-xs font-black text-amber-900 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            🌴 سجل الإجازات والخصم (بكام)
+          </button>
+          <button 
+            type="button" 
+            onClick={() => document.getElementById('section-all-staff')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-xs font-black text-purple-900 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            👥 دليل جميع الموظفين
+          </button>
+        </div>
       </div>
 
       {/* ── SECTION 1: بيانات الموظف (إضافة / تعديل الملف) ── */}
-      <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
+      <section id="section-profile" className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#EAE4D9]/60 pb-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center text-lg font-black">
@@ -826,7 +858,7 @@ export default function StaffManagement() {
         </div>
 
         {/* ── SECTION 3: الفلوس اللي خدها خلال الشهر (سجل الصرف والسلفيات) ── */}
-        <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
+        <section id="section-payments" className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center text-lg font-black">
@@ -993,7 +1025,7 @@ export default function StaffManagement() {
         </section>
 
         {/* ── SECTION 4: إجازات الموظف خلال الشهر (سجل الإجازات بإمتى وبكام) ── */}
-        <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
+        <section id="section-vacations" className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center text-lg font-black">
@@ -1175,7 +1207,7 @@ export default function StaffManagement() {
       </section>
 
       {/* ── SECTION 5: جدول استعراض كافة موظفي المؤسسة ── */}
-      <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-5">
+      <section id="section-all-staff" className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-5">
         <div className="flex justify-between items-center border-b border-[#EAE4D9]/60 pb-4">
           <h3 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
             <span>👥</span> دليل كافة الموظفين والبدلات
