@@ -1988,6 +1988,21 @@ function ReportsContent() {
                           <option value="غادر">غادر</option>
                         </select>
                       </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-2">حالة الحساب والخزنة</label>
+                        <select
+                          value={editingBooking.paymentStatus || 'خالص'}
+                          onChange={e => setEditingBooking({ ...editingBooking, paymentStatus: e.target.value })}
+                          className={`w-full border rounded-xl px-4 py-3 text-sm outline-none font-black ${
+                            editingBooking.paymentStatus === 'باقي'
+                              ? 'bg-rose-50 text-rose-700 border-rose-300'
+                              : 'bg-green-50 text-green-700 border-green-300'
+                          }`}
+                        >
+                          <option value="خالص">خالص (مسدد بالكامل ✔️ - يدخل في الخزنة)</option>
+                          <option value="باقي">باقي فلوس (❌ - معلّق خارج الخزنة)</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="space-y-2">

@@ -144,6 +144,55 @@ export async function getFreshDbBookings(nonce?: string) {
       const totalAmount = Number(b.total_amount || 0);
       const days = Number(b.number_of_days || 0);
 
+      // احتساب المدفوع والمتبقي بدقة لكل حجز
+      const noteStr = String(b.notes || '').trim().toLowerCase();
+      const infoStr = String(b.payment_info || '').trim().toLowerCase();
+      const combined = `${noteStr} ${infoStr}`;
+
+      const paidTagMatch = combined.match(/\[مدفوع:\s*([\d.]+)/);
+      const remainingTagMatch = combined.match(/\[متبقي:\s*([\d.]+)/) || combined.match(/\[باقي:\s*([\d.]+)/);
+
+      let calcPaid = totalAmount;
+      let calcRemaining = 0;
+
+      if (b.paid_amount !== undefined && b.paid_amount !== null && b.paid_amount !== '') {
+        calcPaid = Math.min(totalAmount, Math.max(0, Number(b.paid_amount)));
+        calcRemaining = Math.max(0, totalAmount - calcPaid);
+      } else if (paidTagMatch && remainingTagMatch) {
+        calcPaid = Number(paidTagMatch[1]) || 0;
+        calcRemaining = Number(remainingTagMatch[1]) || 0;
+      } else if (paidTagMatch) {
+        calcPaid = Math.min(totalAmount, Number(paidTagMatch[1]) || 0);
+        calcRemaining = Math.max(0, totalAmount - calcPaid);
+      } else if (remainingTagMatch) {
+        calcRemaining = Math.min(totalAmount, Number(remainingTagMatch[1]) || 0);
+        calcPaid = Math.max(0, totalAmount - calcRemaining);
+      } else {
+        const dafaMatch = combined.match(/(?:تم\s*دفع|دفع|عربون|مدفوع)\s*:?\s*(\d+(?:\.\d+)?)/);
+        const baqiMatch = combined.match(/(?:متبقي|باقي|باقى|دين|علية|عليها)\s*:?\s*(\d+(?:\.\d+)?)/);
+
+        if (dafaMatch && baqiMatch) {
+          calcPaid = Number(dafaMatch[1]) || 0;
+          calcRemaining = Number(baqiMatch[1]) || 0;
+        } else if (baqiMatch) {
+          calcRemaining = Math.min(totalAmount, Number(baqiMatch[1]) || 0);
+          calcPaid = Math.max(0, totalAmount - calcRemaining);
+        } else if (dafaMatch) {
+          calcPaid = Math.min(totalAmount, Number(dafaMatch[1]) || 0);
+          calcRemaining = Math.max(0, totalAmount - calcPaid);
+        } else if (detectPaymentStatus(b) === 'باقي') {
+          const anyNum = combined.match(/(\d+(?:\.\d+)?)/);
+          if (anyNum) {
+            const num = Number(anyNum[1]);
+            calcRemaining = Math.min(totalAmount, num);
+            calcPaid = Math.max(0, totalAmount - calcRemaining);
+          } else {
+            calcPaid = 0;
+            calcRemaining = totalAmount;
+          }
+        }
+      }
+
       return {
         id: b.id,
         name: b.name,
@@ -156,6 +205,8 @@ export async function getFreshDbBookings(nonce?: string) {
         paymentInfo: b.payment_info,
         paymentStatus: detectPaymentStatus(b),
         totalAmount,
+        paidAmount: calcPaid,
+        remainingAmount: calcRemaining,
         numberOfDays: days,
         pricePerNight: days > 0 ? (totalAmount / days) : 0,
         nationality: b.nationality,
@@ -291,9 +342,10 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   if (updates.brokerName !== undefined) patch.broker_name = updates.brokerName;
   if (updates.clientStatus !== undefined) patch.client_status = updates.clientStatus;
   if (updates.guestsCount !== undefined) patch.guests_count = updates.guestsCount;
-  // booking_manager, payment_method & payment_status: try to include, will be stripped on retry if columns don't exist
+  // booking_manager, payment_method, payment_status & paid_amount: try to include, will be stripped on retry if columns don't exist
   if (updates.bookingManager !== undefined) patch.booking_manager = updates.bookingManager;
   if (updates.paymentMethod !== undefined) patch.payment_method = updates.paymentMethod;
+  if (updates.paidAmount !== undefined) patch.paid_amount = updates.paidAmount;
   if (updates.notes !== undefined) patch.notes = updates.notes;
   
   // ALWAYS update the timestamp on edit to ensure "Fresh First" sync logic works
@@ -311,7 +363,8 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     error.message?.toLowerCase().includes('schema cache') ||
     error.message?.toLowerCase().includes('booking_manager') ||
     error.message?.toLowerCase().includes('payment_method') ||
-    error.message?.toLowerCase().includes('payment_status')
+    error.message?.toLowerCase().includes('payment_status') ||
+    error.message?.toLowerCase().includes('paid_amount')
   );
 
   if (isSchemaError) {
@@ -319,6 +372,7 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     delete patch.booking_manager;
     delete patch.payment_method;
     delete patch.payment_status;
+    delete patch.paid_amount;
     if (updates.paymentStatus !== undefined) {
       patch.payment_info = updates.paymentStatus;
     }
@@ -1499,6 +1553,26 @@ export async function deleteDbTreasuryTransfer(id: string) {
     throw error;
   }
   revalidatePath('/admin/dashboard/treasury');
+}
+
+export async function updateDbTreasuryTransfer(id: string, updates: any) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) throw new Error('Supabase configuration missing on server');
+
+  const patch: any = {};
+  if (updates.amount !== undefined) patch.amount = Number(updates.amount) || 0;
+  if (updates.handed_by !== undefined) patch.handed_by = updates.handed_by;
+  if (updates.received_by !== undefined) patch.received_by = updates.received_by;
+  if (updates.transfer_date !== undefined) patch.transfer_date = updates.transfer_date;
+  if (updates.notes !== undefined) patch.notes = updates.notes;
+
+  const { data, error } = await supabase.from('treasury_transfers').update(patch).eq('id', id).select();
+  if (error) {
+    console.error('Error updating treasury transfer:', error);
+    throw error;
+  }
+  revalidatePath('/admin/dashboard/treasury');
+  return data;
 }
 
 // --- TO-DO LIST DB FUNCTIONS ---
