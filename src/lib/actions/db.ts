@@ -798,58 +798,127 @@ export async function getDbSalaries() {
     console.error('Error reading salaries:', error);
     throw error;
   }
-  return data || [];
+  return (data || []).map((sal: any) => {
+    let notes = sal.notes || '';
+    let payment_method = 'كاش';
+    const matchMethod = notes.match(/\[طريقة:\s*([^\]]+)\]/);
+    if (matchMethod) {
+      payment_method = matchMethod[1];
+      notes = notes.replace(/\[طريقة:\s*([^\]]+)\]/g, '').trim();
+    }
+    const cleanAmount = Number(sal.net_salary || sal.amount || 0);
+    return {
+      ...sal,
+      notes,
+      payment_method,
+      amount: cleanAmount,
+      net_salary: cleanAmount,
+      payment_date: sal.payment_date || sal.date || ''
+    };
+  });
 }
 
 export async function saveDbSalary(salary: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return salary;
 
-  const { error } = await supabase.from('salaries').upsert(salary);
-  if (error) throw error;
+  const salaryId = salary.id || `sal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const paymentDate = salary.payment_date || salary.date || new Date().toISOString().split('T')[0];
+  const amountVal = Number(salary.net_salary || salary.amount || 0);
+  const paymentMethod = salary.payment_method || 'كاش';
 
-  // --- SMART CATEGORIZATION: Link to Expenses ---
-  // If a salary is marked as 'paid', automatically record it as an expense
-  if (salary.payment_status === 'paid') {
+  // Format notes to include payment method if needed
+  let notesWithMeta = salary.notes || '';
+  if (paymentMethod && !notesWithMeta.includes('[طريقة:')) {
+    notesWithMeta = `[طريقة: ${paymentMethod}] ${notesWithMeta}`.trim();
+  }
+
+  const payload: any = {
+    id: salaryId,
+    staff_id: salary.staff_id,
+    month: Number(salary.month) || (new Date(paymentDate).getMonth() + 1),
+    year: Number(salary.year) || new Date(paymentDate).getFullYear(),
+    bonuses: Number(salary.bonuses) || 0,
+    deductions: Number(salary.deductions) || 0,
+    net_salary: amountVal,
+    payment_status: salary.payment_status || 'paid',
+    payment_date: paymentDate,
+    notes: notesWithMeta
+  };
+
+  const { error } = await supabase.from('salaries').upsert(payload);
+  if (error) {
+    console.warn('⚠️ Standard salary insert failed. Retrying without payment_date...', error.message);
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.payment_date;
+    const { error: retryError } = await supabase.from('salaries').upsert(fallbackPayload);
+    if (retryError) throw retryError;
+  }
+
+  // --- GUARANTEED DEDUCTION FROM SMALL TREASURY (الخزنة الصغيرة) ---
+  // Every salary payment or advance ('إن شاء الله حتى لو جنيه') is recorded as an expense from الخزنة الصغيرة
+  if (amountVal > 0) {
     try {
       const staffList = await getDbStaff();
       const staffMember = staffList.find((s: any) => s.id === salary.staff_id);
-      const expenseDesc = `راتب شهر ${salary.month}/${salary.year} - الموظف: ${staffMember?.name || 'مجهول'}`;
-      
-      // Check if this expense already exists to avoid duplicates on multiple saves
+      const staffName = staffMember?.name || 'موظف';
+      const cleanNote = (salary.notes || '').replace(/\[طريقة:\s*[^\]]+\]/g, '').trim();
+      const expenseDesc = `صرف للموظف: ${staffName} - ${cleanNote || 'دفعة راتب'} [قيد:${salaryId}] [طريقة:${paymentMethod}]`;
+
+      // Check if expense already exists for this payment ID
       const { data: existingExpenses } = await supabase
         .from('expenses')
         .select('id')
-        .eq('description', expenseDesc)
+        .like('description', `%[قيد:${salaryId}]%`)
         .limit(1);
 
-      if (!existingExpenses || existingExpenses.length === 0) {
-        const expenseData = {
-          category: 'رواتب',
-          amount: Number(salary.net_salary),
-          date: new Date().toISOString().split('T')[0],
-          description: expenseDesc,
-          from_entity: 'الخزينة الرئيسية',
-          to_entity: staffMember?.name || 'موظف',
-          ordered_by: 'النظام الآلي'
-        };
-        
+      const expenseData = {
+        category: 'رواتب',
+        amount: amountVal,
+        date: paymentDate.split('T')[0],
+        description: expenseDesc,
+        from_entity: 'الخزنة الصغيرة',
+        to_entity: staffName,
+        ordered_by: 'إدارة الموظفين',
+        notes: `طريقة الصرف: ${paymentMethod}`
+      };
+
+      if (existingExpenses && existingExpenses.length > 0) {
+        await supabase.from('expenses').update(expenseData).eq('id', existingExpenses[0].id);
+      } else {
         await saveDbExpense(expenseData);
       }
     } catch (err) {
-      console.error('Failed to auto-categorize salary as expense:', err);
+      console.error('Failed to auto-deduct salary from small treasury:', err);
     }
   }
 
-  return salary;
+  revalidatePath('/admin/dashboard/hr/staff');
+  revalidatePath('/admin/dashboard/hr/salaries');
+  revalidatePath('/admin/dashboard/treasury');
+  revalidatePath('/admin/dashboard/finance');
+  return { ...payload, id: salaryId, amount: amountVal, payment_method: paymentMethod };
 }
 
 export async function deleteDbSalary(id: string) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
+  // 1. Delete associated expense in small treasury to return the money
+  try {
+    await supabase.from('expenses').delete().like('description', `%[قيد:${id}]%`);
+  } catch (e) {
+    console.error('Failed to delete linked expense for salary:', e);
+  }
+
+  // 2. Delete salary record
   const { error } = await supabase.from('salaries').delete().eq('id', id);
   if (error) throw error;
+
+  revalidatePath('/admin/dashboard/hr/staff');
+  revalidatePath('/admin/dashboard/hr/salaries');
+  revalidatePath('/admin/dashboard/treasury');
+  revalidatePath('/admin/dashboard/finance');
 }
 
 // --- HR: VACATIONS ---
@@ -863,31 +932,49 @@ export async function getDbVacations() {
     console.error('Error reading vacations:', error);
     return [];
   }
-  return (data || []).map((v: any) => ({
-    id: v.id,
-    staff_id: v.staff_id,
-    start_date: v.start_date,
-    end_date: v.end_date,
-    type: v.status,
-    notes: v.reason
-  }));
+  return (data || []).map((v: any) => {
+    let reason = v.reason || '';
+    let amount = 0;
+    const match = reason.match(/\[بكام:\s*([\d\.]+)\]/) || reason.match(/\[خصم:\s*([\d\.]+)\]/);
+    if (match) {
+      amount = parseFloat(match[1]) || 0;
+      reason = reason.replace(/\[(بكام|خصم):\s*([\d\.]+)\]/g, '').trim();
+    }
+    return {
+      id: v.id,
+      staff_id: v.staff_id,
+      start_date: v.start_date,
+      end_date: v.end_date,
+      type: v.status || v.type || 'سنوية',
+      notes: reason,
+      amount: amount || Number(v.amount) || 0
+    };
+  });
 }
 
 export async function saveDbVacation(vacation: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return vacation;
 
-  const dbData = {
-    id: vacation.id,
+  const cost = Number(vacation.amount) || 0;
+  const reasonWithCost = cost > 0 
+    ? `[بكام: ${cost}] ${vacation.notes || ''}`.trim()
+    : (vacation.notes || '');
+
+  const dbData: any = {
+    id: vacation.id || `vac-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     staff_id: vacation.staff_id,
     start_date: vacation.start_date,
     end_date: vacation.end_date,
-    status: vacation.type,
-    reason: vacation.notes
+    status: vacation.type || vacation.status || 'سنوية',
+    reason: reasonWithCost
   };
 
   const { error } = await supabase.from('vacations').upsert(dbData);
   if (error) throw error;
+
+  revalidatePath('/admin/dashboard/hr/staff');
+  revalidatePath('/admin/dashboard/hr/vacations');
   return vacation;
 }
 
@@ -897,6 +984,9 @@ export async function deleteDbVacation(id: string) {
 
   const { error } = await supabase.from('vacations').delete().eq('id', id);
   if (error) throw error;
+
+  revalidatePath('/admin/dashboard/hr/staff');
+  revalidatePath('/admin/dashboard/hr/vacations');
 }
 
 // --- EXPENSES ---
