@@ -56,6 +56,7 @@ export default function StaffManagement() {
 
   // Quick Monthly Advance/Payout Form State
   const [paymentForm, setPaymentForm] = useState({
+    staff_id: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
     method: 'cash',
@@ -64,6 +65,7 @@ export default function StaffManagement() {
 
   // Quick Monthly Vacation Form State
   const [vacationForm, setVacationForm] = useState({
+    staff_id: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
     type: 'سنوية',
@@ -135,6 +137,14 @@ export default function StaffManagement() {
       });
     }
   }, [selectedStaffId, staff]);
+
+  // Sync default staff_id in quick forms
+  useEffect(() => {
+    if (selectedStaffId) {
+      setPaymentForm(prev => ({ ...prev, staff_id: selectedStaffId }));
+      setVacationForm(prev => ({ ...prev, staff_id: selectedStaffId }));
+    }
+  }, [selectedStaffId]);
 
   const showNotification = (type: 'success' | 'error', text: string) => {
     setStatusMessage({ type, text });
@@ -216,9 +226,8 @@ export default function StaffManagement() {
 
   // Monthly Filtered Salaries / Advances for Selected Staff
   const monthlyStaffSalaries = useMemo(() => {
-    if (!selectedStaffId) return [];
     return salaries.filter(sal => {
-      if (sal.staff_id !== selectedStaffId) return false;
+      if (selectedStaffId && sal.staff_id !== selectedStaffId) return false;
       
       // Filter by Month and Year
       if (sal.payment_date) {
@@ -241,9 +250,8 @@ export default function StaffManagement() {
 
   // Monthly Filtered Vacations for Selected Staff
   const monthlyStaffVacations = useMemo(() => {
-    if (!selectedStaffId) return [];
     return vacations.filter(vac => {
-      if (vac.staff_id !== selectedStaffId) return false;
+      if (selectedStaffId && vac.staff_id !== selectedStaffId) return false;
       if (!vac.start_date) return false;
 
       const start = new Date(vac.start_date);
@@ -268,8 +276,9 @@ export default function StaffManagement() {
   // Save Quick Advance/Payment
   const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStaffId) {
-      showNotification('error', 'يرجى اختيار موظف أولاً');
+    const targetStaffId = paymentForm.staff_id || selectedStaffId;
+    if (!targetStaffId) {
+      showNotification('error', 'يرجى تسجيل وحفظ الموظف أولاً من النموذج أعلاه');
       return;
     }
     const amountNum = Number(paymentForm.amount);
@@ -287,7 +296,7 @@ export default function StaffManagement() {
 
       const salData = {
         id: `sal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        staff_id: selectedStaffId,
+        staff_id: targetStaffId,
         month: m,
         year: y,
         amount: amountNum,
@@ -301,6 +310,7 @@ export default function StaffManagement() {
       await saveDbSalary(salData);
       showNotification('success', `تم تسجيل صرف ${amountNum.toLocaleString()} ج.م وخُصمت فوراً من الخزنة الصغيرة ✅`);
       setPaymentForm({
+        staff_id: targetStaffId,
         amount: '',
         date: new Date().toISOString().split('T')[0],
         method: 'cash',
@@ -332,8 +342,9 @@ export default function StaffManagement() {
   // Save Quick Vacation
   const handleSaveVacation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStaffId) {
-      showNotification('error', 'يرجى اختيار موظف أولاً');
+    const targetStaffId = vacationForm.staff_id || selectedStaffId;
+    if (!targetStaffId) {
+      showNotification('error', 'يرجى تسجيل وحفظ الموظف أولاً من النموذج أعلاه');
       return;
     }
     if (!vacationForm.start_date || !vacationForm.end_date) {
@@ -345,7 +356,7 @@ export default function StaffManagement() {
       setIsSaving(true);
       const vacData = {
         id: `vac-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        staff_id: selectedStaffId,
+        staff_id: targetStaffId,
         start_date: vacationForm.start_date,
         end_date: vacationForm.end_date,
         type: vacationForm.type,
@@ -356,6 +367,7 @@ export default function StaffManagement() {
       await saveDbVacation(vacData);
       showNotification('success', 'تم تسجيل الإجازة بنجاح 🌴');
       setVacationForm({
+        staff_id: targetStaffId,
         start_date: new Date().toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0],
         type: 'سنوية',
@@ -447,6 +459,7 @@ export default function StaffManagement() {
                 hiring_date: new Date().toISOString().split('T')[0],
                 notes: ''
               });
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="bg-[#2A2723] text-white hover:bg-black font-black px-5 py-3 rounded-2xl text-xs md:text-sm shadow-xl flex items-center gap-2 transition-all"
           >
@@ -460,7 +473,7 @@ export default function StaffManagement() {
       <div className="bg-white p-4 rounded-3xl border border-[#EAE4D9] shadow-sm space-y-3">
         <div className="flex justify-between items-center px-1">
           <span className="text-xs font-black text-[#2A2723] flex items-center gap-2">
-            <span>👥</span> اختر موظف لعرض وتعديل ملفه بالكامل:
+            <span>👥</span> الموظفون المسجلون (اضغط على أي موظف لفتح حسابه):
           </span>
           <span className="text-[11px] font-bold text-[#7A7061]">
             إجمالي الموظفين المسجلين: {staff.length}
@@ -468,8 +481,9 @@ export default function StaffManagement() {
         </div>
 
         {staff.length === 0 && !isLoading ? (
-          <div className="p-6 text-center text-xs font-bold text-gray-400 border border-dashed border-[#EAE4D9] rounded-2xl">
-            لا يوجد موظفين مسجلين حالياً. قم بإدخال بيانات أول موظف في النموذج أدناه.
+          <div className="p-4 text-center text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center gap-2">
+            <span>ℹ️</span>
+            <span>لا يوجد موظفين مسجلين حالياً. اكتب بيانات أول موظف في النموذج أدناه واضغط "حفظ" لتسجيله وتفعيل حساباته فوراً.</span>
           </div>
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
@@ -678,451 +692,487 @@ export default function StaffManagement() {
               className="bg-[#2A2723] hover:bg-black text-white font-black px-8 py-3.5 rounded-2xl text-xs md:text-sm shadow-xl flex items-center gap-2 transition-all disabled:opacity-50"
             >
               <Check size={16} />
-              <span>{staffForm.id ? 'حفظ تعديلات بيانات الموظف والبدلات' : 'تسجيل وحفظ الموظف الجديد'}</span>
+              <span>{staffForm.id ? 'حفظ تعديلات بيانات الموظف والبدلات' : 'تسجيل وحفظ الموظف الجديد ✅'}</span>
             </button>
           </div>
         </form>
       </section>
 
       {/* ── SECTION 2: فلتر الشهر والسنة + لوحة الحساب الشهري ── */}
-      {selectedStaffId && (
-        <section className="space-y-6">
-          {/* Month / Year Selector Bar */}
-          <div className="bg-[#2A2723] text-white p-6 rounded-[2.5rem] shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <section className="space-y-6">
+        {/* Month / Year Selector Bar */}
+        <div className="bg-[#2A2723] text-white p-6 rounded-[2.5rem] shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#C1A68D] text-[#2A2723] flex items-center justify-center font-black text-xl">
+              📅
+            </div>
+            <div>
+              <h3 className="text-lg md:text-xl font-black">
+                كشف حساب الشهر للموظف: {currentStaff?.name || '(حدد موظفاً من الأعلى)'}
+              </h3>
+              <p className="text-xs text-gray-300 font-bold mt-0.5">
+                اختر الشهر والسنة لتصفية الدفعات المسحوبة والإجازات خلال هذا الشهر:
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/20">
+              <span className="text-xs font-black text-[#C1A68D]">الشهر:</span>
+              <select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="bg-transparent text-white font-black text-xs outline-none cursor-pointer"
+              >
+                {MONTH_NAMES.map((name, idx) => (
+                  <option key={idx + 1} value={idx + 1} className="text-[#2A2723] bg-white">
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/20">
+              <span className="text-xs font-black text-[#C1A68D]">السنة:</span>
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="bg-transparent text-white font-black text-xs outline-none cursor-pointer"
+              >
+                {[2024, 2025, 2026, 2027].map(yr => (
+                  <option key={yr} value={yr} className="text-[#2A2723] bg-white">
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMonth(new Date().getMonth() + 1);
+                setSelectedYear(new Date().getFullYear());
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white text-xs font-black px-3.5 py-2 rounded-2xl border border-white/20 transition-all flex items-center gap-1.5"
+              title="الشهر الحالي"
+            >
+              <RefreshCw size={13} />
+              <span>الشهر الحالي</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Monthly KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Card 1: Monthly Package */}
+          <div className="bg-white p-5 rounded-[2rem] border border-[#EAE4D9] shadow-sm">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-wider">الباكج المستحق بالشهر</div>
+            <div className="text-2xl font-black text-[#2A2723] mt-2">
+              {staffPackage.total.toLocaleString()} <span className="text-xs font-bold text-gray-400">ج.م</span>
+            </div>
+            <div className="text-[10px] text-gray-500 font-bold mt-1">الراتب والبدلات المعتمدة</div>
+          </div>
+
+          {/* Card 2: Total Paid This Month */}
+          <div className="bg-white p-5 rounded-[2rem] border border-emerald-200 shadow-sm bg-gradient-to-br from-white to-emerald-50/40">
+            <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider flex items-center justify-between">
+              <span>المدفوع / السلفيات</span>
+              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-black">الخزنة الصغيرة ✅</span>
+            </div>
+            <div className="text-2xl font-black text-emerald-700 mt-2">
+              {totalPaidThisMonth.toLocaleString()} <span className="text-xs font-bold text-emerald-600">ج.م</span>
+            </div>
+            <div className="text-[10px] text-emerald-600 font-bold mt-1">
+              {monthlyStaffSalaries.length} دفعة مخصومة من الخزنة
+            </div>
+          </div>
+
+          {/* Card 3: Vacation Deductions */}
+          <div className="bg-white p-5 rounded-[2rem] border border-amber-200 shadow-sm bg-gradient-to-br from-white to-amber-50/40">
+            <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center justify-between">
+              <span>خصومات الإجازات</span>
+              <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-black">بكام</span>
+            </div>
+            <div className="text-2xl font-black text-amber-800 mt-2">
+              {totalVacationCostThisMonth.toLocaleString()} <span className="text-xs font-bold text-amber-600">ج.م</span>
+            </div>
+            <div className="text-[10px] text-amber-700 font-bold mt-1">
+              {monthlyStaffVacations.length} إجازة مسجلة
+            </div>
+          </div>
+
+          {/* Card 4: Net Remaining Balance */}
+          <div className={`p-5 rounded-[2rem] border shadow-sm ${
+            remainingMonthlyBalance <= 0 && staffPackage.total > 0
+              ? 'bg-emerald-700 text-white border-emerald-600' 
+              : 'bg-white text-[#2A2723] border-[#EAE4D9]'
+          }`}>
+            <div className={`text-[10px] font-black uppercase tracking-wider ${
+              remainingMonthlyBalance <= 0 && staffPackage.total > 0 ? 'text-emerald-100' : 'text-gray-400'
+            }`}>
+              صافي المتبقي للموظف
+            </div>
+            <div className="text-2xl font-black mt-2">
+              {remainingMonthlyBalance.toLocaleString()} <span className={`text-xs font-bold ${
+                remainingMonthlyBalance <= 0 && staffPackage.total > 0 ? 'text-emerald-100' : 'text-gray-400'
+              }`}>ج.م</span>
+            </div>
+            <div className={`text-[10px] font-bold mt-1 ${
+              remainingMonthlyBalance <= 0 && staffPackage.total > 0 ? 'text-emerald-200' : 'text-emerald-700'
+            }`}>
+              {remainingMonthlyBalance <= 0 && staffPackage.total > 0 ? 'تم تقفيل مستحقات الشهر بالكامل 🎉' : 'متبقي مستحق للصرف'}
+            </div>
+          </div>
+        </div>
+
+        {/* ── SECTION 3: الفلوس اللي خدها خلال الشهر (سجل الصرف والسلفيات) ── */}
+        <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#C1A68D] text-[#2A2723] flex items-center justify-center font-black text-xl">
-                📅
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center text-lg font-black">
+                💸
               </div>
               <div>
-                <h3 className="text-lg md:text-xl font-black">
-                  كشف حساب الشهر للموظف: {currentStaff?.name}
+                <h3 className="text-lg font-black text-[#2A2723]">
+                  الفلوس اللي خدها الموظف خلال شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
                 </h3>
-                <p className="text-xs text-gray-300 font-bold mt-0.5">
-                  اختر الشهر والسنة لتصفية الدفعات المسحوبة والإجازات خلال هذا الشهر:
+                <p className="text-[11px] font-bold text-gray-500">
+                  سجل أي دفعة أو سلفة أخذها (النهاردة 1000، بكرة 1000) — <strong className="text-emerald-700">تُخصم فوراً من الخزنة الصغيرة حتى لو جنيه واحد</strong>.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/20">
-                <span className="text-xs font-black text-[#C1A68D]">الشهر:</span>
+            <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-black">
+              إجمالي ما تم صرفه: {totalPaidThisMonth.toLocaleString()} ج.م
+            </div>
+          </div>
+
+          {/* Quick Add Payment Form */}
+          <form onSubmit={handleSavePayment} className="bg-[#FDFBF7] p-5 rounded-2xl border border-[#EAE4D9] space-y-4">
+            <span className="text-xs font-black text-[#2A2723] block">
+              ➕ تسجيل دفعة جديدة للموظف (تُخصم فوراً من الخزنة الصغيرة):
+            </span>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {/* Staff Selector inside Form if multiple or none */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">الموظف *</label>
                 <select
-                  value={selectedMonth}
-                  onChange={e => setSelectedMonth(Number(e.target.value))}
-                  className="bg-transparent text-white font-black text-xs outline-none cursor-pointer"
+                  value={paymentForm.staff_id || selectedStaffId}
+                  onChange={e => {
+                    const sid = e.target.value;
+                    setPaymentForm({ ...paymentForm, staff_id: sid });
+                    if (sid) setSelectedStaffId(sid);
+                  }}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-black text-[#2A2723] outline-none focus:border-[#C1A68D]"
                 >
-                  {MONTH_NAMES.map((name, idx) => (
-                    <option key={idx + 1} value={idx + 1} className="text-[#2A2723] bg-white">
-                      {name}
-                    </option>
+                  <option value="">-- اختر موظفاً --</option>
+                  {staff.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.position || '—'})</option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/20">
-                <span className="text-xs font-black text-[#C1A68D]">السنة:</span>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">المبلغ المنصرف (ج.م) *</label>
+                <input 
+                  type="number" required min="1" step="any"
+                  placeholder="مثال: 1000"
+                  value={paymentForm.amount}
+                  onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-black text-emerald-700 outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">تاريخ الصرف</label>
+                <input 
+                  type="date" required
+                  value={paymentForm.date}
+                  onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">طريقة الدفع</label>
                 <select
-                  value={selectedYear}
-                  onChange={e => setSelectedYear(Number(e.target.value))}
-                  className="bg-transparent text-white font-black text-xs outline-none cursor-pointer"
+                  value={paymentForm.method}
+                  onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
                 >
-                  {[2024, 2025, 2026, 2027].map(yr => (
-                    <option key={yr} value={yr} className="text-[#2A2723] bg-white">
-                      {yr}
-                    </option>
+                  {PAYMENT_METHODS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
                   ))}
                 </select>
               </div>
 
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">البيان / ملاحظة</label>
+                <input 
+                  type="text"
+                  placeholder="سلفة، دفعة تحت الحساب..."
+                  value={paymentForm.notes}
+                  onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
               <button
-                type="button"
-                onClick={() => {
-                  setSelectedMonth(new Date().getMonth() + 1);
-                  setSelectedYear(new Date().getFullYear());
-                }}
-                className="bg-white/10 hover:bg-white/20 text-white text-xs font-black px-3.5 py-2 rounded-2xl border border-white/20 transition-all flex items-center gap-1.5"
-                title="الشهر الحالي"
+                type="submit"
+                disabled={isSaving}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
               >
-                <RefreshCw size={13} />
-                <span>الشهر الحالي</span>
+                <DollarSign size={15} />
+                <span>تسجيل وصرف المبلغ (خصم فوري من الخزنة الصغيرة) 💸</span>
               </button>
             </div>
-          </div>
+          </form>
 
-          {/* 4 Monthly KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Card 1: Monthly Package */}
-            <div className="bg-white p-5 rounded-[2rem] border border-[#EAE4D9] shadow-sm">
-              <div className="text-[10px] font-black text-gray-400 uppercase tracking-wider">الباكج المستحق بالشهر</div>
-              <div className="text-2xl font-black text-[#2A2723] mt-2">
-                {staffPackage.total.toLocaleString()} <span className="text-xs font-bold text-gray-400">ج.م</span>
-              </div>
-              <div className="text-[10px] text-gray-500 font-bold mt-1">الراتب والبدلات المعتمدة</div>
-            </div>
-
-            {/* Card 2: Total Paid This Month */}
-            <div className="bg-white p-5 rounded-[2rem] border border-emerald-200 shadow-sm bg-gradient-to-br from-white to-emerald-50/40">
-              <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider flex items-center justify-between">
-                <span>المدفوع / السلفيات</span>
-                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-black">الخزنة الصغيرة ✅</span>
-              </div>
-              <div className="text-2xl font-black text-emerald-700 mt-2">
-                {totalPaidThisMonth.toLocaleString()} <span className="text-xs font-bold text-emerald-600">ج.م</span>
-              </div>
-              <div className="text-[10px] text-emerald-600 font-bold mt-1">
-                {monthlyStaffSalaries.length} دفعة مخصومة من الخزنة
-              </div>
-            </div>
-
-            {/* Card 3: Vacation Deductions */}
-            <div className="bg-white p-5 rounded-[2rem] border border-amber-200 shadow-sm bg-gradient-to-br from-white to-amber-50/40">
-              <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center justify-between">
-                <span>خصومات الإجازات</span>
-                <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-black">بكام</span>
-              </div>
-              <div className="text-2xl font-black text-amber-800 mt-2">
-                {totalVacationCostThisMonth.toLocaleString()} <span className="text-xs font-bold text-amber-600">ج.م</span>
-              </div>
-              <div className="text-[10px] text-amber-700 font-bold mt-1">
-                {monthlyStaffVacations.length} إجازة مسجلة
-              </div>
-            </div>
-
-            {/* Card 4: Net Remaining Balance */}
-            <div className={`p-5 rounded-[2rem] border shadow-sm ${
-              remainingMonthlyBalance <= 0 
-                ? 'bg-emerald-700 text-white border-emerald-600' 
-                : 'bg-white text-[#2A2723] border-[#EAE4D9]'
-            }`}>
-              <div className={`text-[10px] font-black uppercase tracking-wider ${
-                remainingMonthlyBalance <= 0 ? 'text-emerald-100' : 'text-gray-400'
-              }`}>
-                صافي المتبقي للموظف
-              </div>
-              <div className="text-2xl font-black mt-2">
-                {remainingMonthlyBalance.toLocaleString()} <span className={`text-xs font-bold ${
-                  remainingMonthlyBalance <= 0 ? 'text-emerald-100' : 'text-gray-400'
-                }`}>ج.م</span>
-              </div>
-              <div className={`text-[10px] font-bold mt-1 ${
-                remainingMonthlyBalance <= 0 ? 'text-emerald-200' : 'text-emerald-700'
-              }`}>
-                {remainingMonthlyBalance <= 0 ? 'تم تقفيل مستحقات الشهر بالكامل 🎉' : 'متبقي مستحق للصرف'}
-              </div>
-            </div>
-          </div>
-
-          {/* ── SECTION 3: الفلوس اللي خدها خلال الشهر (سجل الصرف والسلفيات) ── */}
-          <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center text-lg font-black">
-                  💸
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-[#2A2723]">
-                    الفلوس اللي خدها الموظف خلال شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
-                  </h3>
-                  <p className="text-[11px] font-bold text-gray-500">
-                    سجل أي دفعة أو سلفة أخذها (النهاردة 1000، بكرة 1000) — <strong className="text-emerald-700">تُخصم فوراً من الخزنة الصغيرة حتى لو جنيه واحد</strong>.
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-black">
-                إجمالي ما تم صرفه: {totalPaidThisMonth.toLocaleString()} ج.م
-              </div>
-            </div>
-
-            {/* Quick Add Payment Form */}
-            <form onSubmit={handleSavePayment} className="bg-[#FDFBF7] p-5 rounded-2xl border border-[#EAE4D9] space-y-4">
-              <span className="text-xs font-black text-[#2A2723] block">
-                ➕ تسجيل دفعة جديدة للموظف (تُخصم فوراً من الخزنة الصغيرة):
-              </span>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">المبلغ المنصرف (ج.م) *</label>
-                  <input 
-                    type="number" required min="1" step="any"
-                    placeholder="مثال: 1000"
-                    value={paymentForm.amount}
-                    onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-black text-emerald-700 outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">تاريخ الصرف</label>
-                  <input 
-                    type="date" required
-                    value={paymentForm.date}
-                    onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">طريقة الدفع</label>
-                  <select
-                    value={paymentForm.method}
-                    onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  >
-                    {PAYMENT_METHODS.map(m => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">البيان / ملاحظة</label>
-                  <input 
-                    type="text"
-                    placeholder="سلفة، دفعة تحت الحساب..."
-                    value={paymentForm.notes}
-                    onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
-                >
-                  <DollarSign size={15} />
-                  <span>تسجيل وصرف المبلغ (خصم فوري من الخزنة الصغيرة) 💸</span>
-                </button>
-              </div>
-            </form>
-
-            {/* Payments Table */}
-            <div className="border border-[#EAE4D9] rounded-2xl overflow-hidden">
-              <table className="w-full text-right text-xs border-collapse">
-                <thead className="bg-[#2A2723] text-white font-black">
+          {/* Payments Table */}
+          <div className="border border-[#EAE4D9] rounded-2xl overflow-hidden">
+            <table className="w-full text-right text-xs border-collapse">
+              <thead className="bg-[#2A2723] text-white font-black">
+                <tr>
+                  <th className="px-5 py-3.5">تاريخ الصرف</th>
+                  <th className="px-5 py-3.5 text-center">المبلغ المستلم</th>
+                  <th className="px-5 py-3.5 text-center">طريقة الدفع</th>
+                  <th className="px-5 py-3.5">البيان والملاحظات</th>
+                  <th className="px-5 py-3.5 text-center">جهة الخصم</th>
+                  <th className="px-5 py-3.5 text-center">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EAE4D9]/40 bg-white font-bold">
+                {monthlyStaffSalaries.length === 0 ? (
                   <tr>
-                    <th className="px-5 py-3.5">تاريخ الصرف</th>
-                    <th className="px-5 py-3.5 text-center">المبلغ المستلم</th>
-                    <th className="px-5 py-3.5 text-center">طريقة الدفع</th>
-                    <th className="px-5 py-3.5">البيان والملاحظات</th>
-                    <th className="px-5 py-3.5 text-center">جهة الخصم</th>
-                    <th className="px-5 py-3.5 text-center">حذف</th>
+                    <td colSpan={6} className="p-8 text-center text-gray-400 font-bold">
+                      لم يتم تسجيل أي دفعات أو سلفيات لهذا الموظف في شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear}).
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAE4D9]/40 bg-white font-bold">
-                  {monthlyStaffSalaries.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-400 font-bold">
-                        لم يتم تسجيل أي دفعات أو سلفيات لهذا الموظف في شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear}).
-                      </td>
-                    </tr>
-                  ) : (
-                    monthlyStaffSalaries.map((sal) => {
-                      const amountVal = Number(sal.net_salary || sal.amount || 0);
-                      return (
-                        <tr key={sal.id} className="hover:bg-gray-50/70 transition-colors">
-                          <td className="px-5 py-4 text-[#2A2723]">
-                            {sal.payment_date ? sal.payment_date.split('T')[0] : (sal.date || '—')}
-                          </td>
-                          <td className="px-5 py-4 text-center font-black text-emerald-700 text-sm">
-                            {amountVal.toLocaleString()} ج.م
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            {getMethodBadge(sal.payment_method)}
-                          </td>
-                          <td className="px-5 py-4 text-gray-700">
-                            {sal.notes || 'دفعة راتب'}
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full text-[10px] font-black">
-                              الخزنة الصغيرة ✅
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <button
-                              onClick={() => handleDeletePayment(sal.id, amountVal)}
-                              disabled={isSaving}
-                              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                              title="حذف القيد ورد المبلغ للخزنة"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* ── SECTION 4: إجازات الموظف خلال الشهر (سجل الإجازات بإمتى وبكام) ── */}
-          <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center text-lg font-black">
-                  🌴
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-[#2A2723]">
-                    إجازات الموظف خلال شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
-                  </h3>
-                  <p className="text-[11px] font-bold text-gray-500">
-                    سجل إجازات الموظف مع تسجيل التكلفة أو الخصم (الإجازة بإمتى وبكام).
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2 rounded-2xl text-xs font-black">
-                إجمالي خصومات الإجازات: {totalVacationCostThisMonth.toLocaleString()} ج.م
-              </div>
-            </div>
-
-            {/* Quick Add Vacation Form */}
-            <form onSubmit={handleSaveVacation} className="bg-[#FDFBF7] p-5 rounded-2xl border border-[#EAE4D9] space-y-4">
-              <span className="text-xs font-black text-[#2A2723] block">
-                ➕ تسجيل إجازة جديدة للموظف (بإمتى وبكام):
-              </span>
-
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">من تاريخ (البداية) *</label>
-                  <input 
-                    type="date" required
-                    value={vacationForm.start_date}
-                    onChange={e => setVacationForm({ ...vacationForm, start_date: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">إلى تاريخ (النهاية) *</label>
-                  <input 
-                    type="date" required
-                    value={vacationForm.end_date}
-                    onChange={e => setVacationForm({ ...vacationForm, end_date: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">نوع الإجازة</label>
-                  <select
-                    value={vacationForm.type}
-                    onChange={e => setVacationForm({ ...vacationForm, type: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  >
-                    <option value="سنوية">سنوية</option>
-                    <option value="عارضة">عارضة</option>
-                    <option value="مرضية">مرضية</option>
-                    <option value="بدون مرتب">بدون مرتب</option>
-                    <option value="إذن خاص">إذن خاص</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">الخصم / التكلفة (بكام) ج.م</label>
-                  <input 
-                    type="number" min="0" step="any"
-                    placeholder="0.00 إذا مدفوعة"
-                    value={vacationForm.amount}
-                    onChange={e => setVacationForm({ ...vacationForm, amount: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-black text-amber-800 outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-[#C1A68D] uppercase">السبب وملاحظات</label>
-                  <input 
-                    type="text"
-                    placeholder="ظروف عائلية، مرض..."
-                    value={vacationForm.notes}
-                    onChange={e => setVacationForm({ ...vacationForm, notes: e.target.value })}
-                    className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="bg-[#C1A68D] hover:opacity-90 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
-                >
-                  <Palmtree size={15} />
-                  <span>تسجيل الإجازة والخصم 🌴</span>
-                </button>
-              </div>
-            </form>
-
-            {/* Vacations Table */}
-            <div className="border border-[#EAE4D9] rounded-2xl overflow-hidden">
-              <table className="w-full text-right text-xs border-collapse">
-                <thead className="bg-[#2A2723] text-white font-black">
-                  <tr>
-                    <th className="px-5 py-3.5">من تاريخ</th>
-                    <th className="px-5 py-3.5">إلى تاريخ</th>
-                    <th className="px-5 py-3.5 text-center">نوع الإجازة</th>
-                    <th className="px-5 py-3.5 text-center">الخصم / التكلفة (بكام)</th>
-                    <th className="px-5 py-3.5">السبب / ملاحظات</th>
-                    <th className="px-5 py-3.5 text-center">حذف</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAE4D9]/40 bg-white font-bold">
-                  {monthlyStaffVacations.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-400 font-bold">
-                        لا توجد إجازات مسجلة لهذا الموظف في شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear}).
-                      </td>
-                    </tr>
-                  ) : (
-                    monthlyStaffVacations.map((vac) => {
-                      const costVal = Number(vac.amount) || 0;
-                      return (
-                        <tr key={vac.id} className="hover:bg-gray-50/70 transition-colors">
-                          <td className="px-5 py-4 text-[#2A2723]">{vac.start_date}</td>
-                          <td className="px-5 py-4 text-[#2A2723]">{vac.end_date}</td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-[10px] font-black border border-gray-200">
-                              {vac.type}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            {costVal > 0 ? (
-                              <span className="text-rose-600 font-black">
-                                -{costVal.toLocaleString()} ج.م
-                              </span>
-                            ) : (
-                              <span className="text-gray-400 font-bold">
-                                مدفوعة (0 ج.م)
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4 text-gray-600">{vac.notes || '—'}</td>
-                          <td className="px-5 py-4 text-center">
-                            <button
-                              onClick={() => handleDeleteVacation(vac.id)}
-                              disabled={isSaving}
-                              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                              title="حذف الإجازة"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                ) : (
+                  monthlyStaffSalaries.map((sal) => {
+                    const amountVal = Number(sal.net_salary || sal.amount || 0);
+                    return (
+                      <tr key={sal.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="px-5 py-4 text-[#2A2723]">
+                          {sal.payment_date ? sal.payment_date.split('T')[0] : (sal.date || '—')}
+                        </td>
+                        <td className="px-5 py-4 text-center font-black text-emerald-700 text-sm">
+                          {amountVal.toLocaleString()} ج.م
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          {getMethodBadge(sal.payment_method)}
+                        </td>
+                        <td className="px-5 py-4 text-gray-700">
+                          {sal.notes || 'دفعة راتب'}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full text-[10px] font-black">
+                            الخزنة الصغيرة ✅
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <button
+                            onClick={() => handleDeletePayment(sal.id, amountVal)}
+                            disabled={isSaving}
+                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                            title="حذف القيد ورد المبلغ للخزنة"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
-      )}
+
+        {/* ── SECTION 4: إجازات الموظف خلال الشهر (سجل الإجازات بإمتى وبكام) ── */}
+        <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#EAE4D9]/60 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center text-lg font-black">
+                🌴
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-[#2A2723]">
+                  إجازات الموظف خلال شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
+                </h3>
+                <p className="text-[11px] font-bold text-gray-500">
+                  سجل إجازات الموظف مع تسجيل التكلفة أو الخصم (الإجازة بإمتى وبكام).
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2 rounded-2xl text-xs font-black">
+              إجمالي خصومات الإجازات: {totalVacationCostThisMonth.toLocaleString()} ج.م
+            </div>
+          </div>
+
+          {/* Quick Add Vacation Form */}
+          <form onSubmit={handleSaveVacation} className="bg-[#FDFBF7] p-5 rounded-2xl border border-[#EAE4D9] space-y-4">
+            <span className="text-xs font-black text-[#2A2723] block">
+              ➕ تسجيل إجازة جديدة للموظف (بإمتى وبكام):
+            </span>
+
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+              {/* Staff Selector */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">الموظف *</label>
+                <select
+                  value={vacationForm.staff_id || selectedStaffId}
+                  onChange={e => {
+                    const sid = e.target.value;
+                    setVacationForm({ ...vacationForm, staff_id: sid });
+                    if (sid) setSelectedStaffId(sid);
+                  }}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-black text-[#2A2723] outline-none focus:border-[#C1A68D]"
+                >
+                  <option value="">-- اختر موظفاً --</option>
+                  {staff.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">من تاريخ *</label>
+                <input 
+                  type="date" required
+                  value={vacationForm.start_date}
+                  onChange={e => setVacationForm({ ...vacationForm, start_date: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">إلى تاريخ *</label>
+                <input 
+                  type="date" required
+                  value={vacationForm.end_date}
+                  onChange={e => setVacationForm({ ...vacationForm, end_date: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">نوع الإجازة</label>
+                <select
+                  value={vacationForm.type}
+                  onChange={e => setVacationForm({ ...vacationForm, type: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                >
+                  <option value="سنوية">سنوية</option>
+                  <option value="عارضة">عارضة</option>
+                  <option value="مرضية">مرضية</option>
+                  <option value="بدون مرتب">بدون مرتب</option>
+                  <option value="إذن خاص">إذن خاص</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">الخصم (بكام) ج.م</label>
+                <input 
+                  type="number" min="0" step="any"
+                  placeholder="0.00 إذا مدفوعة"
+                  value={vacationForm.amount}
+                  onChange={e => setVacationForm({ ...vacationForm, amount: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-black text-amber-800 outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-[#C1A68D] uppercase">السبب وملاحظات</label>
+                <input 
+                  type="text"
+                  placeholder="ظروف عائلية، مرض..."
+                  value={vacationForm.notes}
+                  onChange={e => setVacationForm({ ...vacationForm, notes: e.target.value })}
+                  className="w-full bg-white border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-[#C1A68D]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="bg-[#C1A68D] hover:opacity-90 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Palmtree size={15} />
+                <span>تسجيل الإجازة والخصم 🌴</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Vacations Table */}
+          <div className="border border-[#EAE4D9] rounded-2xl overflow-hidden">
+            <table className="w-full text-right text-xs border-collapse">
+              <thead className="bg-[#2A2723] text-white font-black">
+                <tr>
+                  <th className="px-5 py-3.5">من تاريخ</th>
+                  <th className="px-5 py-3.5">إلى تاريخ</th>
+                  <th className="px-5 py-3.5 text-center">نوع الإجازة</th>
+                  <th className="px-5 py-3.5 text-center">الخصم / التكلفة (بكام)</th>
+                  <th className="px-5 py-3.5">السبب / ملاحظات</th>
+                  <th className="px-5 py-3.5 text-center">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EAE4D9]/40 bg-white font-bold">
+                {monthlyStaffVacations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-gray-400 font-bold">
+                      لا توجد إجازات مسجلة لهذا الموظف في شهر ({MONTH_NAMES[selectedMonth - 1]} {selectedYear}).
+                    </td>
+                  </tr>
+                ) : (
+                  monthlyStaffVacations.map((vac) => {
+                    const costVal = Number(vac.amount) || 0;
+                    return (
+                      <tr key={vac.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="px-5 py-4 text-[#2A2723]">{vac.start_date}</td>
+                        <td className="px-5 py-4 text-[#2A2723]">{vac.end_date}</td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-[10px] font-black border border-gray-200">
+                            {vac.type}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          {costVal > 0 ? (
+                            <span className="text-rose-600 font-black">
+                              -{costVal.toLocaleString()} ج.م
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 font-bold">
+                              مدفوعة (0 ج.م)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-gray-600">{vac.notes || '—'}</td>
+                        <td className="px-5 py-4 text-center">
+                          <button
+                            onClick={() => handleDeleteVacation(vac.id)}
+                            disabled={isSaving}
+                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                            title="حذف الإجازة"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
 
       {/* ── SECTION 5: جدول استعراض كافة موظفي المؤسسة ── */}
       <section className="bg-white rounded-[2.5rem] border border-[#EAE4D9] p-6 md:p-8 shadow-sm space-y-5">
