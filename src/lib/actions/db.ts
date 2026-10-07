@@ -138,6 +138,65 @@ export async function getFreshDbBookings(nonce?: string) {
     return 'خالص';
   };
 
+  const parseArabicNumberString = (raw: string): number | null => {
+    if (!raw) return null;
+    let s = raw
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .trim()
+      .toLowerCase();
+
+    // التعامل مع k أو ألف (مثل: 24k أو 24 ألف)
+    const kMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*(?:k|ك|ألف|الف)/i);
+    if (kMatch) {
+      const base = parseFloat(kMatch[1].replace(/,/g, '.'));
+      return isNaN(base) ? null : Math.round(base * 1000);
+    }
+
+    // التعامل مع فواصل الآلاف مثل 24.000 أو 24,000
+    if (/^\d{1,3}(?:[.,]\d{3})+$/.test(s)) {
+      s = s.replace(/[.,]/g, '');
+      const val = parseFloat(s);
+      return isNaN(val) ? null : val;
+    }
+
+    s = s.replace(/,/g, '');
+    const val = parseFloat(s);
+    return isNaN(val) ? null : val;
+  };
+
+  const extractRemainingFromText = (text: string): number | null => {
+    if (!text) return null;
+    const s = text
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .toLowerCase();
+
+    // تطابق: متبقي / باقي مع أي مسافات أو أسطر جديدة أو إشارة + أو نقط أو k
+    const regex = /(?:متبقي|باقي|باقى|دين|علية|عليها|مستحق)\s*[:=+\-–—]?\s*(\+?\s*\d[\d.,]*\s*(?:k|ك|ألف|الف)?)/i;
+    const match = s.match(regex);
+    if (match && match[1]) {
+      const rawNum = match[1].replace(/^\+/, '').trim();
+      const parsed = parseArabicNumberString(rawNum);
+      if (parsed !== null && parsed > 0) return parsed;
+    }
+    return null;
+  };
+
+  const extractPaidFromText = (text: string): number | null => {
+    if (!text) return null;
+    const s = text
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .toLowerCase();
+
+    const regex = /(?:تم\s*دفع|دفع|عربون|مدفوع|واصل|سدد)\s*[:=+\-–—]?\s*(\+?\s*\d[\d.,]*\s*(?:k|ك|ألف|الف)?)/i;
+    const match = s.match(regex);
+    if (match && match[1]) {
+      const rawNum = match[1].replace(/^\+/, '').trim();
+      const parsed = parseArabicNumberString(rawNum);
+      if (parsed !== null && parsed > 0) return parsed;
+    }
+    return null;
+  };
+
   return data
     .filter((b: any) => !expiredIds.includes(b.id))
     .map((b: any) => {
@@ -168,24 +227,31 @@ export async function getFreshDbBookings(nonce?: string) {
         calcRemaining = Math.min(totalAmount, Number(remainingTagMatch[1]) || 0);
         calcPaid = Math.max(0, totalAmount - calcRemaining);
       } else {
-        const dafaMatch = combined.match(/(?:تم\s*دفع|دفع|عربون|مدفوع)\s*:?\s*(\d+(?:\.\d+)?)/);
-        const baqiMatch = combined.match(/(?:متبقي|باقي|باقى|دين|علية|عليها)\s*:?\s*(\d+(?:\.\d+)?)/);
+        const textRemaining = extractRemainingFromText(combined);
+        const textPaid = extractPaidFromText(combined);
 
-        if (dafaMatch && baqiMatch) {
-          calcPaid = Number(dafaMatch[1]) || 0;
-          calcRemaining = Number(baqiMatch[1]) || 0;
-        } else if (baqiMatch) {
-          calcRemaining = Math.min(totalAmount, Number(baqiMatch[1]) || 0);
-          calcPaid = Math.max(0, totalAmount - calcRemaining);
-        } else if (dafaMatch) {
-          calcPaid = Math.min(totalAmount, Number(dafaMatch[1]) || 0);
-          calcRemaining = Math.max(0, totalAmount - calcPaid);
+        if (textPaid !== null && textRemaining !== null) {
+          calcPaid = textPaid;
+          calcRemaining = textRemaining;
+        } else if (textRemaining !== null) {
+          calcRemaining = textRemaining;
+          calcPaid = Math.max(0, totalAmount - textRemaining);
+        } else if (textPaid !== null) {
+          calcPaid = textPaid;
+          calcRemaining = Math.max(0, totalAmount - textPaid);
         } else if (detectPaymentStatus(b) === 'باقي') {
-          const anyNum = combined.match(/(\d+(?:\.\d+)?)/);
-          if (anyNum) {
-            const num = Number(anyNum[1]);
-            calcRemaining = Math.min(totalAmount, num);
-            calcPaid = Math.max(0, totalAmount - calcRemaining);
+          // استخراج أي رقم موجود بعد فحص عدم وجود خالص
+          const anyNumMatch = combined.match(/(\+?\s*\d[\d.,]*\s*(?:k|ك|ألف|الف)?)/);
+          if (anyNumMatch) {
+            const rawNum = anyNumMatch[1].replace(/^\+/, '').trim();
+            const num = parseArabicNumberString(rawNum);
+            if (num !== null && num > 0) {
+              calcRemaining = num;
+              calcPaid = Math.max(0, totalAmount - num);
+            } else {
+              calcPaid = 0;
+              calcRemaining = totalAmount;
+            }
           } else {
             calcPaid = 0;
             calcRemaining = totalAmount;

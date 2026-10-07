@@ -95,6 +95,46 @@ const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
 
 const CONFIRMED_STATUSES = ['approved', 'مؤكد', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 
+const parseArabicNumberString = (raw: string): number | null => {
+  if (!raw) return null;
+  let s = raw
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .trim()
+    .toLowerCase();
+
+  const kMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*(?:k|ك|ألف|الف)/i);
+  if (kMatch) {
+    const base = parseFloat(kMatch[1].replace(/,/g, '.'));
+    return isNaN(base) ? null : Math.round(base * 1000);
+  }
+
+  if (/^\d{1,3}(?:[.,]\d{3})+$/.test(s)) {
+    s = s.replace(/[.,]/g, '');
+    const val = parseFloat(s);
+    return isNaN(val) ? null : val;
+  }
+
+  s = s.replace(/,/g, '');
+  const val = parseFloat(s);
+  return isNaN(val) ? null : val;
+};
+
+const extractRemainingFromText = (text: string): number | null => {
+  if (!text) return null;
+  const s = text
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .toLowerCase();
+
+  const regex = /(?:متبقي|باقي|باقى|دين|علية|عليها|مستحق)\s*[:=+\-–—]?\s*(\+?\s*\d[\d.,]*\s*(?:k|ك|ألف|الف)?)/i;
+  const match = s.match(regex);
+  if (match && match[1]) {
+    const rawNum = match[1].replace(/^\+/, '').trim();
+    const parsed = parseArabicNumberString(rawNum);
+    if (parsed !== null && parsed > 0) return parsed;
+  }
+  return null;
+};
+
 type TreasuryTransfer = {
   id: string;
   amount: number;
@@ -237,8 +277,23 @@ export default function TreasuryPage() {
       const bComm = Number(b.commission || 0);
       comm += bComm;
 
-      const p = b.paidAmount !== undefined ? Number(b.paidAmount) : total;
-      const r = b.remainingAmount !== undefined ? Number(b.remainingAmount) : Math.max(0, total - p);
+      let p = b.paidAmount !== undefined ? Number(b.paidAmount) : undefined;
+      let r = b.remainingAmount !== undefined ? Number(b.remainingAmount) : undefined;
+
+      if (p === undefined || r === undefined) {
+        const combined = `${b.notes || ''} ${b.paymentInfo || ''}`.toLowerCase();
+        const rem = extractRemainingFromText(combined);
+        if (rem !== null) {
+          r = rem;
+          p = Math.max(0, total - rem);
+        } else if (b.paymentStatus === 'خالص') {
+          p = total;
+          r = 0;
+        } else {
+          p = total;
+          r = 0;
+        }
+      }
 
       revPaid += p;
       remUncollected += r;
