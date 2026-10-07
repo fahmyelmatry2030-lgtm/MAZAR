@@ -142,6 +142,10 @@ type TreasuryTransfer = {
   received_by: string;
   transfer_date: string;
   notes?: string;
+  type?: string;
+  reason?: string;
+  actor?: string;
+  time?: string;
 };
 
 const money = (value: number) => `${Math.round(value).toLocaleString('ar-EG')} ج.م`;
@@ -330,7 +334,7 @@ export default function TreasuryPage() {
   // تحويلات الشهر (من الخزنة الصغيرة إلى الخزنة الكبيرة)
   const monthlyDeposits = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
-    const isWithdraw = (t.notes || '').includes('[نوع: سحب من الرئيسية]') || (t.notes || '').includes('[نوع: سحب]');
+    const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
     const parsed = parseDateYM(t.transfer_date);
     return !isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
@@ -342,7 +346,7 @@ export default function TreasuryPage() {
   // سحوبات الخزنة الكبيرة في هذا الشهر (مؤمن ومدحت)
   const monthlyWithdrawals = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
-    const isWithdraw = (t.notes || '').includes('[نوع: سحب من الرئيسية]') || (t.notes || '').includes('[نوع: سحب]');
+    const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
     const parsed = parseDateYM(t.transfer_date);
     return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
@@ -509,10 +513,12 @@ export default function TreasuryPage() {
       const methodObj = PAYMENT_METHODS.find(m => m.id === withdrawMethod) || PAYMENT_METHODS[0];
       await saveDbTreasuryTransfer({
         amount: String(amt),
+        type: 'withdrawal',
         handed_by: 'الخزنة الكبيرة',
         received_by: actorName,
+        reason: withdrawReason.trim(),
         transfer_date: withdrawDate,
-        notes: `[نوع: سحب من الرئيسية] [طريقة: ${methodObj.label}] [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
+        notes: `[نوع: سحب] [طريقة: ${methodObj.label}] [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
       });
       setWithdrawAmount('');
       setWithdrawReason('');

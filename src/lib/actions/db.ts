@@ -1478,6 +1478,7 @@ export async function getDbTreasuryTransfers() {
     let type = 'deposit';
     let reason = '';
     let actor = '';
+    let methodTag = '';
 
     if (handedBy.includes('[نوع:')) {
       const match = handedBy.match(/\[نوع:\s*([^\]]+)\]/);
@@ -1494,11 +1495,11 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
-    if (handedBy.includes('[ملاحظة:')) {
-      const match = handedBy.match(/\[ملاحظة:\s*([^\]]+)\]/);
+    if (handedBy.includes('[طريقة:')) {
+      const match = handedBy.match(/\[طريقة:\s*([^\]]+)\]/);
       if (match) {
-        notes = match[1];
-        handedBy = handedBy.replace(/\[ملاحظة:\s*([^\]]+)\]/g, '').trim();
+        methodTag = `[طريقة: ${match[1]}]`;
+        handedBy = handedBy.replace(/\[طريقة:\s*([^\]]+)\]/g, '').trim();
       }
     }
 
@@ -1510,8 +1511,23 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
-    let time = '';
+    if (handedBy.includes('[المستلم:')) {
+      const match = handedBy.match(/\[المستلم:\s*([^\]]+)\]/);
+      if (match) {
+        receivedBy = match[1];
+        handedBy = handedBy.replace(/\[المستلم:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
 
+    if (handedBy.includes('[ملاحظة:')) {
+      const match = handedBy.match(/\[ملاحظة:\s*([^\]]+)\]/);
+      if (match) {
+        notes = match[1];
+        handedBy = handedBy.replace(/\[ملاحظة:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    let time = '';
     if (handedBy.includes('[وقت:')) {
       const match = handedBy.match(/\[وقت:\s*([^\]]+)\]/);
       if (match) {
@@ -1527,21 +1543,32 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
-    if (handedBy === 'الخزنة الرئيسية' || type === 'withdrawal' || type === 'سحب') {
+    const isWithdrawal = type === 'withdrawal' || type === 'سحب' || type.includes('سحب') ||
+      handedBy === 'الخزنة الرئيسية' || handedBy === 'الخزنة الكبيرة' ||
+      notes.includes('سحب من الرئيسية') || notes.includes('سحب');
+
+    if (isWithdrawal) {
       type = 'withdrawal';
       actor = receivedBy || 'مؤمن';
-      reason = reason || notes || 'سحب من الخزنة الرئيسية';
+      reason = reason || notes || 'سحب من الخزنة الكبيرة';
     } else {
       type = 'deposit';
       actor = handedBy || 'مزار';
-      reason = notes || reason || 'توريد للخزنة الرئيسية';
+      reason = notes || reason || 'توريد للخزنة الكبيرة';
     }
+
+    const reconstructedNotes = [
+      type === 'withdrawal' ? '[نوع: سحب]' : '',
+      methodTag,
+      reason ? `[سبب: ${reason}]` : '',
+      notes && notes !== reason ? `[ملاحظة: ${notes}]` : '',
+    ].filter(Boolean).join(' ');
 
     return {
       ...t,
       handed_by: handedBy,
       received_by: receivedBy,
-      notes,
+      notes: reconstructedNotes || notes || reason,
       type,
       reason,
       actor,
@@ -1554,53 +1581,56 @@ export async function saveDbTreasuryTransfer(transfer: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) throw new Error('Supabase configuration missing on server');
 
-  const type = transfer.type || (transfer.handed_by === 'الخزنة الرئيسية' ? 'withdrawal' : 'deposit');
+  const rawType = transfer.type || '';
+  const isWithdrawal = rawType === 'withdrawal' || rawType === 'سحب' ||
+    transfer.handed_by === 'الخزنة الرئيسية' || transfer.handed_by === 'الخزنة الكبيرة' ||
+    (transfer.notes && (transfer.notes.includes('سحب') || transfer.notes.includes('withdrawal')));
+  const type = isWithdrawal ? 'withdrawal' : 'deposit';
+
   const metaTags: string[] = [];
   if (type === 'withdrawal') metaTags.push('[نوع: سحب]');
   if (transfer.reason) metaTags.push(`[سبب: ${transfer.reason}]`);
   if (transfer.time) metaTags.push(`[وقت: ${transfer.time}]`);
-  if (transfer.notes) metaTags.push(`[ملاحظة: ${transfer.notes}]`);
 
-  const handedByText = transfer.handed_by || (type === 'withdrawal' ? 'الخزنة الرئيسية' : 'مزار');
-  const receivedByText = transfer.received_by || (type === 'withdrawal' ? (transfer.actor || 'مؤمن') : 'الخزنة الرئيسية');
-  const fullNotes = transfer.notes || transfer.reason || (type === 'withdrawal' ? 'سحب من الخزنة الرئيسية' : 'توريد للخزنة الرئيسية');
+  const notesText = transfer.notes || '';
+  if (notesText) {
+    if (notesText.includes('[طريقة:')) {
+      const m = notesText.match(/\[طريقة:\s*([^\]]+)\]/);
+      if (m && !metaTags.some(t => t.startsWith('[طريقة:'))) metaTags.push(`[طريقة: ${m[1]}]`);
+    }
+    if (notesText.includes('[المستلم:')) {
+      const m = notesText.match(/\[المستلم:\s*([^\]]+)\]/);
+      if (m && !metaTags.some(t => t.startsWith('[المستلم:'))) metaTags.push(`[المستلم: ${m[1]}]`);
+    }
+    if (notesText.includes('[سبب:')) {
+      const m = notesText.match(/\[سبب:\s*([^\]]+)\]/);
+      if (m && !metaTags.some(t => t.startsWith('[سبب:'))) metaTags.push(`[سبب: ${m[1]}]`);
+    }
+
+    const plain = notesText.replace(/\[[^\]]+\]/g, '').trim();
+    if (plain && !metaTags.some(t => t.startsWith('[ملاحظة:'))) {
+      metaTags.push(`[ملاحظة: ${plain}]`);
+    }
+  }
+
+  const handedByBase = transfer.handed_by || (type === 'withdrawal' ? 'الخزنة الكبيرة' : 'مزار');
+  const receivedByText = transfer.received_by || (type === 'withdrawal' ? (transfer.actor || 'مؤمن') : 'الخزنة الكبيرة');
+  const encodedHandedBy = metaTags.length > 0 ? `${metaTags.join(' ')} ${handedByBase}`.trim() : handedByBase;
 
   const row: any = {
     amount: Number(transfer.amount) || 0,
-    handed_by: handedByText,
+    handed_by: encodedHandedBy,
     received_by: receivedByText,
     transfer_date: transfer.transfer_date || new Date().toISOString().slice(0, 10),
-    notes: metaTags.length > 0 ? `${metaTags.join(' ')} ${fullNotes}`.trim() : fullNotes,
   };
 
   const { data, error } = await supabase.from('treasury_transfers').insert([row]).select().single();
   if (error) {
     if (isTableMissingError(error)) {
-      throw new Error('جدول treasury_transfers غير موجود في Supabase. يرجى تطبيقه أولاً في قاعدة البيانات.');
+      throw new Error('جدول treasury_transfers غير موجود في Supabase.');
     }
-    
-    console.warn('⚠️ Standard treasury insert failed. Retrying with schema fallback...', error.message);
-    const fallbackHanded = metaTags.length > 0 ? `${metaTags.join(' ')} ${handedByText}`.trim() : handedByText;
-    const fallbackRow = {
-      amount: Number(transfer.amount) || 0,
-      handed_by: fallbackHanded,
-      received_by: receivedByText,
-      transfer_date: transfer.transfer_date || new Date().toISOString().slice(0, 10),
-    };
-
-    const { data: retryData, error: retryError } = await supabase
-      .from('treasury_transfers')
-      .insert([fallbackRow])
-      .select()
-      .single();
-
-    if (retryError) {
-      console.error('Error saving treasury transfer on fallback retry:', retryError);
-      throw new Error(retryError.message || 'فشل حفظ حركة التحويل');
-    }
-
-    revalidatePath('/admin/dashboard/treasury');
-    return retryData;
+    console.error('Error saving treasury transfer:', error);
+    throw new Error(error.message || 'فشل حفظ حركة التحويل');
   }
 
   revalidatePath('/admin/dashboard/treasury');
@@ -1627,12 +1657,34 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
 
   const patch: any = {};
   if (updates.amount !== undefined) patch.amount = Number(updates.amount) || 0;
-  if (updates.handed_by !== undefined) patch.handed_by = updates.handed_by;
   if (updates.received_by !== undefined) patch.received_by = updates.received_by;
   if (updates.transfer_date !== undefined) patch.transfer_date = updates.transfer_date;
-  if (updates.notes !== undefined) patch.notes = updates.notes;
 
-  const { data, error } = await supabase.from('treasury_transfers').update(patch).eq('id', id).select();
+  if (updates.notes !== undefined || updates.handed_by !== undefined) {
+    let currentHanded = updates.handed_by;
+    if (currentHanded === undefined) {
+      const { data: current } = await supabase.from('treasury_transfers').select('handed_by').eq('id', id).single();
+      currentHanded = current?.handed_by || '';
+    }
+
+    const isWithdrawal = currentHanded.includes('[نوع: سحب]') || currentHanded.includes('الخزنة الكبيرة') || currentHanded.includes('الخزنة الرئيسية');
+    const baseName = currentHanded
+      .replace(/\[نوع:[^\]]+\]/g, '')
+      .replace(/\[طريقة:[^\]]+\]/g, '')
+      .replace(/\[ملاحظة:[^\]]+\]/g, '')
+      .replace(/\[سبب:[^\]]+\]/g, '')
+      .replace(/\[المستلم:[^\]]+\]/g, '')
+      .replace(/\[وقت:[^\]]+\]/g, '')
+      .trim();
+
+    const tags: string[] = [];
+    if (isWithdrawal) tags.push('[نوع: سحب]');
+    if (updates.notes) tags.push(updates.notes);
+
+    patch.handed_by = `${tags.join(' ')} ${baseName || (isWithdrawal ? 'الخزنة الكبيرة' : 'مزار')}`.trim();
+  }
+
+  const { data, error } = await supabase.from('treasury_transfers').update(patch).eq('id', id).select().single();
   if (error) {
     console.error('Error updating treasury transfer:', error);
     throw error;
@@ -1641,7 +1693,34 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
   return data;
 }
 
-// --- TO-DO LIST DB FUNCTIONS ---
+// --- TO-DO LIST DB FUNCTIONS (Persisted with DB & fallback storage in translations id: 101) ---
+
+async function getTodosFromStorage(supabase: any): Promise<any[]> {
+  try {
+    const { data, error } = await supabase.from('translations').select('data').eq('id', 101).single();
+    if (error || !data?.data) return [];
+    return Array.isArray(data.data) ? data.data : [];
+  } catch (err) {
+    console.error('Error fetching fallback todos:', err);
+    return [];
+  }
+}
+
+async function saveTodosToStorage(supabase: any, todos: any[]): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('translations')
+      .upsert({ id: 101, data: todos, updated_at: new Date().toISOString() });
+    if (error) {
+      console.error('Error saving todos to fallback storage:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error in saveTodosToStorage:', err);
+    return false;
+  }
+}
 
 export async function getDbTodos() {
   const supabase = getSupabaseServerClient();
@@ -1653,12 +1732,11 @@ export async function getDbTodos() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    if (isTableMissingError(error)) {
-      console.warn('⚠️ Table todo_items does not exist in Supabase yet.');
-      return [];
-    }
-    console.error('Error fetching todo_items:', error);
-    return [];
+    // If table doesn't exist, read from persistent storage
+    const fallbackTodos = await getTodosFromStorage(supabase);
+    return fallbackTodos.sort(
+      (a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
   }
 
   return data || [];
@@ -1677,14 +1755,23 @@ export async function saveDbTodo(todo: { title: string; notes?: string; created_
 
   const { data, error } = await supabase.from('todo_items').insert([row]).select().single();
   if (error) {
-    if (isTableMissingError(error)) {
-      console.warn('⚠️ Table todo_items missing in Supabase. Returning fallback object.');
-      return { id: `todo-${Date.now()}`, ...row, created_at: new Date().toISOString() };
-    }
-    throw new Error(error.message || 'فشل حفظ المهمة');
+    // Table missing or other error -> save permanently in translations id 101
+    const currentList = await getTodosFromStorage(supabase);
+    const newTodo = {
+      id: `todo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      ...row,
+      created_at: new Date().toISOString(),
+    };
+    const updatedList = [newTodo, ...currentList];
+    await saveTodosToStorage(supabase, updatedList);
+
+    revalidatePath('/admin/dashboard');
+    revalidatePath('/admin/dashboard/tasks');
+    return newTodo;
   }
 
   revalidatePath('/admin/dashboard');
+  revalidatePath('/admin/dashboard/tasks');
   return data;
 }
 
@@ -1706,16 +1793,22 @@ export async function updateDbTodoStatus(id: string, completed: boolean, complet
     .eq('id', id);
 
   if (error) {
-    if (error.code === '42703' || error.message?.includes('column')) {
-      const { error: retryErr } = await supabase
-        .from('todo_items')
-        .update({ completed })
-        .eq('id', id);
-      if (retryErr) console.error('Error updating todo status fallback:', retryErr);
-    } else if (!isTableMissingError(error)) {
-      console.error('Error updating todo status:', error);
-    }
+    // Fallback storage update
+    const currentList = await getTodosFromStorage(supabase);
+    const updatedList = currentList.map((t: any) => {
+      if (t.id === id) {
+        return {
+          ...t,
+          completed,
+          completed_at: completed ? new Date().toISOString() : null,
+          completed_by: completed ? (completed_by || t.completed_by || 'Admin') : null,
+        };
+      }
+      return t;
+    });
+    await saveTodosToStorage(supabase, updatedList);
   }
+
   revalidatePath('/admin/dashboard');
   revalidatePath('/admin/dashboard/tasks');
 }
@@ -1725,10 +1818,17 @@ export async function deleteDbTodo(id: string) {
   if (!supabase) return;
 
   const { error } = await supabase.from('todo_items').delete().eq('id', id);
-  if (error && !isTableMissingError(error)) {
-    console.error('Error deleting todo item:', error);
+
+  // Also clean from fallback storage
+  const currentList = await getTodosFromStorage(supabase);
+  if (currentList.some((t: any) => t.id === id)) {
+    const updatedList = currentList.filter((t: any) => t.id !== id);
+    await saveTodosToStorage(supabase, updatedList);
   }
+
   revalidatePath('/admin/dashboard');
+  revalidatePath('/admin/dashboard/tasks');
 }
+
 
 
