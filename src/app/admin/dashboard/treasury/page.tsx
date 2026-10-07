@@ -8,9 +8,66 @@ import {
   getDbTreasuryTransfers,
   saveDbTreasuryTransfer,
 } from '@/lib/actions/db';
-import { ArrowLeftRight, ArrowDownLeft, Plus, Trash2, Wallet } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ArrowDownLeft,
+  Banknote,
+  CreditCard,
+  Plus,
+  Smartphone,
+  Trash2,
+  Wallet,
+  Zap,
+} from 'lucide-react';
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+// طرق الدفع المدعومة
+const PAYMENT_METHODS = [
+  { id: 'cash', label: 'كاش', icon: Banknote, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  { id: 'instapay', label: 'إنستا باي', icon: Zap, color: 'text-purple-700 bg-purple-50 border-purple-200' },
+  { id: 'vodafone_cash', label: 'فودافون كاش', icon: Smartphone, color: 'text-red-700 bg-red-50 border-red-200' },
+  { id: 'visa', label: 'فيزا / بنك', icon: CreditCard, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+] as const;
+
+type PaymentMethodId = typeof PAYMENT_METHODS[number]['id'];
+
+// دالة ذكية لتحديد طريقة الدفع من الملاحظات أو البيانات القديمة
+const detectPaymentMethod = (text: string = ''): { id: PaymentMethodId; label: string } => {
+  const t = String(text).toLowerCase();
+
+  // 1) فحص الوسم الصريح أولاً: [طريقة: ...]
+  const tagMatch = text.match(/\[طريقة:\s*([^\]]+)\]/);
+  if (tagMatch) {
+    const rawTag = tagMatch[1].trim();
+    if (rawTag.includes('إنستا') || rawTag.includes('انستا') || rawTag.includes('instapay')) {
+      return { id: 'instapay', label: 'إنستا باي' };
+    }
+    if (rawTag.includes('فودافون') || rawTag.includes('vodafone')) {
+      return { id: 'vodafone_cash', label: 'فودافون كاش' };
+    }
+    if (rawTag.includes('فيزا') || rawTag.includes('visa') || rawTag.includes('بنك') || rawTag.includes('حساب')) {
+      return { id: 'visa', label: 'فيزا / بنك' };
+    }
+    if (rawTag.includes('كاش') || rawTag.includes('cash')) {
+      return { id: 'cash', label: 'كاش' };
+    }
+  }
+
+  // 2) فحص الكلمات المفتاحية في النص (حتى للبيانات القديمة المسجلة مسبقاً)
+  if (t.includes('انستا') || t.includes('إنستا') || t.includes('instapay')) {
+    return { id: 'instapay', label: 'إنستا باي' };
+  }
+  if (t.includes('فودافون') || t.includes('vodafone') || t.includes('فودافون كاش')) {
+    return { id: 'vodafone_cash', label: 'فودافون كاش' };
+  }
+  if (t.includes('فيزا') || t.includes('visa') || t.includes('بنك') || t.includes('حساب بنكي')) {
+    return { id: 'visa', label: 'فيزا / بنك' };
+  }
+
+  // الافتراضي كاش
+  return { id: 'cash', label: 'كاش' };
+};
 
 // Robust date parser: supports YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, ISO
 const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
@@ -51,6 +108,7 @@ export default function TreasuryPage() {
     amount: '',
     handedBy: '',
     receivedBy: 'الخزنة الكبيرة',
+    method: 'cash' as PaymentMethodId,
     date: today.toISOString().slice(0, 10),
     notes: ''
   });
@@ -84,6 +142,7 @@ export default function TreasuryPage() {
 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawReason, setWithdrawReason] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState<PaymentMethodId>('cash');
   const [withdrawDate, setWithdrawDate] = useState(today.toISOString().slice(0, 10));
   const [withdrawBy, setWithdrawBy] = useState('مؤمن');
   const [isSavingWithdraw, setIsSavingWithdraw] = useState(false);
@@ -181,6 +240,37 @@ export default function TreasuryPage() {
     return (grossTreasury || 0) - totalDepositedToBig;
   }, [grossTreasury, totalDepositedToBig]);
 
+  // ── تفصيل رصيد الخزنة الكبيرة حسب طريقة الدفع (كاش، إنستا باي، فودافون كاش، فيزا) ──
+  const bigTreasuryByMethod = useMemo(() => {
+    const summary: Record<PaymentMethodId, { deposited: number; withdrawn: number; balance: number }> = {
+      cash: { deposited: 0, withdrawn: 0, balance: 0 },
+      instapay: { deposited: 0, withdrawn: 0, balance: 0 },
+      vodafone_cash: { deposited: 0, withdrawn: 0, balance: 0 },
+      visa: { deposited: 0, withdrawn: 0, balance: 0 },
+    };
+
+    // جمع التوريدات
+    monthlyDeposits.forEach((t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      const method = detectPaymentMethod(fullText).id;
+      summary[method].deposited += Number(t.amount) || 0;
+    });
+
+    // خصم السحوبات
+    monthlyWithdrawals.forEach((w) => {
+      const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+      const method = detectPaymentMethod(fullText).id;
+      summary[method].withdrawn += Number(w.amount) || 0;
+    });
+
+    // حساب الصافي لكل طريقة
+    (Object.keys(summary) as PaymentMethodId[]).forEach((m) => {
+      summary[m].balance = summary[m].deposited - summary[m].withdrawn;
+    });
+
+    return summary;
+  }, [monthlyDeposits, monthlyWithdrawals]);
+
   // إرسال تحويل من الخزنة الصغيرة إلى الخزنة الكبيرة
   const submitTransfer = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -191,17 +281,22 @@ export default function TreasuryPage() {
     setIsSaving(true);
     setError('');
     try {
+      const methodObj = PAYMENT_METHODS.find(m => m.id === form.method) || PAYMENT_METHODS[0];
+      const customNotes = form.notes.trim();
+      const combinedNotes = `[طريقة: ${methodObj.label}]${customNotes ? ` ${customNotes}` : ''}`;
+
       await saveDbTreasuryTransfer({
         amount: form.amount,
         handed_by: form.handedBy,
         received_by: form.receivedBy,
         transfer_date: form.date,
-        notes: form.notes,
+        notes: combinedNotes,
       });
       setForm({
         amount: '',
         handedBy: '',
         receivedBy: 'الخزنة الكبيرة',
+        method: form.method,
         date: form.date,
         notes: ''
       });
@@ -236,12 +331,13 @@ export default function TreasuryPage() {
     setWithdrawError('');
     try {
       const actorName = withdrawBy.trim() || defaultOwnerName;
+      const methodObj = PAYMENT_METHODS.find(m => m.id === withdrawMethod) || PAYMENT_METHODS[0];
       await saveDbTreasuryTransfer({
         amount: String(amt),
         handed_by: 'الخزنة الكبيرة',
         received_by: actorName,
         transfer_date: withdrawDate,
-        notes: `[نوع: سحب من الرئيسية] [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
+        notes: `[نوع: سحب من الرئيسية] [طريقة: ${methodObj.label}] [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
       });
       setWithdrawAmount('');
       setWithdrawReason('');
@@ -272,7 +368,7 @@ export default function TreasuryPage() {
         <div>
           <h1 className="text-4xl font-black text-[#2A2723]">الخزنة</h1>
           <p className="text-sm font-bold text-[#7A7061] mt-2">
-            متابعة حركة النقدية بين <span className="text-[#C1A68D]">الخزنة الصغيرة</span> و <span className="text-[#2A2723]">الخزنة الكبيرة</span>
+            متابعة حركة النقدية بين <span className="text-[#C1A68D]">الخزنة الصغيرة</span> و <span className="text-[#2A2723]">الخزنة الكبيرة</span> وتفصيلها (كاش، إنستا باي، فودافون كاش، فيزا)
           </p>
         </div>
         <div className="flex gap-2 bg-white p-2 rounded-2xl border border-[#EAE4D9] shadow-sm">
@@ -295,7 +391,7 @@ export default function TreasuryPage() {
 
       {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-xs font-black">{error}</div>}
 
-      {/* ── كروت إحصائيات الخزائن ── */}
+      {/* ── كروت إحصائيات الخزائن الرئيسية ── */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* كارت الخزنة الصغيرة */}
         <div className="bg-white border-2 border-[#EAE4D9] p-7 rounded-[2rem] shadow-sm relative overflow-hidden">
@@ -315,7 +411,7 @@ export default function TreasuryPage() {
           </p>
         </div>
 
-        {/* كارت الخزنة الكبيرة */}
+        {/* كارت الخزنة الكبيرة (الرصيد الإجمالي) */}
         <div className="bg-[#2A2723] text-white p-7 rounded-[2rem] shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 text-[#C1A68D] text-xs font-black">
@@ -351,19 +447,60 @@ export default function TreasuryPage() {
         </div>
       </section>
 
+      {/* ── كروت تفصيل الخزنة الكبيرة حسب المحفظة / طريقة الدفع ── */}
+      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-sm font-black text-[#2A2723]">توزيع رصيد الخزنة الكبيرة حسب المحفظة</h2>
+            <p className="text-[11px] font-bold text-[#7A7061]">
+              تعرف في أي لحظة معاك كام كاش، كام إنستا باي، كام فودافون كاش، وكام فيزا بعد خصم السحوبات
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-[#C1A68D] bg-[#FDFBF7] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
+            إجمالي المحافظ: {money(bigTreasuryBalance)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {PAYMENT_METHODS.map((pm) => {
+            const Icon = pm.icon;
+            const data = bigTreasuryByMethod[pm.id] || { deposited: 0, withdrawn: 0, balance: 0 };
+            return (
+              <div key={pm.id} className="bg-[#FDFBF7] border border-[#EAE4D9] p-5 rounded-2xl relative overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`p-2 rounded-xl border ${pm.color}`}>
+                      <Icon size={16} />
+                    </span>
+                    <span className="text-xs font-black text-[#2A2723]">{pm.label}</span>
+                  </div>
+                </div>
+                <div className={`text-2xl font-black ${data.balance >= 0 ? 'text-[#2A2723]' : 'text-red-600'}`}>
+                  {isLoading ? '...' : money(data.balance)}
+                </div>
+                <div className="text-[10px] text-[#7A7061] font-bold mt-2 pt-2 border-t border-[#EAE4D9]/60 flex justify-between">
+                  <span>وارد: {money(data.deposited)}</span>
+                  <span className="text-red-500">سحب: {money(data.withdrawn)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* ── نموذج إضافة مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة (للأدمن والجميع) ── */}
       <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-black text-[#2A2723]">نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة</h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-1">تسجيل تحويل النقدية المحصلة من الموقع إلى الخزنة الكبيرة</p>
+            <p className="text-[11px] font-bold text-[#7A7061] mt-1">تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل</p>
           </div>
           <span className="text-xs font-black bg-[#FDFBF7] text-[#C1A68D] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
             تسمع في الخزنة الكبيرة فوراً
           </span>
         </div>
 
-        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
+        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-end">
           <label className="text-[10px] font-black text-[#7A7061]">
             المبلغ
             <input
@@ -375,6 +512,18 @@ export default function TreasuryPage() {
               className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
               placeholder="0"
             />
+          </label>
+          <label className="text-[10px] font-black text-[#7A7061]">
+            طريقة التحويل
+            <select
+              value={form.method}
+              onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethodId })}
+              className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-[#FDFBF7] cursor-pointer outline-none"
+            >
+              {PAYMENT_METHODS.map((pm) => (
+                <option key={pm.id} value={pm.id}>{pm.label}</option>
+              ))}
+            </select>
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
             المسلّم (من)
@@ -434,7 +583,7 @@ export default function TreasuryPage() {
                 سحب من الخزنة الكبيرة (الملاك: مؤمن ومدحت)
               </h2>
               <p className="text-[11px] font-bold text-[#7A7061] mt-1">
-                أي مبلغ يتم سحبه من هنا يُخصم تلقائياً وبشكل مباشر من رصيد الخزنة الكبيرة
+                حدد طريقة السحب (كاش، إنستا باي، فودافون كاش، فيزا) ليتم خصمها من رصيد المحفظة المحددة
               </p>
             </div>
             <div className="text-left bg-white px-4 py-2 rounded-xl border border-[#EAE4D9]">
@@ -446,7 +595,7 @@ export default function TreasuryPage() {
           {withdrawError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-black mb-4">{withdrawError}</div>}
           {withdrawSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs font-black mb-4">{withdrawSuccess}</div>}
 
-          <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+          <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end">
             <label className="text-[10px] font-black text-[#7A7061]">
               المبلغ المسحوب
               <input
@@ -458,6 +607,18 @@ export default function TreasuryPage() {
                 className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
                 placeholder="0"
               />
+            </label>
+            <label className="text-[10px] font-black text-[#7A7061]">
+              طريقة السحب
+              <select
+                value={withdrawMethod}
+                onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none"
+              >
+                {PAYMENT_METHODS.map((pm) => (
+                  <option key={pm.id} value={pm.id}>{pm.label}</option>
+                ))}
+              </select>
             </label>
             <label className="text-[10px] font-black text-[#7A7061]">
               المسحوب لـ (المستلم)
@@ -494,7 +655,7 @@ export default function TreasuryPage() {
             </label>
             <button
               disabled={isSavingWithdraw}
-              className="sm:col-span-5 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors"
+              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors"
             >
               <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
             </button>
@@ -510,6 +671,7 @@ export default function TreasuryPage() {
               <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
                 <tr>
                   <th className="p-4">المبلغ</th>
+                  <th className="p-4">طريقة السحب</th>
                   <th className="p-4">المسحوب لـ</th>
                   <th className="p-4">السبب / البيان</th>
                   <th className="p-4">التاريخ</th>
@@ -518,16 +680,27 @@ export default function TreasuryPage() {
               </thead>
               <tbody>
                 {monthlyWithdrawals.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
                 ) : (
                   monthlyWithdrawals.map(w => {
+                    const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+                    const method = detectPaymentMethod(fullText);
+                    const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                    const MethodIcon = methodObj.icon;
+
                     const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
-                    const reason = reasonMatch ? reasonMatch[1] : (w.notes || '—');
+                    const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
                     const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
                     const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
                     return (
                       <tr key={w.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-red-50/20">
                         <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
+                        <td className="p-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
+                            <MethodIcon size={13} />
+                            {methodObj.label}
+                          </span>
+                        </td>
                         <td className="p-4 text-[#2A2723]">{actor}</td>
                         <td className="p-4 text-[#7A7061]">{reason}</td>
                         <td className="p-4">{w.transfer_date}</td>
@@ -555,7 +728,7 @@ export default function TreasuryPage() {
         <div className="p-6 border-b border-[#EAE4D9] flex justify-between items-center">
           <div>
             <h2 className="text-lg font-black text-[#2A2723]">سجل حركات التوريد (من الصغيرة إلى الكبيرة)</h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">كل المبالغ التي قام الأدمن بنقلها للخزنة الكبيرة</p>
+            <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">كل المبالغ التي قام الأدمن بنقلها للخزنة الكبيرة مع طريقة التحويل</p>
           </div>
           <span className="text-xs font-black text-[#7A7061] bg-[#FDFBF7] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
             {monthlyDeposits.length} حركة توريد
@@ -566,6 +739,7 @@ export default function TreasuryPage() {
             <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
               <tr>
                 <th className="p-5">المبلغ</th>
+                <th className="p-5">طريقة التحويل</th>
                 <th className="p-5">مسلم (من)</th>
                 <th className="p-5">مستلم (إلى)</th>
                 <th className="p-5">ملاحظة</th>
@@ -575,26 +749,40 @@ export default function TreasuryPage() {
             </thead>
             <tbody>
               {monthlyDeposits.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-[#7A7061] font-bold">لا توجد حركات توريد مسجلة لهذا الشهر</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-[#7A7061] font-bold">لا توجد حركات توريد مسجلة لهذا الشهر</td></tr>
               ) : (
-                monthlyDeposits.map((transfer) => (
-                  <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7]">
-                    <td className="p-5 text-[#C1A68D] font-black">{money(Number(transfer.amount))}</td>
-                    <td className="p-5">{transfer.handed_by}</td>
-                    <td className="p-5">{transfer.received_by}</td>
-                    <td className="p-5 text-[#7A7061]">{transfer.notes || '—'}</td>
-                    <td className="p-5">{transfer.transfer_date}</td>
-                    <td className="p-5">
-                      <button
-                        onClick={() => removeTransfer(transfer.id)}
-                        title="حذف الحركة"
-                        className="text-red-400 hover:text-red-600 transition-colors p-1"
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                monthlyDeposits.map((transfer) => {
+                  const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
+                  const method = detectPaymentMethod(fullText);
+                  const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                  const MethodIcon = methodObj.icon;
+                  const cleanNotes = (transfer.notes || '').replace(/\[[^\]]+\]/g, '').trim();
+
+                  return (
+                    <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7]">
+                      <td className="p-5 text-[#C1A68D] font-black">{money(Number(transfer.amount))}</td>
+                      <td className="p-5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
+                          <MethodIcon size={13} />
+                          {methodObj.label}
+                        </span>
+                      </td>
+                      <td className="p-5">{transfer.handed_by}</td>
+                      <td className="p-5">{transfer.received_by}</td>
+                      <td className="p-5 text-[#7A7061]">{cleanNotes || '—'}</td>
+                      <td className="p-5">{transfer.transfer_date}</td>
+                      <td className="p-5">
+                        <button
+                          onClick={() => removeTransfer(transfer.id)}
+                          title="حذف الحركة"
+                          className="text-red-400 hover:text-red-600 transition-colors p-1"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -603,3 +791,4 @@ export default function TreasuryPage() {
     </div>
   );
 }
+
