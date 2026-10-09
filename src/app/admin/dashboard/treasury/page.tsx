@@ -1067,62 +1067,21 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* ── نموذج توريد أو سحب من الخزنة الكبيرة ── */}
+      {/* ── نموذج نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة (توريد) ── */}
       <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-black text-[#2A2723]">
-              {form.type === 'withdrawal' && isOwner ? '📤 سحب مبلغ من الخزنة الكبيرة' : '📥 نقل مبلغ إلى الخزنة الكبيرة'}
-            </h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-1">
-              {form.type === 'withdrawal' && isOwner
-                ? 'تسجيل سحب أرباح أو مسحوبات لمؤمن أو مدحت ويخصم من رصيد الخزنة الكبيرة'
-                : 'تسجيل تحويل النقدية المحصلة من الخزنة الصغيرة مع تحديد طريقة التحويل'}
-            </p>
+            <h2 className="text-lg font-black text-[#2A2723]">نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة</h2>
+            <p className="text-[11px] font-bold text-[#7A7061] mt-1">تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل</p>
           </div>
-
-          {/* أزرار اختيار نوع الحركة: توريد أو سحب - تظهر حصرياً لمؤمن ومدحت فقط */}
-          {isOwner && (
-            <div className="flex items-center gap-2 bg-[#FDFBF7] p-1.5 rounded-2xl border border-[#EAE4D9]">
-              <button
-                type="button"
-                onClick={() => setForm({
-                  ...form,
-                  type: 'deposit',
-                  handedBy: '',
-                  receivedBy: 'الخزنة الكبيرة',
-                })}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  form.type === 'deposit'
-                    ? 'bg-[#2A2723] text-white shadow-sm'
-                    : 'text-[#7A7061] hover:text-[#2A2723]'
-                }`}
-              >
-                <Plus size={14} /> توريد للخزنة الكبيرة (إيداع)
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm({
-                  ...form,
-                  type: 'withdrawal',
-                  handedBy: 'الخزنة الكبيرة',
-                  receivedBy: defaultOwnerName || 'مؤمن',
-                })}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  form.type === 'withdrawal'
-                    ? 'bg-red-600 text-white shadow-sm'
-                    : 'text-[#7A7061] hover:text-red-600'
-                }`}
-              >
-                <ArrowDownLeft size={14} /> سحب من الخزنة الكبيرة
-              </button>
-            </div>
-          )}
+          <span className="text-xs font-black bg-[#FDFBF7] text-[#C1A68D] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
+            تسمع في الخزنة الكبيرة فوراً
+          </span>
         </div>
 
         <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-end">
           <label className="text-[10px] font-black text-[#7A7061]">
-            المبلغ {form.type === 'withdrawal' && isOwner ? 'المسحوب' : ''}
+            المبلغ
             <input
               required
               type="number"
@@ -1134,7 +1093,7 @@ export default function TreasuryPage() {
             />
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            {form.type === 'withdrawal' && isOwner ? 'طريقة السحب' : 'طريقة التحويل'}
+            طريقة التحويل
             <select
               value={form.method}
               onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethodId })}
@@ -1152,34 +1111,23 @@ export default function TreasuryPage() {
               value={form.handedBy}
               onChange={(event) => setForm({ ...form, handedBy: event.target.value })}
               className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
-              placeholder={form.type === 'withdrawal' && isOwner ? 'الخزنة الكبيرة' : 'اسم الأدمن المسلّم'}
+              placeholder="اسم الأدمن المسلّم"
             />
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            {form.type === 'withdrawal' && isOwner ? 'المسحوب لـ (المستلم)' : 'المستلم (إلى)'}
-            {form.type === 'withdrawal' && isOwner ? (
-              <select
-                value={form.receivedBy}
-                onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-[#FDFBF7] cursor-pointer outline-none"
-              >
-                <option value="مؤمن">مؤمن</option>
-                <option value="مدحت">مدحت</option>
-              </select>
-            ) : (
-              <input
-                required
-                value={form.receivedBy}
-                onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
-                placeholder="الخزنة الكبيرة / المستلم"
-              />
-            )}
+            المستلم (إلى)
+            <input
+              required
+              value={form.receivedBy}
+              onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
+              className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
+              placeholder="الخزنة الكبيرة"
+            />
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            {form.type === 'withdrawal' && isOwner ? 'سبب السحب / بيان' : 'ملاحظة'}
+            ملاحظة
             <input
-              placeholder={form.type === 'withdrawal' && isOwner ? 'أرباح / مصاريف شخصية...' : 'ملاحظات التحويل...'}
+              placeholder="ملاحظات التحويل..."
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
@@ -1197,21 +1145,160 @@ export default function TreasuryPage() {
           </label>
           <button
             disabled={isSaving}
-            className={`${
-              form.type === 'withdrawal' && isOwner
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-[#2A2723] hover:bg-[#3D3833]'
-            } text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer`}
+            className="bg-[#2A2723] hover:bg-[#3D3833] text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer"
           >
-            {form.type === 'withdrawal' && isOwner ? <ArrowDownLeft size={16} /> : <Plus size={16} />}
-            {isSaving
-              ? 'جاري التسجيل...'
-              : form.type === 'withdrawal' && isOwner
-              ? 'تسجيل السحب'
-              : 'تسجيل التوريد'}
+            <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
           </button>
         </form>
       </section>
+
+      {/* ── قسم السحب من الخزنة الكبيرة (خاص بـ Owner: مؤمن ومدحت فقط - يظهر فوق الحجوزات) ── */}
+      {isOwner && (
+        <section className="bg-[#FDFBF7] border-2 border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
+                <ArrowDownLeft size={20} className="text-red-500" />
+                سحب من الخزنة الكبيرة (الملاك: مؤمن ومدحت)
+              </h2>
+              <p className="text-[11px] font-bold text-[#7A7061] mt-1">
+                حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
+              </p>
+            </div>
+            <div className="text-left bg-white px-4 py-2 rounded-xl border border-[#EAE4D9]">
+              <span className="text-[10px] text-[#7A7061] font-bold block">إجمالي سحوبات الشهر</span>
+              <span className="text-base font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
+            </div>
+          </div>
+
+          {withdrawError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-black mb-4">{withdrawError}</div>}
+          {withdrawSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs font-black mb-4">{withdrawSuccess}</div>}
+
+          <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end">
+            <label className="text-[10px] font-black text-[#7A7061]">
+              المبلغ المسحوب
+              <input
+                required
+                type="number"
+                min="1"
+                value={withdrawAmount}
+                onChange={e => setWithdrawAmount(e.target.value)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+                placeholder="0"
+              />
+            </label>
+            <label className="text-[10px] font-black text-[#7A7061]">
+              طريقة السحب
+              <select
+                value={withdrawMethod}
+                onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none"
+              >
+                {PAYMENT_METHODS.map((pm) => (
+                  <option key={pm.id} value={pm.id}>{pm.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[10px] font-black text-[#7A7061]">
+              المسحوب لـ (المستلم)
+              <select
+                value={withdrawBy}
+                onChange={e => setWithdrawBy(e.target.value)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none"
+              >
+                <option value="مؤمن">مؤمن</option>
+                <option value="مدحت">مدحت</option>
+              </select>
+            </label>
+            <label className="text-[10px] font-black text-[#7A7061] sm:col-span-2">
+              السبب / البيان
+              <input
+                required
+                value={withdrawReason}
+                onChange={e => setWithdrawReason(e.target.value)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+                placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
+              />
+            </label>
+            <label className="text-[10px] font-black text-[#7A7061]">
+              التاريخ
+              <input
+                required
+                type="date"
+                value={withdrawDate}
+                onChange={e => setWithdrawDate(e.target.value)}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+              />
+            </label>
+            <button
+              disabled={isSavingWithdraw}
+              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer"
+            >
+              <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
+            </button>
+          </form>
+
+          {/* جدول سحوبات الخزنة الكبيرة */}
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#EAE4D9] bg-white">
+            <div className="p-4 bg-[#FDFBF7] border-b border-[#EAE4D9] flex justify-between items-center">
+              <h3 className="text-xs font-black text-[#2A2723]">سجل سحوبات الخزنة الكبيرة لهذا الشهر</h3>
+              <span className="text-[11px] font-bold text-[#7A7061]">{monthlyWithdrawals.length} حركة سحب</span>
+            </div>
+            <table className="w-full text-right text-xs">
+              <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
+                <tr>
+                  <th className="p-4">المبلغ</th>
+                  <th className="p-4">طريقة السحب</th>
+                  <th className="p-4">المسحوب لـ</th>
+                  <th className="p-4">السبب / البيان</th>
+                  <th className="p-4">التاريخ</th>
+                  <th className="p-4">حذف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyWithdrawals.length === 0 ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
+                ) : (
+                  monthlyWithdrawals.map(w => {
+                    const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+                    const method = detectPaymentMethod(fullText);
+                    const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                    const MethodIcon = methodObj.icon;
+
+                    const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
+                    const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
+                    const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
+                    const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
+                    return (
+                      <tr key={w.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-red-50/20">
+                        <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
+                        <td className="p-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
+                            <MethodIcon size={13} />
+                            {methodObj.label}
+                          </span>
+                        </td>
+                        <td className="p-4 text-[#2A2723]">{actor}</td>
+                        <td className="p-4 text-[#7A7061]">{reason}</td>
+                        <td className="p-4">{w.transfer_date}</td>
+                        <td className="p-4">
+                          <button
+                            onClick={() => removeTransfer(w.id)}
+                            className="text-red-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
+                            title="حذف حركة السحب"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* ── جدول حركة الحجوزات (المقبوض والمتبقي بدقة) ── */}
       <section className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] p-6 shadow-sm overflow-hidden">
@@ -1424,153 +1511,6 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* ── قسم السحب من الخزنة الكبيرة (خاص بـ Owner: مؤمن ومدحت) ── */}
-      {isOwner && (
-        <section className="bg-[#FDFBF7] border-2 border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
-            <div>
-              <h2 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
-                <ArrowDownLeft size={20} className="text-red-500" />
-                سحب من الخزنة الكبيرة (الملاك: مؤمن ومدحت)
-              </h2>
-              <p className="text-[11px] font-bold text-[#7A7061] mt-1">
-                حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
-              </p>
-            </div>
-            <div className="text-left bg-white px-4 py-2 rounded-xl border border-[#EAE4D9]">
-              <span className="text-[10px] text-[#7A7061] font-bold block">إجمالي سحوبات الشهر</span>
-              <span className="text-base font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
-            </div>
-          </div>
-
-          {withdrawError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-black mb-4">{withdrawError}</div>}
-          {withdrawSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs font-black mb-4">{withdrawSuccess}</div>}
-
-          <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end">
-            <label className="text-[10px] font-black text-[#7A7061]">
-              المبلغ المسحوب
-              <input
-                required
-                type="number"
-                min="1"
-                value={withdrawAmount}
-                onChange={e => setWithdrawAmount(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
-                placeholder="0"
-              />
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              طريقة السحب
-              <select
-                value={withdrawMethod}
-                onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none"
-              >
-                {PAYMENT_METHODS.map((pm) => (
-                  <option key={pm.id} value={pm.id}>{pm.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              المسحوب لـ (المستلم)
-              <select
-                value={withdrawBy}
-                onChange={e => setWithdrawBy(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none"
-              >
-                <option value="مؤمن">مؤمن</option>
-                <option value="مدحت">مدحت</option>
-              </select>
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061] sm:col-span-2">
-              السبب / البيان
-              <input
-                required
-                value={withdrawReason}
-                onChange={e => setWithdrawReason(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
-                placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
-              />
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              التاريخ
-              <input
-                required
-                type="date"
-                value={withdrawDate}
-                onChange={e => setWithdrawDate(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
-              />
-            </label>
-            <button
-              disabled={isSavingWithdraw}
-              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer"
-            >
-              <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
-            </button>
-          </form>
-
-          {/* جدول سحوبات الخزنة الكبيرة */}
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#EAE4D9] bg-white">
-            <div className="p-4 bg-[#FDFBF7] border-b border-[#EAE4D9] flex justify-between items-center">
-              <h3 className="text-xs font-black text-[#2A2723]">سجل سحوبات الخزنة الكبيرة لهذا الشهر</h3>
-              <span className="text-[11px] font-bold text-[#7A7061]">{monthlyWithdrawals.length} حركة سحب</span>
-            </div>
-            <table className="w-full text-right text-xs">
-              <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
-                <tr>
-                  <th className="p-4">المبلغ</th>
-                  <th className="p-4">طريقة السحب</th>
-                  <th className="p-4">المسحوب لـ</th>
-                  <th className="p-4">السبب / البيان</th>
-                  <th className="p-4">التاريخ</th>
-                  <th className="p-4">حذف</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyWithdrawals.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
-                ) : (
-                  monthlyWithdrawals.map(w => {
-                    const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
-                    const method = detectPaymentMethod(fullText);
-                    const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
-                    const MethodIcon = methodObj.icon;
-
-                    const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
-                    const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
-                    const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
-                    const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
-                    return (
-                      <tr key={w.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-red-50/20">
-                        <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
-                        <td className="p-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
-                            <MethodIcon size={13} />
-                            {methodObj.label}
-                          </span>
-                        </td>
-                        <td className="p-4 text-[#2A2723]">{actor}</td>
-                        <td className="p-4 text-[#7A7061]">{reason}</td>
-                        <td className="p-4">{w.transfer_date}</td>
-                        <td className="p-4">
-                          <button
-                            onClick={() => removeTransfer(w.id)}
-                            className="text-red-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
-                            title="حذف حركة السحب"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
