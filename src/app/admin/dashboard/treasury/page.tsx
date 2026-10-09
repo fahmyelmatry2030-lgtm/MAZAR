@@ -13,11 +13,15 @@ import {
 import {
   ArrowLeftRight,
   ArrowDownLeft,
+  ArrowDownRight,
+  ArrowUpRight,
   Banknote,
   CheckCircle2,
   Clock,
+  Coins,
   Edit3,
   Plus,
+  Receipt,
   Smartphone,
   Trash2,
   Wallet,
@@ -26,11 +30,44 @@ import {
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
-// طرق الدفع والتحويل المدعومة (إنستا باي وحساب بنكي مدمجين معاً بناءً على طلب العميل)
+// طرق الدفع والتحويل المدعومة مع تمييز لوني واضح وفاقع لكل محفظة
 const PAYMENT_METHODS = [
-  { id: 'cash', label: 'كاش', icon: Banknote, color: 'text-emerald-700 bg-emerald-50 border-emerald-200', activeBg: 'bg-emerald-600 text-white' },
-  { id: 'instapay', label: 'إنستا باي / حساب بنكي', icon: Zap, color: 'text-purple-700 bg-purple-50 border-purple-200', activeBg: 'bg-purple-600 text-white' },
-  { id: 'vodafone_cash', label: 'فودافون كاش', icon: Smartphone, color: 'text-red-700 bg-red-50 border-red-200', activeBg: 'bg-red-600 text-white' },
+  {
+    id: 'cash',
+    label: 'كاش',
+    icon: Banknote,
+    color: 'text-emerald-800 bg-emerald-100/90 border-emerald-300',
+    activeBg: 'bg-emerald-600 text-white shadow-sm',
+    cardBorder: 'border-emerald-300 hover:border-emerald-500',
+    cardBg: 'bg-emerald-50/50 hover:bg-emerald-50/80',
+    cardSelected: 'border-emerald-600 bg-emerald-50/95 ring-2 ring-emerald-500/30 shadow-md',
+    textColor: 'text-emerald-950',
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  {
+    id: 'instapay',
+    label: 'إنستا باي / حساب بنكي',
+    icon: Zap,
+    color: 'text-purple-800 bg-purple-100/90 border-purple-300',
+    activeBg: 'bg-purple-600 text-white shadow-sm',
+    cardBorder: 'border-purple-300 hover:border-purple-500',
+    cardBg: 'bg-purple-50/50 hover:bg-purple-50/80',
+    cardSelected: 'border-purple-600 bg-purple-50/95 ring-2 ring-purple-500/30 shadow-md',
+    textColor: 'text-purple-950',
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+  },
+  {
+    id: 'vodafone_cash',
+    label: 'فودافون كاش',
+    icon: Smartphone,
+    color: 'text-red-800 bg-red-100/90 border-red-300',
+    activeBg: 'bg-red-600 text-white shadow-sm',
+    cardBorder: 'border-red-300 hover:border-red-500',
+    cardBg: 'bg-red-50/50 hover:bg-red-50/80',
+    cardSelected: 'border-red-600 bg-red-50/95 ring-2 ring-red-500/30 shadow-md',
+    textColor: 'text-red-950',
+    badgeColor: 'bg-red-100 text-red-800 border-red-200',
+  },
 ] as const;
 
 type PaymentMethodId = typeof PAYMENT_METHODS[number]['id'];
@@ -669,25 +706,25 @@ export default function TreasuryPage() {
   return (
     <div className="space-y-8 animate-fade-in" dir="rtl">
       {/* ── العنوان وفلتر التاريخ ── */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-black text-[#2A2723]">الخزنة</h1>
-          <p className="text-sm font-bold text-[#7A7061] mt-2">
-            متابعة حركة النقدية المحصلة بين <span className="text-[#C1A68D]">الخزنة الصغيرة</span> و <span className="text-[#2A2723]">الخزنة الكبيرة</span> ومراجعة التحويلات (كاش / إنستا باي وبنك / فودافون كاش)
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-5 bg-white p-6 md:p-8 rounded-[2rem] border-2 border-[#EAE4D9] shadow-sm">
+        <div className="text-center md:text-right">
+          <h1 className="text-3xl md:text-4xl font-black text-[#2A2723]">الخزنة</h1>
+          <p className="text-xs md:text-sm font-bold text-[#7A7061] mt-2">
+            متابعة حركة النقدية المحصلة بين <span className="text-[#C1A68D] font-black">الخزنة الصغيرة</span> و <span className="text-[#2A2723] font-black">الخزنة الكبيرة</span> ومراجعة التحويلات (كاش / إنستا باي وبنك / فودافون كاش)
           </p>
         </div>
-        <div className="flex gap-2 bg-white p-2 rounded-2xl border border-[#EAE4D9] shadow-sm">
+        <div className="flex gap-2 bg-[#FDFBF7] p-2 rounded-2xl border border-[#EAE4D9] shadow-sm mx-auto md:mx-0">
           <select
             value={month}
             onChange={(event) => setMonth(Number(event.target.value))}
-            className="bg-[#FDFBF7] rounded-xl px-3 py-2 text-xs font-black outline-none cursor-pointer border border-[#EAE4D9]/60"
+            className="bg-white rounded-xl px-4 py-2 text-xs font-black outline-none cursor-pointer border border-[#EAE4D9]"
           >
             {MONTHS_AR.map((name, index) => <option key={name} value={index}>{name}</option>)}
           </select>
           <select
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="bg-[#FDFBF7] rounded-xl px-3 py-2 text-xs font-black outline-none cursor-pointer border border-[#EAE4D9]/60"
+            className="bg-white rounded-xl px-4 py-2 text-xs font-black outline-none cursor-pointer border border-[#EAE4D9]"
           >
             {yearOptions.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
@@ -776,22 +813,23 @@ export default function TreasuryPage() {
       </section>
 
       {/* ── كروت توزيع رصيد الخزنة الكبيرة وتجميعات طرق التحويل (تفاعلية للفلترة) ── */}
-      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-5">
-          <div>
-            <h2 className="text-base font-black text-[#2A2723]">توزيع رصيد الخزنة الكبيرة وإجمالي المحافظ</h2>
-            <p className="text-[11px] font-bold text-[#7A7061]">
-              اضغط على أي كارت لفلترة حركات التحويل الخاصة به ومراجعتها بضغطة زر واحدة
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-[#C1A68D] bg-[#FDFBF7] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
+      <section className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col items-center text-center justify-center gap-2 mb-6">
+          <h2 className="text-xl md:text-2xl font-black text-[#2A2723] flex items-center justify-center gap-2">
+            <Coins size={24} className="text-[#C1A68D]" />
+            توزيع رصيد الخزنة الكبيرة وإجمالي المحافظ
+          </h2>
+          <p className="text-xs md:text-sm font-bold text-[#7A7061]">
+            اضغط على أي كارت لفلترة حركات التحويل الخاصة به ومراجعتها بضغطة زر واحدة
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+            <span className="text-xs font-black text-[#2A2723] bg-[#FDFBF7] px-4 py-2 rounded-xl border border-[#EAE4D9] shadow-sm">
               إجمالي رصيد المحافظ: {money(bigTreasuryBalance)}
             </span>
             {transferFilter !== 'all' && (
               <button
                 onClick={() => setTransferFilter('all')}
-                className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"
+                className="text-xs font-black text-blue-700 hover:underline cursor-pointer bg-blue-50 px-3.5 py-2 rounded-xl border border-blue-200 shadow-sm"
               >
                 عرض كل التحويلات 🔄
               </button>
@@ -810,8 +848,8 @@ export default function TreasuryPage() {
                 onClick={() => setTransferFilter(isSelected ? 'all' : pm.id)}
                 className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden ${
                   isSelected
-                    ? 'border-[#2A2723] bg-[#FDFBF7] shadow-md ring-2 ring-[#2A2723]/10 scale-[1.02]'
-                    : 'border-[#EAE4D9] bg-[#FDFBF7] hover:border-[#C1A68D] hover:bg-white'
+                    ? pm.cardSelected
+                    : `${pm.cardBorder} ${pm.cardBg}`
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -820,27 +858,31 @@ export default function TreasuryPage() {
                       <Icon size={18} />
                     </span>
                     <div>
-                      <span className="text-xs font-black text-[#2A2723] block">{pm.label}</span>
+                      <span className={`text-sm font-black block ${pm.textColor}`}>{pm.label}</span>
                       <span className="text-[10px] text-[#7A7061] font-bold">{data.count} تحويل مسجل</span>
                     </div>
                   </div>
-                  {isSelected && (
-                    <span className="text-[10px] bg-[#2A2723] text-white px-2 py-0.5 rounded-full font-bold">
+                  {isSelected ? (
+                    <span className="text-[10px] bg-[#2A2723] text-white px-2.5 py-1 rounded-full font-bold shadow-sm">
                       محدد للجدول ✓
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${pm.badgeColor}`}>
+                      انقر للمراجعة
                     </span>
                   )}
                 </div>
 
                 <div className="space-y-1">
                   <div className="text-[11px] font-bold text-[#7A7061]">إجمالي المحول (الوارد):</div>
-                  <div className="text-2xl font-black text-[#2A2723]">
+                  <div className={`text-2xl font-black ${pm.textColor}`}>
                     {isLoading ? '...' : money(data.deposited)}
                   </div>
                 </div>
 
                 <div className="text-[10px] text-[#7A7061] font-bold mt-3 pt-2.5 border-t border-[#EAE4D9]/60 flex justify-between">
-                  <span className="text-red-500">المسحوب منه: {money(data.withdrawn)}</span>
-                  <span className="font-black text-[#2A2723]">الصافي: {money(data.balance)}</span>
+                  <span className="text-red-600 font-bold">المسحوب منه: {money(data.withdrawn)}</span>
+                  <span className={`font-black ${pm.textColor}`}>الصافي: {money(data.balance)}</span>
                 </div>
               </div>
             );
@@ -849,21 +891,22 @@ export default function TreasuryPage() {
       </section>
 
       {/* ── جدول حركات التوريد (من الخزنة الصغيرة إلى الخزنة الكبيرة) مع الفلترة والتعديل ── */}
-      <section className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] overflow-hidden shadow-sm">
-        <div className="p-6 border-b border-[#EAE4D9] flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-black text-[#2A2723]">سجل حركات التوريد (من الصغيرة إلى الكبيرة)</h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
-              كل مبالغ التحويل المنقولة للخزنة الكبيرة مع إمكانية تعديل طريقة الدفع لأي حركة بنقرة واحدة
-            </p>
-          </div>
+      <section className="bg-white border-2 border-indigo-200/90 rounded-[2rem] overflow-hidden shadow-md">
+        <div className="p-6 border-b border-indigo-100 bg-gradient-to-b from-indigo-50/70 to-white flex flex-col items-center text-center justify-center gap-3">
+          <h2 className="text-xl md:text-2xl font-black text-indigo-950 flex items-center justify-center gap-2">
+            <ArrowDownRight size={24} className="text-indigo-600" />
+            سجل حركات التوريد (من الصغيرة إلى الكبيرة)
+          </h2>
+          <p className="text-xs md:text-sm font-bold text-indigo-900/70">
+            كل مبالغ التحويل المنقولة للخزنة الكبيرة مع إمكانية تعديل طريقة الدفع لأي حركة بنقرة واحدة
+          </p>
 
           {/* تبويبات الفلترة السريعة */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-[#FDFBF7] p-1.5 rounded-2xl border border-[#EAE4D9]">
+          <div className="flex flex-wrap items-center justify-center gap-2 bg-white p-2 rounded-2xl border border-indigo-200 shadow-sm mt-1">
             <button
               onClick={() => setTransferFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                transferFilter === 'all' ? 'bg-[#2A2723] text-white shadow-sm' : 'text-[#7A7061] hover:text-[#2A2723]'
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                transferFilter === 'all' ? 'bg-indigo-950 text-white shadow-sm' : 'text-[#7A7061] hover:text-indigo-900'
               }`}
             >
               الكل ({monthlyDeposits.length})
@@ -875,8 +918,8 @@ export default function TreasuryPage() {
                 <button
                   key={pm.id}
                   onClick={() => setTransferFilter(pm.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                    isSelected ? pm.activeBg : 'text-[#7A7061] hover:text-[#2A2723]'
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    isSelected ? pm.activeBg : 'text-[#7A7061] hover:text-indigo-900'
                   }`}
                 >
                   {pm.label} ({count})
@@ -887,13 +930,13 @@ export default function TreasuryPage() {
         </div>
 
         {/* ملخص إجماليات التحويلات */}
-        <div className="bg-[#FDFBF7] px-6 py-3 border-b border-[#EAE4D9] flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-[#7A7061]">
+        <div className="bg-indigo-50/40 px-6 py-3.5 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-indigo-950">
           <div className="flex items-center gap-4">
-            <span>إجمالي التحويلات المعروضة: <strong className="text-base text-[#2A2723] font-black">{money(filteredDeposits.reduce((sum, t) => sum + (Number(t.amount) || 0), 0))}</strong></span>
-            <span>عدد الحركات: <strong className="text-[#2A2723] font-black">{filteredDeposits.length}</strong></span>
+            <span>إجمالي التحويلات المعروضة: <strong className="text-base text-indigo-900 font-black">{money(filteredDeposits.reduce((sum, t) => sum + (Number(t.amount) || 0), 0))}</strong></span>
+            <span>عدد الحركات: <strong className="text-indigo-900 font-black">{filteredDeposits.length}</strong></span>
           </div>
           {transferFilter !== 'all' && (
-            <span className="text-xs font-black text-amber-800 bg-amber-50 px-3 py-1 rounded-lg border border-amber-200">
+            <span className="text-xs font-black text-indigo-900 bg-white px-3 py-1 rounded-lg border border-indigo-200 shadow-sm">
               مفلتر حالياً: {PAYMENT_METHODS.find(m => m.id === transferFilter)?.label}
             </span>
           )}
@@ -901,15 +944,15 @@ export default function TreasuryPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
-            <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
+            <thead className="bg-gradient-to-r from-indigo-950 via-blue-900 to-indigo-950 text-white font-black">
               <tr>
-                <th className="p-4">المبلغ</th>
-                <th className="p-4">طريقة التحويل</th>
-                <th className="p-4">مسلم (من)</th>
-                <th className="p-4">مستلم (إلى)</th>
-                <th className="p-4">ملاحظة</th>
-                <th className="p-4">التاريخ</th>
-                <th className="p-4 text-center">تعديل / حذف</th>
+                <th className="p-4 text-white">المبلغ</th>
+                <th className="p-4 text-white">طريقة التحويل</th>
+                <th className="p-4 text-white">مسلم (من)</th>
+                <th className="p-4 text-white">مستلم (إلى)</th>
+                <th className="p-4 text-white">ملاحظة</th>
+                <th className="p-4 text-white">التاريخ</th>
+                <th className="p-4 text-center text-white">تعديل / حذف</th>
               </tr>
             </thead>
             <tbody>
@@ -924,7 +967,7 @@ export default function TreasuryPage() {
                   const cleanNotes = getCleanTransferNote(transfer);
 
                   return (
-                    <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-colors">
+                    <tr key={transfer.id} className="border-t border-indigo-100/70 font-bold hover:bg-indigo-50/30 transition-colors">
                       <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(transfer.amount))}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
@@ -1068,15 +1111,15 @@ export default function TreasuryPage() {
       )}
 
       {/* ── نموذج نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة (توريد) ── */}
-      <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-black text-[#2A2723]">نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة</h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-1">تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل</p>
-          </div>
-          <span className="text-xs font-black bg-[#FDFBF7] text-[#C1A68D] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
-            تسمع في الخزنة الكبيرة فوراً
-          </span>
+      <section className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
+        <div className="text-center mb-6">
+          <h2 className="text-xl md:text-2xl font-black text-[#2A2723] flex items-center justify-center gap-2">
+            <ArrowUpRight size={24} className="text-[#C1A68D]" />
+            نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة
+          </h2>
+          <p className="text-xs md:text-sm font-bold text-[#7A7061] mt-1">
+            تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل لتسميعها فوراً في الخزنة الكبيرة
+          </p>
         </div>
 
         <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-end">
@@ -1154,19 +1197,17 @@ export default function TreasuryPage() {
 
       {/* ── قسم السحب من الخزنة الكبيرة (خاص بـ Owner: مؤمن ومدحت فقط - يظهر فوق الحجوزات) ── */}
       {isOwner && (
-        <section className="bg-[#FDFBF7] border-2 border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
-            <div>
-              <h2 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
-                <ArrowDownLeft size={20} className="text-red-500" />
-                سحب من الخزنة الكبيرة
-              </h2>
-              <p className="text-[11px] font-bold text-[#7A7061] mt-1">
-                حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
-              </p>
-            </div>
-            <div className="text-left bg-white px-4 py-2 rounded-xl border border-[#EAE4D9]">
-              <span className="text-[10px] text-[#7A7061] font-bold block">إجمالي سحوبات الشهر</span>
+        <section className="bg-gradient-to-b from-red-50/30 to-white border-2 border-red-200 rounded-[2rem] p-6 md:p-8 shadow-md">
+          <div className="text-center mb-6">
+            <h2 className="text-xl md:text-2xl font-black text-red-700 flex items-center justify-center gap-2">
+              <ArrowDownLeft size={24} className="text-red-600" />
+              سحب من الخزنة الكبيرة
+            </h2>
+            <p className="text-xs md:text-sm font-bold text-red-900/70 mt-1">
+              حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
+            </p>
+            <div className="inline-flex items-center gap-2 bg-white px-5 py-2 rounded-xl border border-red-200 shadow-sm mt-3">
+              <span className="text-xs text-[#7A7061] font-bold">إجمالي سحوبات الشهر:</span>
               <span className="text-base font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
             </div>
           </div>
@@ -1183,7 +1224,7 @@ export default function TreasuryPage() {
                 min="1"
                 value={withdrawAmount}
                 onChange={e => setWithdrawAmount(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+                className="mt-2 w-full border border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white"
                 placeholder="0"
               />
             </label>
@@ -1192,7 +1233,7 @@ export default function TreasuryPage() {
               <select
                 value={withdrawMethod}
                 onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none"
+                className="mt-2 w-full border border-red-200 rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none"
               >
                 {PAYMENT_METHODS.map((pm) => (
                   <option key={pm.id} value={pm.id}>{pm.label}</option>
@@ -1204,7 +1245,7 @@ export default function TreasuryPage() {
               <select
                 value={withdrawBy}
                 onChange={e => setWithdrawBy(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none"
+                className="mt-2 w-full border border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none"
               >
                 <option value="مؤمن">مؤمن</option>
                 <option value="مدحت">مدحت</option>
@@ -1216,7 +1257,7 @@ export default function TreasuryPage() {
                 required
                 value={withdrawReason}
                 onChange={e => setWithdrawReason(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+                className="mt-2 w-full border border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white"
                 placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
               />
             </label>
@@ -1227,32 +1268,37 @@ export default function TreasuryPage() {
                 type="date"
                 value={withdrawDate}
                 onChange={e => setWithdrawDate(e.target.value)}
-                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-white"
+                className="mt-2 w-full border border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white"
               />
             </label>
             <button
               disabled={isSavingWithdraw}
-              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer"
+              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md shadow-red-600/20"
             >
               <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
             </button>
           </form>
 
           {/* جدول سحوبات الخزنة الكبيرة */}
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#EAE4D9] bg-white">
-            <div className="p-4 bg-[#FDFBF7] border-b border-[#EAE4D9] flex justify-between items-center">
-              <h3 className="text-xs font-black text-[#2A2723]">سجل سحوبات الخزنة الكبيرة لهذا الشهر</h3>
-              <span className="text-[11px] font-bold text-[#7A7061]">{monthlyWithdrawals.length} حركة سحب</span>
+          <div className="mt-6 overflow-x-auto rounded-2xl border-2 border-red-200 bg-white shadow-sm">
+            <div className="p-4 bg-red-50/60 border-b border-red-200 flex justify-between items-center">
+              <h3 className="text-sm font-black text-red-950 flex items-center gap-2">
+                <Receipt size={16} className="text-red-600" />
+                سجل سحوبات الخزنة الكبيرة لهذا الشهر
+              </h3>
+              <span className="text-xs font-black text-red-700 bg-white px-3 py-1 rounded-lg border border-red-200 shadow-sm">
+                {monthlyWithdrawals.length} حركة سحب
+              </span>
             </div>
             <table className="w-full text-right text-xs">
-              <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
+              <thead className="bg-gradient-to-r from-red-950 via-rose-900 to-red-950 text-white font-black">
                 <tr>
-                  <th className="p-4">المبلغ</th>
-                  <th className="p-4">طريقة السحب</th>
-                  <th className="p-4">المسحوب لـ</th>
-                  <th className="p-4">السبب / البيان</th>
-                  <th className="p-4">التاريخ</th>
-                  <th className="p-4">حذف</th>
+                  <th className="p-4 text-white">المبلغ</th>
+                  <th className="p-4 text-white">طريقة السحب</th>
+                  <th className="p-4 text-white">المسحوب لـ</th>
+                  <th className="p-4 text-white">السبب / البيان</th>
+                  <th className="p-4 text-white">التاريخ</th>
+                  <th className="p-4 text-white text-center">حذف</th>
                 </tr>
               </thead>
               <tbody>
@@ -1301,22 +1347,20 @@ export default function TreasuryPage() {
       )}
 
       {/* ── جدول حركة الحجوزات (المقبوض والمتبقي بدقة) ── */}
-      <section className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] p-6 shadow-sm overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-          <div>
-            <h2 className="text-base font-black text-[#2A2723] flex items-center gap-2">
-              <Banknote size={18} className="text-[#C1A68D]" />
-              حسابات حجوزات الشهر (المقبوض فعلياً والمتبقي)
-            </h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
-              كل حجز يوضح كم تم دفعه فعلياً (دخل الخزنة) وكم المتبقي على العميل (خارج الخزنة)
-            </p>
-          </div>
+      <section className="bg-white border-2 border-emerald-200/90 rounded-[2rem] p-6 md:p-8 shadow-md overflow-hidden">
+        <div className="flex flex-col items-center text-center justify-center gap-2 mb-6">
+          <h2 className="text-xl md:text-2xl font-black text-emerald-950 flex items-center justify-center gap-2">
+            <Banknote size={24} className="text-emerald-600" />
+            حسابات حجوزات الشهر (المقبوض فعلياً والمتبقي)
+          </h2>
+          <p className="text-xs md:text-sm font-bold text-emerald-900/70">
+            كل حجز يوضح كم تم دفعه فعلياً (دخل الخزنة) وكم المتبقي على العميل (خارج الخزنة)
+          </p>
 
-          <div className="flex items-center gap-2 bg-[#FDFBF7] p-1.5 rounded-2xl border border-[#EAE4D9]">
+          <div className="flex flex-wrap items-center justify-center gap-2 bg-[#FDFBF7] p-2 rounded-2xl border border-[#EAE4D9] mt-2 shadow-sm">
             <button
               onClick={() => setBookingFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 bookingFilter === 'all' ? 'bg-[#2A2723] text-white shadow-sm' : 'text-[#7A7061] hover:text-[#2A2723]'
               }`}
             >
@@ -1324,7 +1368,7 @@ export default function TreasuryPage() {
             </button>
             <button
               onClick={() => setBookingFilter('pending')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 bookingFilter === 'pending' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 hover:text-amber-900'
               }`}
             >
@@ -1332,7 +1376,7 @@ export default function TreasuryPage() {
             </button>
             <button
               onClick={() => setBookingFilter('completed')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 bookingFilter === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 hover:text-emerald-800'
               }`}
             >
@@ -1347,19 +1391,19 @@ export default function TreasuryPage() {
             <p className="text-xs font-black text-[#2A2723]">لا توجد حجوزات في هذا التبويب لهذا الشهر</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-[#EAE4D9]">
+          <div className="overflow-x-auto rounded-2xl border-2 border-emerald-200/80">
             <table className="w-full text-right text-xs">
-              <thead className="bg-[#FDFBF7] text-[#7A7061] font-black">
+              <thead className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white font-black">
                 <tr>
-                  <th className="p-4">العميل</th>
-                  <th className="p-4">الوحدة</th>
-                  <th className="p-4">الدخول - الخروج</th>
-                  <th className="p-4">إجمالي الحجز</th>
-                  <th className="p-4 bg-emerald-50/60 text-emerald-800">تم دفع (بالخزنة) 🟢</th>
-                  <th className="p-4 bg-amber-50/60 text-amber-900">المتبقي (خارجها) ⏳</th>
-                  <th className="p-4">الحالة</th>
-                  <th className="p-4">الملاحظات</th>
-                  <th className="p-4 text-center">إجراءات</th>
+                  <th className="p-4 text-white">العميل</th>
+                  <th className="p-4 text-white">الوحدة</th>
+                  <th className="p-4 text-white">الدخول - الخروج</th>
+                  <th className="p-4 text-white">إجمالي الحجز</th>
+                  <th className="p-4 bg-emerald-800/80 text-emerald-100">تم دفع (بالخزنة) 🟢</th>
+                  <th className="p-4 bg-amber-800/80 text-amber-100">المتبقي (خارجها) ⏳</th>
+                  <th className="p-4 text-white">الحالة</th>
+                  <th className="p-4 text-white">الملاحظات</th>
+                  <th className="p-4 text-center text-white">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
