@@ -1557,18 +1557,20 @@ export async function getDbTreasuryTransfers() {
       reason = notes || reason || 'توريد للخزنة الكبيرة';
     }
 
+    const cleanUserNote = (notes || '').replace(/\[[^\]]+\]/g, '').trim();
     const reconstructedNotes = [
       type === 'withdrawal' ? '[نوع: سحب]' : '',
       methodTag,
       reason ? `[سبب: ${reason}]` : '',
-      notes && notes !== reason ? `[ملاحظة: ${notes}]` : '',
+      cleanUserNote,
     ].filter(Boolean).join(' ');
 
     return {
       ...t,
       handed_by: handedBy,
       received_by: receivedBy,
-      notes: reconstructedNotes || notes || reason,
+      notes: reconstructedNotes,
+      clean_user_note: cleanUserNote,
       type,
       reason,
       actor,
@@ -1679,7 +1681,16 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
 
     const tags: string[] = [];
     if (isWithdrawal) tags.push('[نوع: سحب]');
-    if (updates.notes) tags.push(updates.notes);
+    if (updates.notes) {
+      if (updates.notes.includes('[طريقة:')) {
+        const m = updates.notes.match(/\[طريقة:\s*([^\]]+)\]/);
+        if (m) tags.push(`[طريقة: ${m[1]}]`);
+      }
+      const plainNote = updates.notes.replace(/\[[^\]]+\]/g, '').trim();
+      if (plainNote) {
+        tags.push(`[ملاحظة: ${plainNote}]`);
+      }
+    }
 
     patch.handed_by = `${tags.join(' ')} ${baseName || (isWithdrawal ? 'الخزنة الكبيرة' : 'مزار')}`.trim();
   }

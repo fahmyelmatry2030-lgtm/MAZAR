@@ -142,10 +142,25 @@ type TreasuryTransfer = {
   received_by: string;
   transfer_date: string;
   notes?: string;
+  clean_user_note?: string;
   type?: string;
   reason?: string;
   actor?: string;
   time?: string;
+};
+
+const getCleanTransferNote = (transfer: TreasuryTransfer): string => {
+  if (transfer.clean_user_note && transfer.clean_user_note.trim()) {
+    return transfer.clean_user_note.trim();
+  }
+  const raw = transfer.notes || '';
+  const noteMatch = raw.match(/\[ملاحظة:\s*([^\]]+)\]/);
+  if (noteMatch) return noteMatch[1].trim();
+
+  return raw
+    .replace(/\[(طريقة|نوع|سبب|المستلم|وقت):[^\]]+\]/g, '')
+    .replace(/\[[^\]]+\]/g, '')
+    .trim();
 };
 
 const money = (value: number) => `${Math.round(value).toLocaleString('ar-EG')} ج.م`;
@@ -452,7 +467,7 @@ export default function TreasuryPage() {
   const openTransferEditModal = (transfer: TreasuryTransfer) => {
     const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
     const detected = detectPaymentMethod(fullText).id;
-    const cleanNotes = (transfer.notes || '').replace(/\[طريقة:[^\]]+\]/g, '').replace(/\[نوع:[^\]]+\]/g, '').trim();
+    const cleanNotes = getCleanTransferNote(transfer);
 
     setEditingTransfer(transfer);
     setEditTransferMethod(detected);
@@ -867,7 +882,7 @@ export default function TreasuryPage() {
                   const method = detectPaymentMethod(fullText);
                   const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
                   const MethodIcon = methodObj.icon;
-                  const cleanNotes = (transfer.notes || '').replace(/\[[^\]]+\]/g, '').trim();
+                  const cleanNotes = getCleanTransferNote(transfer);
 
                   return (
                     <tr key={transfer.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-colors">
@@ -880,8 +895,12 @@ export default function TreasuryPage() {
                       </td>
                       <td className="p-4 text-[#2A2723]">{transfer.handed_by}</td>
                       <td className="p-4 text-[#7A7061]">{transfer.received_by}</td>
-                      <td className="p-4 text-[#7A7061] max-w-xs truncate" title={cleanNotes}>
-                        {cleanNotes || '—'}
+                      <td className="p-4 text-[#2A2723] max-w-xs break-words" title={cleanNotes}>
+                        {cleanNotes ? (
+                          <span className="text-[#2A2723] font-semibold">{cleanNotes}</span>
+                        ) : (
+                          <span className="text-[#A59D90] font-normal">—</span>
+                        )}
                       </td>
                       <td className="p-4 text-[#7A7061]">{transfer.transfer_date}</td>
                       <td className="p-4 text-center">
