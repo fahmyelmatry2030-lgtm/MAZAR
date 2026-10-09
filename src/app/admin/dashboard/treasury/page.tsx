@@ -1159,7 +1159,7 @@ export default function TreasuryPage() {
             <div>
               <h2 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
                 <ArrowDownLeft size={20} className="text-red-500" />
-                سحب من الخزنة الكبيرة (الملاك: مؤمن ومدحت)
+                سحب من الخزنة الكبيرة
               </h2>
               <p className="text-[11px] font-bold text-[#7A7061] mt-1">
                 حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
