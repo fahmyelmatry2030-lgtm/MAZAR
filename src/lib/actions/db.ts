@@ -1733,24 +1733,14 @@ async function saveTodosToStorage(supabase: any, todos: any[]): Promise<boolean>
   }
 }
 
-export async function getDbTodos() {
+export async function getDbTodos(_cacheBuster?: string) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return [];
 
-  const { data, error } = await supabase
-    .from('todo_items')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    // If table doesn't exist, read from persistent storage
-    const fallbackTodos = await getTodosFromStorage(supabase);
-    return fallbackTodos.sort(
-      (a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-    );
-  }
-
-  return data || [];
+  const fallbackTodos = await getTodosFromStorage(supabase);
+  return fallbackTodos.sort(
+    (a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
 }
 
 export async function saveDbTodo(todo: { title: string; notes?: string; created_by?: string }) {
@@ -1758,67 +1748,43 @@ export async function saveDbTodo(todo: { title: string; notes?: string; created_
   if (!supabase) throw new Error('Supabase configuration missing on server');
 
   const row = {
+    id: `todo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     title: String(todo.title || '').trim(),
     notes: String(todo.notes || '').trim(),
     completed: false,
     created_by: String(todo.created_by || 'Admin').trim(),
+    created_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('todo_items').insert([row]).select().single();
-  if (error) {
-    // Table missing or other error -> save permanently in translations id 101
-    const currentList = await getTodosFromStorage(supabase);
-    const newTodo = {
-      id: `todo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      ...row,
-      created_at: new Date().toISOString(),
-    };
-    const updatedList = [newTodo, ...currentList];
-    await saveTodosToStorage(supabase, updatedList);
-
-    revalidatePath('/admin/dashboard');
-    revalidatePath('/admin/dashboard/tasks');
-    return newTodo;
+  const currentList = await getTodosFromStorage(supabase);
+  const updatedList = [row, ...currentList];
+  const ok = await saveTodosToStorage(supabase, updatedList);
+  if (!ok) {
+    throw new Error('فشل حفظ المهمة في قاعدة البيانات.');
   }
 
   revalidatePath('/admin/dashboard');
   revalidatePath('/admin/dashboard/tasks');
-  return data;
+  return row;
 }
 
 export async function updateDbTodoStatus(id: string, completed: boolean, completed_by?: string) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const updateData: any = {
-    completed,
-    completed_at: completed ? new Date().toISOString() : null,
-  };
-  if (completed && completed_by) {
-    updateData.completed_by = completed_by;
-  }
-
-  const { error } = await supabase
-    .from('todo_items')
-    .update(updateData)
-    .eq('id', id);
-
-  if (error) {
-    // Fallback storage update
-    const currentList = await getTodosFromStorage(supabase);
-    const updatedList = currentList.map((t: any) => {
-      if (t.id === id) {
-        return {
-          ...t,
-          completed,
-          completed_at: completed ? new Date().toISOString() : null,
-          completed_by: completed ? (completed_by || t.completed_by || 'Admin') : null,
-        };
-      }
-      return t;
-    });
-    await saveTodosToStorage(supabase, updatedList);
-  }
+  const currentList = await getTodosFromStorage(supabase);
+  const updatedList = currentList.map((t: any) => {
+    if (t.id === id) {
+      return {
+        ...t,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        completed_by: completed ? (completed_by || t.completed_by || 'Admin') : null,
+      };
+    }
+    return t;
+  });
+  await saveTodosToStorage(supabase, updatedList);
 
   revalidatePath('/admin/dashboard');
   revalidatePath('/admin/dashboard/tasks');
@@ -1828,14 +1794,9 @@ export async function deleteDbTodo(id: string) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const { error } = await supabase.from('todo_items').delete().eq('id', id);
-
-  // Also clean from fallback storage
   const currentList = await getTodosFromStorage(supabase);
-  if (currentList.some((t: any) => t.id === id)) {
-    const updatedList = currentList.filter((t: any) => t.id !== id);
-    await saveTodosToStorage(supabase, updatedList);
-  }
+  const updatedList = currentList.filter((t: any) => t.id !== id);
+  await saveTodosToStorage(supabase, updatedList);
 
   revalidatePath('/admin/dashboard');
   revalidatePath('/admin/dashboard/tasks');

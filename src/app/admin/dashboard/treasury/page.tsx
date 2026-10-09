@@ -173,14 +173,23 @@ export default function TreasuryPage() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<TreasuryTransfer[]>([]);
 
-  // نموذج إضافة تحويل من الخزنة الصغيرة إلى الخزنة الكبيرة
-  const [form, setForm] = useState({
+  // نموذج إضافة تحويل أو سحب
+  const [form, setForm] = useState<{
+    amount: string;
+    handedBy: string;
+    receivedBy: string;
+    method: PaymentMethodId;
+    date: string;
+    notes: string;
+    type: 'deposit' | 'withdrawal';
+  }>({
     amount: '',
     handedBy: '',
     receivedBy: 'الخزنة الكبيرة',
     method: 'cash' as PaymentMethodId,
     date: today.toISOString().slice(0, 10),
-    notes: ''
+    notes: '',
+    type: 'deposit',
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -215,14 +224,9 @@ export default function TreasuryPage() {
   }, []);
 
   const isOwner = useMemo(() => {
-    const name = (adminInfo?.name || '').trim();
-    const username = (adminInfo?.username || '').toLowerCase().trim();
     const role = (adminInfo?.role || '').toLowerCase().trim();
-    return (
-      ['مؤمن', 'مدحت'].some(n => name.includes(n)) ||
-      ['mo2men', 'medhat'].some(u => username.includes(u)) ||
-      role === 'owner'
-    );
+    // Allow any management admin (Super Admin, Owner, Admin, Moderator) to view and manage withdrawals
+    return role !== 'partner' && role !== 'akoura';
   }, [adminInfo]);
 
   // نموذج سحب من الخزنة الكبيرة (مؤمن / مدحت)
@@ -425,7 +429,7 @@ export default function TreasuryPage() {
     });
   }, [monthlyDeposits, transferFilter]);
 
-  // إرسال تحويل من الخزنة الصغيرة إلى الخزنة الكبيرة
+  // إرسال تحويل أو سحب
   const submitTransfer = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!Number(form.amount) || !form.handedBy.trim() || !form.receivedBy.trim() || !form.date) {
@@ -437,22 +441,28 @@ export default function TreasuryPage() {
     try {
       const methodObj = PAYMENT_METHODS.find(m => m.id === form.method) || PAYMENT_METHODS[0];
       const customNotes = form.notes.trim();
-      const combinedNotes = `[طريقة: ${methodObj.label}]${customNotes ? ` ${customNotes}` : ''}`;
+      const isWithdrawal = form.type === 'withdrawal' || form.handedBy.includes('الخزنة') || (!form.receivedBy.includes('الخزنة') && ['مؤمن', 'مدحت'].includes(form.receivedBy.trim()));
+
+      const typeTag = isWithdrawal ? '[نوع: سحب]' : '';
+      const combinedNotes = `${typeTag} [طريقة: ${methodObj.label}]${customNotes ? ` ${customNotes}` : ''}`.trim();
 
       await saveDbTreasuryTransfer({
         amount: form.amount,
-        handed_by: form.handedBy,
+        type: isWithdrawal ? 'withdrawal' : 'deposit',
+        handed_by: isWithdrawal ? (form.handedBy || 'الخزنة الكبيرة') : form.handedBy,
         received_by: form.receivedBy,
+        reason: isWithdrawal ? (customNotes || 'سحب من الخزنة الكبيرة') : undefined,
         transfer_date: form.date,
         notes: combinedNotes,
       });
       setForm({
         amount: '',
-        handedBy: '',
-        receivedBy: 'الخزنة الكبيرة',
+        handedBy: form.type === 'withdrawal' ? 'الخزنة الكبيرة' : '',
+        receivedBy: form.type === 'withdrawal' ? 'مؤمن' : 'الخزنة الكبيرة',
         method: form.method,
         date: form.date,
-        notes: ''
+        notes: '',
+        type: form.type,
       });
       await loadData();
     } catch (saveError) {
@@ -1028,21 +1038,60 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* ── نموذج إضافة مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة ── */}
+      {/* ── نموذج توريد أو سحب من الخزنة الكبيرة ── */}
       <section className="bg-white border border-[#EAE4D9] rounded-[2rem] p-6 md:p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
           <div>
-            <h2 className="text-lg font-black text-[#2A2723]">نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة</h2>
-            <p className="text-[11px] font-bold text-[#7A7061] mt-1">تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل</p>
+            <h2 className="text-lg font-black text-[#2A2723]">
+              {form.type === 'withdrawal' ? '📤 سحب مبلغ من الخزنة الكبيرة' : '📥 نقل مبلغ إلى الخزنة الكبيرة'}
+            </h2>
+            <p className="text-[11px] font-bold text-[#7A7061] mt-1">
+              {form.type === 'withdrawal'
+                ? 'تسجيل سحب أرباح أو مسحوبات لمؤمن أو مدحت ويخصم من رصيد الخزنة الكبيرة'
+                : 'تسجيل تحويل النقدية المحصلة من الخزنة الصغيرة مع تحديد طريقة التحويل'}
+            </p>
           </div>
-          <span className="text-xs font-black bg-[#FDFBF7] text-[#C1A68D] px-3 py-1.5 rounded-xl border border-[#EAE4D9]">
-            تسمع في الخزنة الكبيرة فوراً
-          </span>
+
+          {/* أزرار اختيار نوع الحركة: توريد أو سحب */}
+          <div className="flex items-center gap-2 bg-[#FDFBF7] p-1.5 rounded-2xl border border-[#EAE4D9]">
+            <button
+              type="button"
+              onClick={() => setForm({
+                ...form,
+                type: 'deposit',
+                handedBy: '',
+                receivedBy: 'الخزنة الكبيرة',
+              })}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                form.type === 'deposit'
+                  ? 'bg-[#2A2723] text-white shadow-sm'
+                  : 'text-[#7A7061] hover:text-[#2A2723]'
+              }`}
+            >
+              <Plus size={14} /> توريد للخزنة الكبيرة (إيداع)
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({
+                ...form,
+                type: 'withdrawal',
+                handedBy: 'الخزنة الكبيرة',
+                receivedBy: 'مؤمن',
+              })}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                form.type === 'withdrawal'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-[#7A7061] hover:text-red-600'
+              }`}
+            >
+              <ArrowDownLeft size={14} /> سحب من الخزنة الكبيرة
+            </button>
+          </div>
         </div>
 
         <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-end">
           <label className="text-[10px] font-black text-[#7A7061]">
-            المبلغ
+            المبلغ {form.type === 'withdrawal' ? 'المسحوب' : ''}
             <input
               required
               type="number"
@@ -1054,7 +1103,7 @@ export default function TreasuryPage() {
             />
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            طريقة التحويل
+            {form.type === 'withdrawal' ? 'طريقة السحب' : 'طريقة التحويل'}
             <select
               value={form.method}
               onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethodId })}
@@ -1072,23 +1121,36 @@ export default function TreasuryPage() {
               value={form.handedBy}
               onChange={(event) => setForm({ ...form, handedBy: event.target.value })}
               className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
-              placeholder="اسم الأدمن المسلّم"
+              placeholder={form.type === 'withdrawal' ? 'الخزنة الكبيرة' : 'اسم الأدمن المسلّم'}
             />
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            المستلم (إلى)
-            <input
-              required
-              value={form.receivedBy}
-              onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
-              className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
-              placeholder="الخزنة الكبيرة / المستلم"
-            />
+            {form.type === 'withdrawal' ? 'المسحوب لـ (المستلم)' : 'المستلم (إلى)'}
+            {form.type === 'withdrawal' ? (
+              <select
+                value={form.receivedBy}
+                onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-3 py-3 text-xs font-black bg-[#FDFBF7] cursor-pointer outline-none"
+              >
+                <option value="مؤمن">مؤمن</option>
+                <option value="مدحت">مدحت</option>
+                <option value="أحمد كورة">أحمد كورة</option>
+                <option value="أخرى">أخرى</option>
+              </select>
+            ) : (
+              <input
+                required
+                value={form.receivedBy}
+                onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
+                className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
+                placeholder="الخزنة الكبيرة / المستلم"
+              />
+            )}
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
-            ملاحظة
+            {form.type === 'withdrawal' ? 'سبب السحب / بيان' : 'ملاحظة'}
             <input
-              placeholder="ملاحظات التحويل..."
+              placeholder={form.type === 'withdrawal' ? 'أرباح / مصاريف شخصية...' : 'ملاحظات التحويل...'}
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               className="mt-2 w-full border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-black bg-[#FDFBF7]"
@@ -1106,9 +1168,18 @@ export default function TreasuryPage() {
           </label>
           <button
             disabled={isSaving}
-            className="bg-[#2A2723] hover:bg-[#3D3833] text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer"
+            className={`${
+              form.type === 'withdrawal'
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-[#2A2723] hover:bg-[#3D3833]'
+            } text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer`}
           >
-            <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
+            {form.type === 'withdrawal' ? <ArrowDownLeft size={16} /> : <Plus size={16} />}
+            {isSaving
+              ? 'جاري التسجيل...'
+              : form.type === 'withdrawal'
+              ? 'تسجيل السحب'
+              : 'تسجيل التوريد'}
           </button>
         </form>
       </section>

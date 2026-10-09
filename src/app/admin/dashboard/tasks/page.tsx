@@ -61,7 +61,7 @@ export default function TasksPage() {
     }
   }, []);
 
-  const canManage = adminRole === 'Owner' || adminRole === 'Super Admin' || adminRole === 'Admin';
+  const canManage = adminRole !== 'Partner' && adminRole !== 'Akoura';
 
   const getLoggedInAdminName = () => {
     if (typeof window === 'undefined') return 'قائد الشيفت';
@@ -79,7 +79,7 @@ export default function TasksPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await getDbTodos();
+      const data = await getDbTodos(Date.now().toString());
       setTodos(data || []);
     } catch (err: any) {
       console.error(err);

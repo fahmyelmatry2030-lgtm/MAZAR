@@ -88,14 +88,14 @@ export default function DashboardOverview() {
 
   const isPartner = adminRole === 'Partner';
   const isAkoura = adminRole === 'Akoura';
-  const canManageTodo = adminRole === 'Owner' || adminRole === 'Super Admin' || adminRole === 'Admin';
+  const canManageTodo = !isPartner && !isAkoura;
 
   const loadOverviewData = useCallback(async () => {
     setIsLoading(true);
     let [bookings, apts, todoData] = await Promise.all([
       getBookings(Date.now().toString()),
       getSystemUnits(),
-      getDbTodos(),
+      getDbTodos(Date.now().toString()),
     ]);
     setTodos(todoData || []);
 
