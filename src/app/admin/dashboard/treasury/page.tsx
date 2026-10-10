@@ -1220,23 +1220,23 @@ export default function TreasuryPage() {
 
         </div>
 
-        {/* ── أسهم التفرع للمستوى الثالث (الخزنة الفرعية + الخزنة الكبيرة ومحافظها) ── */}
+        {/* ── أسهم التفرع للمستوى الثالث: تفريعة ما تم تحصيله إلى 3 خانات فقط ── */}
         <div className="flex items-center justify-center gap-3 text-stone-400 font-bold text-xs py-1">
           <div className="h-0.5 flex-1 bg-stone-200" />
-          <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full border border-stone-200">
-            ⬇️ تفريعة ما تم تحصيله إلى: الخزنة الفرعية (كاش) + الخزنة الكبيرة (الرئيسية) ومحافظها ⬇️
+          <span className="bg-stone-100 text-stone-700 px-4 py-1.5 rounded-full border border-stone-300 text-xs font-black shadow-xs">
+            ⬇️ تفريعة ما تم تحصيله (1. خزنة فرعية كاش + 2. حوالات بنكية وإنستاباي + 3. فودافون كاش) ⬇️
           </span>
           <div className="h-0.5 flex-1 bg-stone-200" />
         </div>
 
-        {/* ── المستوى الثالث: الخزنتان الأساسيتان (الفرعية والكبيرة) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* ── الثلاثة كروت الأساسية جنباً إلى جنب (الخزنة الفرعية + إنستاباي + فودافون كاش) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
-          {/* المربع 1: خزنة فرعية (كاش) [أخضر] */}
+          {/* 1. خزنة فرعية (كاش فقط) 🟢 */}
           <button
             type="button"
             onClick={() => handleSelectBox('cash')}
-            className={`p-5 md:p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
               activeBox === 'cash'
                 ? 'bg-emerald-700 text-white border-emerald-800 shadow-2xl ring-4 ring-emerald-400/50 scale-[1.02]'
                 : 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-300 text-emerald-950 shadow-sm'
@@ -1245,60 +1245,28 @@ export default function TreasuryPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-black text-sm md:text-base flex items-center gap-1.5">
-                  <Wallet size={18} /> خزنة فرعية (كاش الدرج)
+                  <Wallet size={18} /> خزنة فرعية (كاش فقط)
                 </span>
                 <span className={`text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border ${
                   activeBox === 'cash' ? 'bg-white text-emerald-800 border-white' : 'bg-emerald-200 text-emerald-900 border-emerald-300'
                 }`}>
-                  أخضر 🟢
+                  كاش نقدي 🟢
                 </span>
               </div>
-              <div className="text-2xl md:text-3xl font-black my-2">{isLoading ? '...' : money(branchCashTreasury)}</div>
+              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(branchCashTreasury)}</div>
             </div>
-            <div className={`text-[11px] font-bold pt-2.5 border-t mt-2 leading-relaxed ${
+            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
               activeBox === 'cash' ? 'border-white/20 text-emerald-100' : 'border-emerald-200 text-emerald-800'
             }`}>
-              رصيد الكاش الفعلي في الدرج (المقبوض كاش − المصروفات − المحول كاش)
+              رصيد الكاش بالدرج (المقبوض كاش − المصروفات − المحول كاش)
             </div>
           </button>
 
-          {/* المربع 2: الخزنة الكبيرة (الرئيسية) 🏦 */}
-          <button
-            type="button"
-            onClick={() => handleSelectBox('big_treasury')}
-            className={`p-5 md:p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
-              activeBox === 'big_treasury'
-                ? 'bg-slate-900 text-white border-slate-950 shadow-2xl ring-4 ring-indigo-400/50 scale-[1.02]'
-                : 'bg-slate-900/95 hover:bg-slate-900 text-white border-slate-800 shadow-sm'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-black text-sm md:text-base flex items-center gap-1.5 text-amber-300">
-                  <Building2 size={18} /> الخزنة الكبيرة (الرئيسية)
-                </span>
-                <span className="text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full bg-amber-400 text-slate-950">
-                  الرصيد الفعلي 🏦
-                </span>
-              </div>
-              <div className="text-2xl md:text-3xl font-black text-white my-2">{isLoading ? '...' : money(bigTreasuryBalance)}</div>
-            </div>
-            <div className="text-[11px] font-bold pt-2.5 border-t border-slate-700/80 text-slate-300 flex items-center justify-between">
-              <span>الوارد إليها: <strong className="text-emerald-400">{money(totalDepositedToBig)}</strong></span>
-              <span>المسحوب (مؤمن/مدحت): <strong className="text-rose-400">− {money(totalWithdrawnFromBig)}</strong></span>
-            </div>
-          </button>
-
-        </div>
-
-        {/* ── تفريعة محافظ ومحتويات الخزنة الكبيرة (أزرق • أحمر • كاش مورد) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-          
-          {/* حوالات بنكية / انستاباي / فيزا [أزرق] */}
+          {/* 2. حوالات بنكية / إنستا باي 🔵 */}
           <button
             type="button"
             onClick={() => handleSelectBox('instapay')}
-            className={`p-4 md:p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
               activeBox === 'instapay'
                 ? 'bg-blue-700 text-white border-blue-800 shadow-2xl ring-4 ring-blue-400/50 scale-[1.02]'
                 : 'bg-blue-50 hover:bg-blue-100/80 border-blue-300 text-blue-950 shadow-sm'
@@ -1306,29 +1274,29 @@ export default function TreasuryPage() {
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="font-black text-xs md:text-sm flex items-center gap-1.5">
-                  <Zap size={15} /> حوالات بنكية / انستاباي / فيزا
+                <span className="font-black text-sm md:text-base flex items-center gap-1.5">
+                  <Zap size={18} /> حوالات بنكية / إنستا باي
                 </span>
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border ${
                   activeBox === 'instapay' ? 'bg-white text-blue-800 border-white' : 'bg-blue-200 text-blue-900 border-blue-300'
                 }`}>
-                  أزرق 🔵
+                  إلكتروني 🔵
                 </span>
               </div>
-              <div className="text-xl md:text-2xl font-black my-1.5">{isLoading ? '...' : money(bankInstapayTreasury)}</div>
+              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(bankInstapayTreasury)}</div>
             </div>
-            <div className={`text-[10px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
+            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
               activeBox === 'instapay' ? 'border-white/20 text-blue-100' : 'border-blue-200 text-blue-800'
             }`}>
-              إجمالي رصيد الحساب البنكي وإنستا باي والفيزا (الوارد − المسحوب)
+              إجمالي رصيد الحساب البنكي وإنستا باي والفيزا
             </div>
           </button>
 
-          {/* ف كاش / محفظة [أحمر] */}
+          {/* 3. فودافون كاش 🔴 */}
           <button
             type="button"
             onClick={() => handleSelectBox('vodafone')}
-            className={`p-4 md:p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
               activeBox === 'vodafone'
                 ? 'bg-rose-700 text-white border-rose-800 shadow-2xl ring-4 ring-rose-400/50 scale-[1.02]'
                 : 'bg-rose-50 hover:bg-rose-100/80 border-rose-300 text-rose-950 shadow-sm'
@@ -1336,49 +1304,108 @@ export default function TreasuryPage() {
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="font-black text-xs md:text-sm flex items-center gap-1.5">
-                  <Smartphone size={15} /> ف كاش / محفظة
+                <span className="font-black text-sm md:text-base flex items-center gap-1.5">
+                  <Smartphone size={18} /> فودافون كاش
                 </span>
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border ${
                   activeBox === 'vodafone' ? 'bg-white text-rose-800 border-white' : 'bg-rose-200 text-rose-900 border-rose-300'
                 }`}>
-                  أحمر 🔴
+                  محفظة 🔴
                 </span>
               </div>
-              <div className="text-xl md:text-2xl font-black my-1.5">{isLoading ? '...' : money(vodafoneCashTreasury)}</div>
+              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(vodafoneCashTreasury)}</div>
             </div>
-            <div className={`text-[10px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
+            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
               activeBox === 'vodafone' ? 'border-white/20 text-rose-100' : 'border-rose-200 text-rose-800'
             }`}>
-              إجمالي رصيد ومحفظة فودافون كاش (الوارد − المسحوب)
+              إجمالي رصيد ومحفظة فودافون كاش
             </div>
           </button>
 
-          {/* كاش مورد للخزنة الكبيرة من الدرج */}
-          <button
-            type="button"
-            onClick={() => {
-              handleSelectBox('big_treasury');
-              setTransferFilter('cash');
-            }}
-            className="p-4 md:p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between bg-purple-50 hover:bg-purple-100/80 border-purple-300 text-purple-950 shadow-sm"
+        </div>
+
+        {/* ── الخزنة الكبيرة (الرئيسية) 🏦 تحت الثلاثة كروت بمفردها ── */}
+        <div className="pt-2">
+          <div className="flex items-center justify-center gap-3 text-stone-400 font-bold text-xs py-1 mb-3">
+            <div className="h-0.5 flex-1 bg-stone-200" />
+            <span className="bg-stone-900 text-amber-300 px-4 py-1.5 rounded-full border border-stone-800 text-xs font-black shadow-xs">
+              🏦 الخزنة الكبيرة (الرئيسية) — توريد الكاش والمسحوبات ⬇️
+            </span>
+            <div className="h-0.5 flex-1 bg-stone-200" />
+          </div>
+
+          <div
+            onClick={() => handleSelectBox('big_treasury')}
+            className={`p-6 rounded-2xl border-2 transition-all cursor-pointer relative shadow-md ${
+              activeBox === 'big_treasury'
+                ? 'bg-slate-900 text-white border-slate-950 ring-4 ring-amber-400/50 shadow-2xl scale-[1.01]'
+                : 'bg-slate-900/95 hover:bg-slate-900 text-white border-slate-800 hover:border-slate-700'
+            }`}
           >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-black text-xs md:text-sm flex items-center gap-1.5">
-                  <Banknote size={15} /> كاش مورد إليها من الصغيرة
-                </span>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-purple-200 text-purple-900 border-purple-300">
-                  كاش مورد 💵
-                </span>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-400 font-black text-base md:text-lg flex items-center gap-2">
+                    <Building2 size={22} /> الخزنة الكبيرة (الرئيسية)
+                  </span>
+                  <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full">
+                    الرصيد الفعلي الحالي
+                  </span>
+                  {activeBox === 'big_treasury' && (
+                    <span className="text-[10px] bg-white/20 text-white font-bold px-2 py-0.5 rounded-md">
+                      محدد للتفاصيل بالأسفل ✓
+                    </span>
+                  )}
+                </div>
+                <div className="text-3xl md:text-4xl font-black text-amber-300 mt-2">
+                  {isLoading ? '...' : money(bigTreasuryBalance)}
+                </div>
+                <p className="text-xs text-slate-400 font-bold mt-1">
+                  إجمالي الوارد للخزنة الكبيرة مخصوماً منه مسحوبات الشركاء لمؤمن ومدحت
+                </p>
               </div>
-              <div className="text-xl md:text-2xl font-black my-1.5">{isLoading ? '...' : money(totalCashDepositedToBig)}</div>
-            </div>
-            <div className="text-[10px] font-bold pt-2 border-t mt-1.5 leading-relaxed border-purple-200 text-purple-800">
-              إجمالي الكاش المنقول للخزنة الكبيرة ({monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'cash').length} حركة)
-            </div>
-          </button>
 
+              {/* أزرار سريعة لتوريد الكاش أو سحب الأرباح */}
+              <div className="flex flex-wrap items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                <a
+                  href="#transfer-entry-form"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                >
+                  <Plus size={15} />
+                  <span>توريد كاش من الصغيرة للكبيرة</span>
+                </a>
+                <a
+                  href="#withdraw-entry-form"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                >
+                  <ArrowDownLeft size={15} />
+                  <span>سحب أرباح (مؤمن / مدحت)</span>
+                </a>
+              </div>
+            </div>
+
+            {/* إحصائيات حركة الخزنة الكبيرة السريعة */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 text-xs font-bold">
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5">
+                  <Banknote size={15} className="text-emerald-400" /> كاش مورد من الصغيرة:
+                </span>
+                <span className="text-sm font-black text-emerald-400">{money(totalCashDepositedToBig)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5">
+                  <ArrowDownRight size={15} className="text-blue-400" /> إجمالي الوارد (كاش + إلكتروني):
+                </span>
+                <span className="text-sm font-black text-white">{money(totalDepositedToBig)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5">
+                  <ArrowUpRight size={15} className="text-rose-400" /> مسحوبات مؤمن ومدحت:
+                </span>
+                <span className="text-sm font-black text-rose-400">− {money(totalWithdrawnFromBig)}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -1861,6 +1888,28 @@ export default function TreasuryPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* شريط توريد الكاش من الصغيرة للكبيرة */}
+        <div className="mt-4 p-4 rounded-2xl bg-white border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <Banknote size={20} />
+            </span>
+            <div>
+              <span className="text-xs font-black text-emerald-950 block">توريد الكاش من الخزنة الصغيرة للكبيرة</span>
+              <span className="text-[11px] text-stone-500 font-bold">
+                إجمالي الكاش المنقول: <strong className="text-emerald-700 font-black">{money(totalCashDepositedToBig)}</strong> ({monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'cash').length} حركة توريد كاش)
+              </span>
+            </div>
+          </div>
+          <a
+            href="#transfer-entry-form"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+          >
+            <Plus size={15} />
+            <span>تسجيل توريد كاش جديد 💵</span>
+          </a>
         </div>
       </section>
 
