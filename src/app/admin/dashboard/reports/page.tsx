@@ -206,6 +206,14 @@ function EditableCell({
   );
 }
 
+const getTodayLocalStr = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const AdminDatePicker = ({ label, value, onChange, icon, color }: any) => {
   const [defaultParts, setDefaultParts] = useState<string[]>(['', '', '']);
   useEffect(() => {
@@ -353,12 +361,13 @@ function ReportsContent() {
   const monthStr = String(selectedMonth + 1).padStart(2, '0');
   const safeDateStr = `${selectedYear}-${monthStr}-01`;
 
+  const [showManualBookingDate, setShowManualBookingDate] = useState(false);
   const [newRecord, setNewRecord] = useState({
     name: '',
     nationality: '',
     idNumber: '',
     phone: '',
-    bookingDate: new Date().toISOString().split('T')[0],
+    bookingDate: getTodayLocalStr(),
     checkIn: '',
     checkOut: '',
     pricePerNight: 0,
@@ -1041,7 +1050,7 @@ function ReportsContent() {
         phone: newRecord.phone,
         checkIn: checkInStr,
         checkOut: checkOutStr,
-        bookingDate: (newRecord as any).bookingDate || new Date().toISOString().split('T')[0],
+        bookingDate: (newRecord as any).bookingDate || getTodayLocalStr(),
         apartmentId: selectedUnit,
         studio: units.find((u: any) => u.id === selectedUnit)?.title?.ar || selectedUnit,
         status: 'approved',
@@ -1068,6 +1077,7 @@ function ReportsContent() {
         }
 
         // Reset form
+        setShowManualBookingDate(false);
         const resetStr = String(selectedMonth + 1).padStart(2, '0');
         const sDateStr = `${selectedYear}-${resetStr}-01`;
         setNewRecord({
@@ -1075,7 +1085,7 @@ function ReportsContent() {
           nationality: '',
           idNumber: '',
           phone: '',
-          bookingDate: new Date().toISOString().split('T')[0],
+          bookingDate: getTodayLocalStr(),
           checkIn: sDateStr,
           checkOut: sDateStr,
           pricePerNight: 0,
@@ -1551,14 +1561,60 @@ function ReportsContent() {
                     <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">الهاتف</label>
                     <input type="text" value={newRecord.phone} onChange={e => setNewRecord({ ...newRecord, phone: e.target.value })} className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-[#C1A68D]" />
                   </div>
+                  {/* تاريخ تسجيل الحجز - تلقائي تاريخ اليوم مع زر تعديل يدوي عند الحاجة */}
                   <div className="col-span-2 xl:col-span-2 space-y-1">
-                    <AdminDatePicker
-                      label="تاريخ تسجيل الحجز (تاريخ الحجز)"
-                      value={(newRecord as any).bookingDate || new Date().toISOString().split('T')[0]}
-                      onChange={(v: string) => setNewRecord({ ...newRecord, bookingDate: v } as any)}
-                      icon="📅"
-                      color="gold"
-                    />
+                    {!showManualBookingDate ? (
+                      <div className="bg-white p-3 md:p-4 rounded-[20px] border border-[#EAE4D9]/50 shadow-sm shadow-[#C1A68D]/5 flex flex-col justify-between h-[96px] md:h-[104px]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-lg">📅</span>
+                            <h3 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-[#C1A68D]">تاريخ تسجيل الحجز</h3>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowManualBookingDate(true)}
+                            className="text-[9px] md:text-[10px] text-stone-400 hover:text-[#C1A68D] underline font-black px-1 py-0.5 rounded transition-colors"
+                            title="تعديل التاريخ يدوياً إذا كان الحجز تم في يوم سابق"
+                          >
+                            تعديل يدوي ✏️
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between bg-[#F7F5F0] border border-[#EAE4D9]/60 rounded-xl px-2.5 py-1.5">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            تلقائي (اليوم)
+                          </span>
+                          <span className="text-xs font-black text-[#1a1714] font-mono tracking-wider" dir="ltr">
+                            {(newRecord as any).bookingDate || getTodayLocalStr()}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            تعديل يدوي
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowManualBookingDate(false);
+                              setNewRecord({ ...newRecord, bookingDate: getTodayLocalStr() } as any);
+                            }}
+                            className="text-[9px] text-emerald-700 hover:text-emerald-900 font-black underline"
+                          >
+                            إلغاء والعودة للتلقائي ✓
+                          </button>
+                        </div>
+                        <AdminDatePicker
+                          label="تاريخ تسجيل الحجز (يدوي)"
+                          value={(newRecord as any).bookingDate || getTodayLocalStr()}
+                          onChange={(v: string) => setNewRecord({ ...newRecord, bookingDate: v } as any)}
+                          icon="📅"
+                          color="gold"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-2 xl:col-span-2 space-y-1">
                     <AdminDatePicker
