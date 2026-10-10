@@ -52,22 +52,29 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): P
   return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
 };
 
-// دالة تنظيف الملاحظات من أي وسوم تلقائية مزعجة لإبقاء عمود الملاحظات نظيفاً تماماً
+// دالة تنظيف الملاحظات من أي وسوم تلقائية أو بيانات دفع لإبقاء عمود الملاحظات نظيفاً وخاصاً بالمستخدم فقط
 const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
-  return String(notesStr)
-    .replace(/\[مدفوع:[^\]]*\]/gi, '')
-    .replace(/\[متبقي:[^\]]*\]/gi, '')
-    .replace(/\[باقي:[^\]]*\]/gi, '')
-    .replace(/\[طريقة:[^\]]*\]/gi, '')
-    .replace(/\[طريقة الدفع:[^\]]*\]/gi, '')
+  let cleaned = String(notesStr)
+    // 1. وسوم بين أقواس مربعة
+    .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب):[^\]]*\]/gi, '')
     .replace(/\[حساب خالص\]/gi, '')
-    .replace(/\[اعتماد:[^\]]*\]/gi, '')
-    .replace(/\[تاريخ\s*(?:الحجز|التسجيل|الدفع)[^\]]*\]/gi, '')
-    .replace(/خصم بقيمة \d+/gi, '')
+    // 2. مسؤول الحجز إذا كتب كنص صريح داخل الملاحظات
+    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
+    // 3. نصوص الدفع والمتبقي الصريحة
+    .replace(/(?:الحساب\s*خالص|حساب\s*خالص|خالص\s*بالكامل|تم\s*الدفع|تم\s*السداد)/gi, '')
+    .replace(/(?:متبقي|باقي|باقى)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
+    .replace(/(?:مدفوع|دفع)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
+    .replace(/(?:طريقة\s*الدفع|طريقة\s*التحويل)\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
+    .replace(/خصم\s*بقيمة\s*\d+/gi, '')
+    // 4. تنظيف الفواصل والرموز المتبقية
     .replace(/\|\s*\|/g, '|')
-    .replace(/^[\s|]+|[\s|]+$/g, '')
+    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
     .trim();
+
+  // إذا كانت النتيجة فارغة أو علامات ترقيم فقط
+  if (/^[\s|+,.\-—]+$/.test(cleaned)) return '';
+  return cleaned;
 };
 
 // دالة ذكية لتحليل الدفعات السابقة من طريقة الدفع أو الملاحظات (تستخرج الدفعات المجزأة مع تواريخها)
@@ -545,17 +552,12 @@ function ReportsContent() {
           updates.paidAmount = 0;
         }
         const cleanNote = cleanNotesForDisplay(currentBooking.notes);
-        const tag = `[مدفوع: ${updates.paidAmount}] [متبقي: ${updates.remainingAmount}] [طريقة: ${currentBooking.paymentMethod || 'كاش'}]${isClean ? ' [حساب خالص]' : ''}`;
-        updates.notes = cleanNote ? `${cleanNote} | ${tag}` : tag;
+        updates.notes = cleanNote;
       }
 
       if (field === 'notes') {
         const cleanNote = cleanNotesForDisplay(value);
-        const paid = currentBooking.paidAmount ?? currentBooking.totalAmount ?? 0;
-        const remaining = currentBooking.remainingAmount ?? 0;
-        const isClean = remaining === 0;
-        const tag = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${currentBooking.paymentMethod || 'كاش'}]${isClean ? ' [حساب خالص]' : ''}`;
-        updates.notes = cleanNote ? `${cleanNote} | ${tag}` : tag;
+        updates.notes = cleanNote;
       }
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
@@ -651,8 +653,6 @@ function ReportsContent() {
         : (paymentModalRow.paymentMethod || 'كاش');
 
       const cleanNote = cleanNotesForDisplay(modalCustomNotes);
-      const tagString = `[مدفوع: ${totalPaid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
-      const finalNotes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
 
       const updates = {
         paidAmount: totalPaid,
@@ -660,7 +660,7 @@ function ReportsContent() {
         paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
         paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
-        notes: finalNotes,
+        notes: cleanNote,
       };
 
       const freshData = await updateDbBookingStatus(paymentModalRow.id, updates);
@@ -1248,12 +1248,10 @@ function ReportsContent() {
         if (isClean) {
           paidAmount = bookingTotal;
           remainingAmount = 0;
-        } else if (booking.paymentStatus === 'باقي') {
+        } else {
+          // الأساسي أن العميل لم يدفع شيئاً (المدفوع 0 والمتبقي كامل الإجمالي)
           paidAmount = 0;
           remainingAmount = bookingTotal;
-        } else {
-          paidAmount = bookingTotal;
-          remainingAmount = 0;
         }
       }
     }
@@ -1283,9 +1281,14 @@ function ReportsContent() {
         if (booking.bookingManager && booking.bookingManager.trim() !== '' && booking.bookingManager !== booking.name && booking.bookingManager !== booking.guest) {
           return booking.bookingManager;
         }
+        // استخراج اسم مسؤول الحجز إذا كان مسجلاً في الملاحظات القديمة
+        const managerMatch = String(booking.notes || '').match(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*([^|\n\r,\]]+)/i);
+        if (managerMatch && managerMatch[1] && managerMatch[1].trim() !== '') {
+          return managerMatch[1].trim();
+        }
         const match = String(booking.notes || '').match(/\[اعتماد:\s*([^\]]+)\]/i);
         if (match && match[1]) return match[1].trim();
-        return 'قائد الشيفت';
+        return '';
       })(),
       paymentMethod: booking.paymentMethod || 'كاش',
       paidAmount,
@@ -1995,9 +1998,8 @@ function ReportsContent() {
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">العمولة</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الوسيط</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الصافي</th>
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">مسئول الحجز</th>
+                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">مسؤول الحجز</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">طريقة الدفع</th>
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">حالة الدفع</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">ملاحظات</th>
                       <th className="px-3 py-4 no-print whitespace-nowrap border-l border-[#3a3730]">الإجراءات</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap sticky left-0 bg-[#2A2723] z-20 shadow-[-2px_0_5px_rgba(0,0,0,0.3)]">الحالة</th>
@@ -2006,13 +2008,13 @@ function ReportsContent() {
                   <tbody className="text-[10px] font-semibold">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={16} className="px-6 py-20 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">
+                        <td colSpan={15} className="px-6 py-20 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">
                           جاري تحميل البيانات...
                         </td>
                       </tr>
                     ) : allRows.length === 0 ? (
                       <tr>
-                        <td colSpan={16} className="px-6 py-20 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">لا توجد سجلات لهذا الشهر</td>
+                        <td colSpan={15} className="px-6 py-20 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">لا توجد سجلات لهذا الشهر</td>
                       </tr>
                     ) : (
                       allRows.map((row, index) => (
@@ -2152,41 +2154,6 @@ function ReportsContent() {
                             ) : <span className="text-[#EAE4D9]">—</span>}
                           </td>
 
-                          {/* EDITABLE / TOGGLE: Payment Status (خالص / باقي) */}
-                          <td className="px-1 py-1 border-l border-[#EAE4D9]/20">
-                            {row.hasData ? (
-                              <button
-                                disabled={row.isCarriedOver}
-                                onClick={async () => {
-                                  if (row.paymentStatus === 'باقي') {
-                                    await handleCellSave(row.id, 'paymentStatus', 'خالص');
-                                  } else {
-                                    openPaymentBreakdownModal(row);
-                                  }
-                                }}
-                                className={`px-2.5 py-1.5 rounded-full text-[10px] font-black transition-all shadow-sm flex items-center justify-center gap-1 mx-auto ${
-                                  row.isCarriedOver ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:scale-105'
-                                } ${
-                                  row.paymentStatus === 'باقي'
-                                    ? 'bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200'
-                                    : 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200'
-                                }`}
-                                title={row.paymentStatus === 'باقي' ? 'متبقي فلوس - اضغط للتسوية كخالص' : 'الحساب خالص - اضغط لعرض التفاصيل'}
-                              >
-                                {row.paymentStatus === 'باقي' ? (
-                                  <>
-                                    <span className="text-xs font-black text-rose-600">❌</span>
-                                    <span>باقي</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="text-xs font-black text-green-600">✔️</span>
-                                    <span>خالص</span>
-                                  </>
-                                )}
-                              </button>
-                            ) : <span className="text-[#EAE4D9]">—</span>}
-                          </td>
 
                           {/* EDITABLE: Notes (نظيفة تماماً وخاصة بالمستخدم فقط دون أي وسوم تلقائية) */}
                           <td className="px-0 py-0 border-l border-[#EAE4D9]/20">

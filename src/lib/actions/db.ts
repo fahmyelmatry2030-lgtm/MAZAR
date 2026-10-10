@@ -378,13 +378,7 @@ export async function saveDbBooking(booking: any) {
       delete insertData.booking_manager;
       delete insertData.payment_method;
       delete insertData.booking_date;
-      // Preserve booking_manager/payment_method info in notes if they were provided
-      const extras: string[] = [];
-      if (newBookingWithId.bookingManager) extras.push(`مسئول الحجز: ${newBookingWithId.bookingManager}`);
-      if (newBookingWithId.paymentMethod) extras.push(`طريقة الدفع: ${newBookingWithId.paymentMethod}`);
-      if (extras.length > 0) {
-        insertData.notes = [insertData.notes, ...extras].filter(Boolean).join(' | ');
-      }
+      // Do not pollute user notes with bookingManager or paymentMethod
       const retry = await supabase.from('bookings').insert(insertData);
       error = retry.error;
     }

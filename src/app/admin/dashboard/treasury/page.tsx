@@ -272,6 +272,21 @@ const getCleanTransferNote = (transfer: TreasuryTransfer): string => {
     .trim();
 };
 
+const cleanDisplayNotes = (notes: string | null | undefined): string => {
+  if (!notes) return '';
+  let cleaned = String(notes)
+    .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب):[^\]]*\]/gi, '')
+    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
+    .replace(/(?:الحساب\s*خالص|حساب\s*خالص|خالص\s*بالكامل|تم\s*الدفع|تم\s*السداد)/gi, '')
+    .replace(/(?:متبقي|باقي|باقى)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
+    .replace(/(?:مدفوع|دفع)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
+    .replace(/\|\s*\|/g, '|')
+    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
+    .trim();
+  if (/^[\s|+,.\-—]+$/.test(cleaned)) return '';
+  return cleaned;
+};
+
 const money = (value: number) => `${Math.round(value).toLocaleString('ar-EG')} ج.م`;
 
 export default function TreasuryPage() {
@@ -2655,8 +2670,8 @@ export default function TreasuryPage() {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={b.notes}>
-                      {b.notes || '—'}
+                    <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={cleanDisplayNotes(b.notes)}>
+                      {cleanDisplayNotes(b.notes) || '—'}
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">

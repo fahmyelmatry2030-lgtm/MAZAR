@@ -173,7 +173,7 @@ export default function BookingsManagement() {
           commission: commission || undefined,
           brokerName: brokerName || undefined,
           bookingManager: shiftLead,
-          notes: bookingNotes ? `${bookingNotes} [اعتماد: ${shiftLead}]` : `[اعتماد: ${shiftLead}]`,
+          notes: bookingNotes || '',
       });
       
       if (typeof window !== 'undefined') {
