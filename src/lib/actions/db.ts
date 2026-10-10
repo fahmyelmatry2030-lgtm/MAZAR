@@ -1610,6 +1610,47 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
+    let approvedBy = (t as any).approved_by || '';
+    let status = (t as any).status || '';
+
+    if (handedBy.includes('[اعتماد:')) {
+      const match = handedBy.match(/\[اعتماد:\s*([^\]]+)\]/);
+      if (match) {
+        approvedBy = match[1].trim();
+        handedBy = handedBy.replace(/\[اعتماد:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+    if (notes.includes('[اعتماد:')) {
+      const match = notes.match(/\[اعتماد:\s*([^\]]+)\]/);
+      if (match) {
+        approvedBy = match[1].trim();
+        notes = notes.replace(/\[اعتماد:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    if (handedBy.includes('[حالة:')) {
+      const match = handedBy.match(/\[حالة:\s*([^\]]+)\]/);
+      if (match) {
+        status = match[1].trim();
+        handedBy = handedBy.replace(/\[حالة:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+    if (notes.includes('[حالة:')) {
+      const match = notes.match(/\[حالة:\s*([^\]]+)\]/);
+      if (match) {
+        status = match[1].trim();
+        notes = notes.replace(/\[حالة:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    if (!status) {
+      if (approvedBy) {
+        status = `تم الموافقة بواسطة: ${approvedBy}`;
+      } else {
+        status = 'PENDING';
+      }
+    }
+
     const isWithdrawal = type === 'withdrawal' || type === 'سحب' || type.includes('سحب') ||
       handedBy === 'الخزنة الرئيسية' || handedBy === 'الخزنة الكبيرة' ||
       notes.includes('سحب من الرئيسية') || notes.includes('سحب');
@@ -1624,11 +1665,17 @@ export async function getDbTreasuryTransfers() {
       reason = notes || reason || 'توريد للخزنة الكبيرة';
     }
 
-    const cleanUserNote = (notes || '').replace(/\[[^\]]+\]/g, '').trim();
+    const cleanUserNote = (notes || '')
+      .replace(/\[(طريقة|نوع|سبب|المستلم|وقت|حساب_شهر|شهر|اعتماد|حالة):[^\]]+\]/g, '')
+      .replace(/\[[^\]]+\]/g, '')
+      .trim();
+
+    const approvalTag = approvedBy ? `[اعتماد: ${approvedBy}]` : (status ? `[حالة: ${status}]` : '');
     const reconstructedNotes = [
       type === 'withdrawal' ? '[نوع: سحب]' : '',
       methodTag,
       targetMonthTag,
+      approvalTag,
       reason ? `[سبب: ${reason}]` : '',
       cleanUserNote,
     ].filter(Boolean).join(' ');
@@ -1643,6 +1690,8 @@ export async function getDbTreasuryTransfers() {
       reason,
       actor,
       time,
+      status,
+      approved_by: approvedBy,
     };
   });
 }
@@ -1661,6 +1710,18 @@ export async function saveDbTreasuryTransfer(transfer: any) {
   if (type === 'withdrawal') metaTags.push('[نوع: سحب]');
   if (transfer.reason) metaTags.push(`[سبب: ${transfer.reason}]`);
   if (transfer.time) metaTags.push(`[وقت: ${transfer.time}]`);
+
+  if (transfer.approved_by) {
+    metaTags.push(`[اعتماد: ${transfer.approved_by}]`);
+  } else if (transfer.status) {
+    if (transfer.status.includes('موافقة') || transfer.status === 'APPROVED') {
+      const match = transfer.status.match(/بواسطة:\s*([^\]]+)/);
+      const appBy = match ? match[1].trim() : 'مؤمن';
+      metaTags.push(`[اعتماد: ${appBy}]`);
+    } else if (transfer.status === 'PENDING' || transfer.status === 'غير معتمد') {
+      metaTags.push('[حالة: غير معتمد]');
+    }
+  }
 
   const notesText = transfer.notes || '';
   if (notesText) {
@@ -1683,6 +1744,11 @@ export async function saveDbTreasuryTransfer(transfer: any) {
     } else if (notesText.includes('[شهر:')) {
       const m = notesText.match(/\[شهر:\s*([^\]]+)\]/);
       if (m && !metaTags.some(t => t.startsWith('[حساب_شهر:'))) metaTags.push(`[حساب_شهر: ${m[1]}]`);
+    }
+
+    if (notesText.includes('[اعتماد:') && !metaTags.some(t => t.startsWith('[اعتماد:'))) {
+      const m = notesText.match(/\[اعتماد:\s*([^\]]+)\]/);
+      if (m) metaTags.push(`[اعتماد: ${m[1]}]`);
     }
 
     const plain = notesText.replace(/\[[^\]]+\]/g, '').trim();
@@ -1738,7 +1804,12 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
   if (updates.received_by !== undefined) patch.received_by = updates.received_by;
   if (updates.transfer_date !== undefined) patch.transfer_date = updates.transfer_date;
 
-  if (updates.notes !== undefined || updates.handed_by !== undefined) {
+  if (
+    updates.notes !== undefined ||
+    updates.handed_by !== undefined ||
+    updates.approved_by !== undefined ||
+    updates.status !== undefined
+  ) {
     let currentHanded = updates.handed_by;
     if (currentHanded === undefined) {
       const { data: current } = await supabase.from('treasury_transfers').select('handed_by').eq('id', id).single();
@@ -1755,26 +1826,66 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
       .replace(/\[سبب:[^\]]+\]/g, '')
       .replace(/\[المستلم:[^\]]+\]/g, '')
       .replace(/\[وقت:[^\]]+\]/g, '')
+      .replace(/\[اعتماد:[^\]]+\]/g, '')
+      .replace(/\[حالة:[^\]]+\]/g, '')
       .trim();
 
     const tags: string[] = [];
     if (isWithdrawal) tags.push('[نوع: سحب]');
-    if (updates.notes) {
-      if (updates.notes.includes('[طريقة:')) {
-        const m = updates.notes.match(/\[طريقة:\s*([^\]]+)\]/);
-        if (m) tags.push(`[طريقة: ${m[1]}]`);
+
+    const noteToCheck = updates.notes !== undefined ? updates.notes : currentHanded;
+    if (noteToCheck.includes('[طريقة:')) {
+      const m = noteToCheck.match(/\[طريقة:\s*([^\]]+)\]/);
+      if (m) tags.push(`[طريقة: ${m[1]}]`);
+    }
+
+    if (noteToCheck.includes('[حساب_شهر:')) {
+      const m = noteToCheck.match(/\[حساب_شهر:\s*([^\]]+)\]/);
+      if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
+    } else if (noteToCheck.includes('[شهر:')) {
+      const m = noteToCheck.match(/\[شهر:\s*([^\]]+)\]/);
+      if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
+    }
+
+    if (noteToCheck.includes('[سبب:')) {
+      const m = noteToCheck.match(/\[سبب:\s*([^\]]+)\]/);
+      if (m) tags.push(`[سبب: ${m[1]}]`);
+    }
+
+    // Approval handling
+    let finalApprovedBy = updates.approved_by;
+    if (finalApprovedBy === undefined) {
+      if (updates.status !== undefined) {
+        if (updates.status.includes('موافقة') || updates.status === 'APPROVED') {
+          const match = updates.status.match(/بواسطة:\s*([^\]]+)/);
+          finalApprovedBy = match ? match[1].trim() : 'مؤمن';
+        } else {
+          finalApprovedBy = '';
+        }
+      } else {
+        const match = currentHanded.match(/\[اعتماد:\s*([^\]]+)\]/);
+        if (match) finalApprovedBy = match[1].trim();
       }
-      if (updates.notes.includes('[حساب_شهر:')) {
-        const m = updates.notes.match(/\[حساب_شهر:\s*([^\]]+)\]/);
-        if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
-      } else if (updates.notes.includes('[شهر:')) {
-        const m = updates.notes.match(/\[شهر:\s*([^\]]+)\]/);
-        if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
-      }
+    }
+
+    if (finalApprovedBy && finalApprovedBy.trim() !== '') {
+      tags.push(`[اعتماد: ${finalApprovedBy.trim()}]`);
+    } else if (updates.approved_by !== undefined || updates.status !== undefined) {
+      tags.push('[حالة: غير معتمد]');
+    } else if (currentHanded.includes('[حالة:')) {
+      const m = currentHanded.match(/\[حالة:\s*([^\]]+)\]/);
+      if (m) tags.push(`[حالة: ${m[1]}]`);
+    }
+
+    // Notes
+    if (updates.notes !== undefined) {
       const plainNote = updates.notes.replace(/\[[^\]]+\]/g, '').trim();
       if (plainNote) {
         tags.push(`[ملاحظة: ${plainNote}]`);
       }
+    } else {
+      const m = currentHanded.match(/\[ملاحظة:\s*([^\]]+)\]/);
+      if (m) tags.push(`[ملاحظة: ${m[1]}]`);
     }
 
     patch.handed_by = `${tags.join(' ')} ${baseName || (isWithdrawal ? 'الخزنة الكبيرة' : 'مزار')}`.trim();

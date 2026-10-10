@@ -21,6 +21,7 @@ import {
   Coins,
   CreditCard,
   Edit3,
+  Lock,
   Plus,
   Receipt,
   Smartphone,
@@ -230,6 +231,30 @@ type TreasuryTransfer = {
   reason?: string;
   actor?: string;
   time?: string;
+  status?: string;
+  approved_by?: string;
+};
+
+const isTransferApproved = (t: TreasuryTransfer): boolean => {
+  if (!t) return false;
+  if (t.approved_by && t.approved_by.trim() !== '') return true;
+  if (t.status && (t.status.includes('تم الموافقة') || t.status === 'APPROVED' || t.status === 'معتمد')) return true;
+  const raw = `${t.notes || ''} ${t.handed_by || ''}`;
+  if (raw.includes('[اعتماد:')) return true;
+  return false;
+};
+
+const getTransferApprover = (t: TreasuryTransfer): string => {
+  if (!t) return '';
+  if (t.approved_by && t.approved_by.trim()) return t.approved_by.trim();
+  const raw = `${t.notes || ''} ${t.handed_by || ''}`;
+  const m = raw.match(/\[اعتماد:\s*([^\]]+)\]/);
+  if (m) return m[1].trim();
+  if (t.status && t.status.includes('بواسطة:')) {
+    const sMatch = t.status.match(/بواسطة:\s*([^\]]+)/);
+    if (sMatch) return sMatch[1].trim();
+  }
+  return '';
 };
 
 const getCleanTransferNote = (transfer: TreasuryTransfer): string => {
@@ -241,7 +266,7 @@ const getCleanTransferNote = (transfer: TreasuryTransfer): string => {
   if (noteMatch) return noteMatch[1].trim();
 
   return raw
-    .replace(/\[(طريقة|نوع|سبب|المستلم|وقت|حساب_شهر|شهر):[^\]]+\]/g, '')
+    .replace(/\[(طريقة|نوع|سبب|المستلم|وقت|حساب_شهر|شهر|اعتماد|حالة):[^\]]+\]/g, '')
     .replace(/\[[^\]]+\]/g, '')
     .trim();
 };
@@ -267,6 +292,7 @@ export default function TreasuryPage() {
     targetYear: number;
     notes: string;
     type: 'deposit' | 'withdrawal';
+    approvedStatus: 'PENDING' | 'APPROVED';
   }>({
     amount: '',
     handedBy: '',
@@ -277,6 +303,7 @@ export default function TreasuryPage() {
     targetYear: today.getFullYear(),
     notes: '',
     type: 'deposit',
+    approvedStatus: 'PENDING',
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -341,23 +368,64 @@ export default function TreasuryPage() {
     setAdminInfo(info);
   }, []);
 
-  // السحب من الخزنة الكبيرة يظهر ويتاح حصرياً لمؤمن ومدحت فقط (وحساب المدير العام mazar / Owner)
+  // السحب والاعتماد للخزنة الكبيرة يتاح حصرياً لمؤمن ومدحت فقط (وحساب المدير العام mazar / Owner)
   const isOwner = useMemo(() => {
     const username = (adminInfo?.username || '').toLowerCase().trim();
     const name = (adminInfo?.name || '').toLowerCase().trim();
     const role = (adminInfo?.role || '').toLowerCase().trim();
 
-    const isMo2men = username === 'mo2men' || name.includes('مؤمن');
+    const isMo2men = username === 'mo2men' || name.includes('مؤمن') || name.includes('مأمون');
     const isMedhat = username === 'medhat' || name.includes('مدحت');
     const isSuper = username === 'mazar' || role === 'owner' || role === 'super admin';
 
     return isMo2men || isMedhat || isSuper;
   }, [adminInfo]);
 
-  // نموذج سحب من الخزنة الكبيرة (مؤمن / مدحت)
-  const defaultOwnerName = useMemo(() => {
+  const approverDisplayName = useMemo(() => {
     return (adminInfo?.name?.includes('مدحت') || adminInfo?.username?.toLowerCase() === 'medhat') ? 'مدحت' : 'مؤمن';
   }, [adminInfo]);
+
+  const defaultOwnerName = approverDisplayName;
+
+  const [togglingTransferId, setTogglingTransferId] = useState<string | null>(null);
+
+  const handleToggleTransferApproval = async (transfer: TreasuryTransfer) => {
+    if (!isOwner) {
+      alert('عفواً، اعتماد حركات التوريد مقتصر حصرياً على مؤمن ومدحت فقط');
+      return;
+    }
+    if (togglingTransferId) return;
+
+    const currentlyApproved = isTransferApproved(transfer);
+    const newApprovedBy = currentlyApproved ? '' : approverDisplayName;
+    const newStatus = currentlyApproved ? 'PENDING' : `تم الموافقة بواسطة: ${approverDisplayName}`;
+
+    // Optimistic Update
+    setTransfers(prev =>
+      prev.map(item =>
+        item.id === transfer.id
+          ? { ...item, status: newStatus, approved_by: newApprovedBy }
+          : item
+      )
+    );
+    setTogglingTransferId(transfer.id);
+
+    try {
+      await updateDbTreasuryTransfer(transfer.id, {
+        approved_by: newApprovedBy,
+        status: newStatus,
+      });
+      const freshData = await getDbTreasuryTransfers();
+      setTransfers(freshData || []);
+    } catch (error: any) {
+      console.error('Error toggling transfer approval:', error);
+      alert('حدث خطأ أثناء تحديث حالة الاعتماد: ' + (error.message || 'خطأ غير معروف'));
+      const freshData = await getDbTreasuryTransfers();
+      setTransfers(freshData || []);
+    } finally {
+      setTogglingTransferId(null);
+    }
+  };
 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawReason, setWithdrawReason] = useState('');
@@ -594,6 +662,13 @@ export default function TreasuryPage() {
       const typeTag = isWithdrawal ? '[نوع: سحب]' : '';
       const combinedNotes = `${typeTag} [طريقة: ${methodObj.label}] ${monthTag}${customNotes ? ` ${customNotes}` : ''}`.trim();
 
+      const initialStatus = isWithdrawal
+        ? `تم الموافقة بواسطة: ${finalReceiver}`
+        : (isOwner && form.approvedStatus === 'APPROVED' ? `تم الموافقة بواسطة: ${approverDisplayName}` : 'PENDING');
+      const initialApprovedBy = isWithdrawal
+        ? finalReceiver
+        : (isOwner && form.approvedStatus === 'APPROVED' ? approverDisplayName : '');
+
       await saveDbTreasuryTransfer({
         amount: form.amount,
         type: isWithdrawal ? 'withdrawal' : 'deposit',
@@ -602,6 +677,8 @@ export default function TreasuryPage() {
         reason: isWithdrawal ? (customNotes || 'سحب من الخزنة الكبيرة') : undefined,
         transfer_date: form.date,
         notes: combinedNotes,
+        status: initialStatus,
+        approved_by: initialApprovedBy,
       });
       setForm({
         amount: '',
@@ -613,6 +690,7 @@ export default function TreasuryPage() {
         targetYear: year,
         notes: '',
         type: 'deposit',
+        approvedStatus: 'PENDING',
       });
       await loadData();
     } catch (saveError) {
@@ -625,6 +703,10 @@ export default function TreasuryPage() {
 
   // فتح نافذة تعديل حركة التحويل
   const openTransferEditModal = (transfer: TreasuryTransfer) => {
+    if (isTransferApproved(transfer)) {
+      alert('لا يمكن تعديل هذه الحركة لأنها معتمدة رسمياً ومقفلة ضد التعديل. لإجراء تعديل، يجب أولاً إلغاء الاعتماد بواسطة مؤمن أو مدحت.');
+      return;
+    }
     const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
     const detected = detectPaymentMethod(fullText).id;
     const cleanNotes = getCleanTransferNote(transfer);
@@ -643,6 +725,10 @@ export default function TreasuryPage() {
   const handleSaveTransferEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTransfer) return;
+    if (isTransferApproved(editingTransfer)) {
+      alert('لا يمكن تعديل حركة معتمدة.');
+      return;
+    }
     const amt = parseFloat(editTransferAmount);
     if (!amt || amt <= 0) { setError('المبلغ غير صحيح'); return; }
 
@@ -671,6 +757,11 @@ export default function TreasuryPage() {
 
   // حذف حركة تحويل
   const removeTransfer = async (id: string) => {
+    const target = transfers.find(t => t.id === id);
+    if (target && isTransferApproved(target)) {
+      alert('لا يمكن حذف هذه الحركة لأنها معتمدة رسمياً ومقفلة ضد الحذف. لإجراء حذف، يجب أولاً إلغاء الاعتماد بواسطة مؤمن أو مدحت.');
+      return;
+    }
     if (!window.confirm('هل تريد حذف هذه الحركة بالتأكيد؟')) return;
     try {
       await deleteDbTreasuryTransfer(id);
@@ -1098,12 +1189,13 @@ export default function TreasuryPage() {
                 <th className="p-4 text-white">مستلم (إلى)</th>
                 <th className="p-4 text-white">ملاحظة</th>
                 <th className="p-4 text-white">التاريخ</th>
+                <th className="p-4 text-center text-white">حالة الاعتماد</th>
                 <th className="p-4 text-center text-white">تعديل / حذف</th>
               </tr>
             </thead>
             <tbody>
               {filteredDeposits.length === 0 ? (
-                <tr><td colSpan={7} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات توريد مسجلة في هذا التبويب</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات توريد مسجلة في هذا التبويب</td></tr>
               ) : (
                 filteredDeposits.map((transfer) => {
                   const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
@@ -1111,9 +1203,18 @@ export default function TreasuryPage() {
                   const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
                   const MethodIcon = methodObj.icon;
                   const cleanNotes = getCleanTransferNote(transfer);
+                  const approved = isTransferApproved(transfer);
+                  const approver = getTransferApprover(transfer);
 
                   return (
-                    <tr key={transfer.id} className="border-t border-indigo-100/70 font-bold hover:bg-indigo-50/30 transition-colors">
+                    <tr
+                      key={transfer.id}
+                      className={`border-t font-bold transition-colors ${
+                        approved
+                          ? 'border-indigo-100/70 hover:bg-indigo-50/30 bg-white'
+                          : 'border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70'
+                      }`}
+                    >
                       <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(transfer.amount))}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
@@ -1145,24 +1246,93 @@ export default function TreasuryPage() {
                           return null;
                         })()}
                       </td>
+
+                      {/* عمود حالة الاعتماد (Approve) */}
+                      <td className="p-4 text-center whitespace-nowrap">
+                        {isOwner ? (
+                          <button
+                            type="button"
+                            disabled={togglingTransferId === transfer.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTransferApproval(transfer);
+                            }}
+                            title={approved ? "اضغط لإلغاء الاعتماد (فتح للتعديل)" : "اضغط للاعتماد الفوري بضغطة واحدة"}
+                            className={`group/btn relative inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl font-black text-xs transition-all duration-200 shadow-sm active:scale-95 cursor-pointer border select-none ${
+                              approved
+                                ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-emerald-500/20'
+                                : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300 shadow-amber-500/10'
+                            }`}
+                          >
+                            {togglingTransferId === transfer.id ? (
+                              <div className="flex items-center gap-2 px-2 py-0.5">
+                                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                <span className="text-[10px]">جاري التحديث...</span>
+                              </div>
+                            ) : approved ? (
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-white text-emerald-600 flex items-center justify-center text-xs font-black shadow-xs shrink-0">✓</span>
+                                <div className="flex flex-col text-right leading-tight">
+                                  <span className="text-[11px] font-black">
+                                    معتمد ({approver || approverDisplayName})
+                                  </span>
+                                  <span className="text-[9px] text-emerald-100 font-bold opacity-80 group-hover/btn:opacity-100">اضغط للإلغاء ✕</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-amber-400/80 text-amber-950 flex items-center justify-center text-xs font-black shadow-xs shrink-0">⏳</span>
+                                <div className="flex flex-col text-right leading-tight">
+                                  <span className="text-[11px] font-black text-amber-950">غير معتمد</span>
+                                  <span className="text-[9px] text-emerald-800 font-black bg-emerald-100/90 px-1.5 py-0.5 rounded-md mt-0.5 group-hover/btn:bg-emerald-200">⚡ اضغط للموافقة</span>
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        ) : (
+                          approved ? (
+                            <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200 font-black text-xs">
+                              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                              <span>معتمد ✅ {approver ? `(${approver})` : ''}</span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200 font-black text-xs">
+                              <Clock size={14} className="text-amber-600 shrink-0" />
+                              <span>قيد الوصول ⏳</span>
+                            </div>
+                          )
+                        )}
+                      </td>
+
+                      {/* عمود الإجراءات (مقفل في حال تم الاعتماد) */}
                       <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => openTransferEditModal(transfer)}
-                            title="تعديل طريقة الدفع أو المبلغ"
-                            className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer"
+                        {approved ? (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-500 border border-gray-200 text-[10px] font-black select-none shadow-xs"
+                            title="هذه الحركة معتمدة ومقفلة ضد التعديل. لإجراء تعديل يجب على الإدارة إلغاء الاعتماد أولاً."
                           >
-                            <Edit3 size={12} />
-                            تعديل الطريقة
-                          </button>
-                          <button
-                            onClick={() => removeTransfer(transfer.id)}
-                            title="حذف الحركة"
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded-lg cursor-pointer"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
+                            <Lock size={12} className="text-gray-400 shrink-0" />
+                            <span>مغلق ضد التعديل 🔒</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => openTransferEditModal(transfer)}
+                              title="تعديل طريقة الدفع أو المبلغ"
+                              className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                            >
+                              <Edit3 size={12} />
+                              تعديل الطريقة
+                            </button>
+                            <button
+                              onClick={() => removeTransfer(transfer.id)}
+                              title="حذف الحركة"
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded-lg cursor-pointer"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1310,7 +1480,7 @@ export default function TreasuryPage() {
           </p>
         </div>
 
-        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 items-end">
           <label className="text-[10px] font-black text-[#7A7061]">
             المبلغ
             <input
@@ -1388,7 +1558,20 @@ export default function TreasuryPage() {
               className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
             />
           </label>
-          <div className="sm:col-span-2 md:col-span-3 lg:col-span-7 flex justify-end mt-2">
+          {isOwner && (
+            <label className="text-[10px] font-black text-emerald-950 bg-emerald-50/90 p-1.5 rounded-xl border border-emerald-300">
+              حالة الاعتماد
+              <select
+                value={form.approvedStatus}
+                onChange={(e) => setForm({ ...form, approvedStatus: e.target.value as 'PENDING' | 'APPROVED' })}
+                className="mt-1.5 w-full border border-emerald-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-emerald-500"
+              >
+                <option value="PENDING">⏳ غير معتمد (قيد الوصول)</option>
+                <option value="APPROVED">✅ معتمد فوراً ({approverDisplayName})</option>
+              </select>
+            </label>
+          )}
+          <div className="col-span-full flex justify-end mt-2">
             <button
               disabled={isSaving}
               className="bg-[#2A2723] hover:bg-black text-white rounded-xl px-8 py-3.5 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md"
