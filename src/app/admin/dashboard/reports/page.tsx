@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   getFreshDbBookings,
@@ -50,6 +50,59 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): P
   }
 
   return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
+};
+
+// دالة تنظيف الملاحظات من أي وسوم تلقائية مزعجة لإبقاء عمود الملاحظات نظيفاً تماماً
+const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
+  if (!notesStr) return '';
+  return String(notesStr)
+    .replace(/\[مدفوع:[^\]]*\]/gi, '')
+    .replace(/\[متبقي:[^\]]*\]/gi, '')
+    .replace(/\[باقي:[^\]]*\]/gi, '')
+    .replace(/\[طريقة:[^\]]*\]/gi, '')
+    .replace(/\[طريقة الدفع:[^\]]*\]/gi, '')
+    .replace(/\[حساب خالص\]/gi, '')
+    .replace(/\[اعتماد:[^\]]*\]/gi, '')
+    .replace(/\[تاريخ\s*(?:الحجز|التسجيل|الدفع)[^\]]*\]/gi, '')
+    .replace(/خصم بقيمة \d+/gi, '')
+    .replace(/\|\s*\|/g, '|')
+    .replace(/^[\s|]+|[\s|]+$/g, '')
+    .trim();
+};
+
+// دالة ذكية لتحليل الدفعات السابقة من طريقة الدفع أو الملاحظات (تستخرج الدفعات المجزأة مع تواريخها)
+const parseDetailedSplits = (
+  paymentMethodStr: string,
+  notesStr: string,
+  paidAmount: number,
+  fallbackDate: string
+): Array<{ method: string; amount: number | string; date?: string }> => {
+  const splits = parsePaymentSplitsFromString(paymentMethodStr, paidAmount);
+  const lines = (notesStr || '').split(/[|\n\r]+/);
+  const paymentLines = lines.filter(l => /(?:دفع|سداد|حول|تحويل)\s*\d+/i.test(l));
+
+  if (paymentLines.length > 0 && splits.length <= 1) {
+    const customSplits: Array<{ method: string; amount: number | string; date?: string }> = [];
+    for (const line of paymentLines) {
+      const numMatch = line.match(/(\d+(?:\.\d+)?)/);
+      if (numMatch) {
+        const amt = parseFloat(numMatch[1]);
+        let method = 'كاش';
+        if (/فودافون|ف كاش|vodafone/i.test(line)) method = 'فودافون كاش';
+        else if (/انستا|إنستا|instapay/i.test(line)) method = 'إنستا باي';
+        else if (/بنك|حساب/i.test(line)) method = 'حساب بنكي';
+        else if (/فيزا|visa/i.test(line)) method = 'فيزا';
+
+        const dateMatch = line.match(/(\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?)/);
+        const date = dateMatch ? dateMatch[1] : fallbackDate;
+
+        customSplits.push({ method, amount: amt, date });
+      }
+    }
+    if (customSplits.length > 0) return customSplits;
+  }
+
+  return splits.map(s => ({ ...s, date: fallbackDate }));
 };
 
 // Units will be fetched dynamically from the database
@@ -237,6 +290,12 @@ function ReportsContent() {
   const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
     { method: 'كاش', amount: '' },
   ]);
+
+  // نافذة تفاصيل طريقة الدفع وسداد المتبقي (المربع الصغير عند النقر على طريقة الدفع)
+  const [paymentModalRow, setPaymentModalRow] = useState<any | null>(null);
+  const [modalSplits, setModalSplits] = useState<Array<{ method: string; amount: number | string; date?: string }>>([]);
+  const [modalCustomNotes, setModalCustomNotes] = useState<string>('');
+  const [isSavingPaymentModal, setIsSavingPaymentModal] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'operational' | 'expenses'>(() => {
     const tab = searchParams.get('tab');
     if (tab === 'operational' || tab === 'expenses') return tab;
@@ -464,7 +523,31 @@ function ReportsContent() {
         }
       }
 
-      // Removed manual discount logic
+      if (field === 'paymentStatus') {
+        const isClean = value === 'خالص';
+        const total = Number(currentBooking.totalAmount || 0);
+        updates.paymentStatus = value;
+        updates.paymentInfo = value;
+        if (isClean) {
+          updates.paidAmount = total;
+          updates.remainingAmount = 0;
+        } else {
+          updates.remainingAmount = total;
+          updates.paidAmount = 0;
+        }
+        const cleanNote = cleanNotesForDisplay(currentBooking.notes);
+        const tag = `[مدفوع: ${updates.paidAmount}] [متبقي: ${updates.remainingAmount}] [طريقة: ${currentBooking.paymentMethod || 'كاش'}]${isClean ? ' [حساب خالص]' : ''}`;
+        updates.notes = cleanNote ? `${cleanNote} | ${tag}` : tag;
+      }
+
+      if (field === 'notes') {
+        const cleanNote = cleanNotesForDisplay(value);
+        const paid = currentBooking.paidAmount ?? currentBooking.totalAmount ?? 0;
+        const remaining = currentBooking.remainingAmount ?? 0;
+        const isClean = remaining === 0;
+        const tag = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${currentBooking.paymentMethod || 'كاش'}]${isClean ? ' [حساب خالص]' : ''}`;
+        updates.notes = cleanNote ? `${cleanNote} | ${tag}` : tag;
+      }
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
 
@@ -479,6 +562,111 @@ function ReportsContent() {
       console.error('Save failed:', err);
       setSaveStatus('❌ فشل الحفظ');
       setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  // ── دوال نافذة تفاصيل طريقة الدفع وسداد المتبقي (المربع الصغير) ──
+  const openPaymentBreakdownModal = (row: any) => {
+    const fullBooking = bookings.find(b => b.id === row.id) || row;
+    setPaymentModalRow(row);
+    const dateFallback = row.bookingDate || row.checkIn || '';
+    const splits = parseDetailedSplits(
+      row.paymentMethod,
+      fullBooking.notes || row.rawNotes || '',
+      row.paidAmount,
+      dateFallback
+    );
+    setModalSplits(splits);
+    setModalCustomNotes(row.notes || '');
+  };
+
+  const handleAddModalSplit = () => {
+    const currentTotal = modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(paymentModalRow?.total || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    setModalSplits(prev => [
+      ...prev,
+      { method: 'فودافون كاش', amount: remaining > 0 ? remaining : '', date: paymentModalRow?.bookingDate || '' }
+    ]);
+  };
+
+  const handleRemoveModalSplit = (idx: number) => {
+    if (modalSplits.length <= 1) {
+      setModalSplits([{ method: 'كاش', amount: '', date: paymentModalRow?.bookingDate || '' }]);
+      return;
+    }
+    setModalSplits(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateModalSplit = (idx: number, field: string, value: any) => {
+    setModalSplits(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
+
+  const handlePayFullRemainingInModal = () => {
+    const currentTotal = modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(paymentModalRow?.total || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    if (remaining > 0) {
+      setModalSplits(prev => [
+        ...prev,
+        { method: 'كاش', amount: remaining, date: paymentModalRow?.bookingDate || '' }
+      ]);
+    }
+  };
+
+  const modalCurrentPaid = useMemo(() => {
+    return modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  }, [modalSplits]);
+
+  const modalCurrentRemaining = useMemo(() => {
+    const bookingTotal = Number(paymentModalRow?.total || 0);
+    return Math.max(0, bookingTotal - modalCurrentPaid);
+  }, [paymentModalRow, modalCurrentPaid]);
+
+  const handleSavePaymentModal = async () => {
+    if (!paymentModalRow) return;
+    setIsSavingPaymentModal(true);
+    try {
+      const validSplits = modalSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
+      const bookingTotal = Number(paymentModalRow.total || 0);
+      const totalPaid = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      const remaining = Math.max(0, bookingTotal - totalPaid);
+      const isClean = remaining === 0;
+
+      const formattedPaymentMethod = validSplits.length > 0
+        ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
+        : (paymentModalRow.paymentMethod || 'كاش');
+
+      const cleanNote = cleanNotesForDisplay(modalCustomNotes);
+      const tagString = `[مدفوع: ${totalPaid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
+      const finalNotes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
+
+      const updates = {
+        paidAmount: totalPaid,
+        remainingAmount: remaining,
+        paymentMethod: formattedPaymentMethod,
+        paymentStatus: isClean ? 'خالص' : 'باقي',
+        paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
+        notes: finalNotes,
+      };
+
+      const freshData = await updateDbBookingStatus(paymentModalRow.id, updates);
+      if (freshData && Array.isArray(freshData)) {
+        setBookings(freshData);
+      }
+
+      setPaymentModalRow(null);
+      setSaveStatus('✅ تم تحديث بيانات الدفع بنجاح');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (err) {
+      console.error('Failed to save payment modal:', err);
+      setSaveStatus('❌ فشل حفظ بيانات الدفع');
+    } finally {
+      setIsSavingPaymentModal(false);
     }
   };
 
@@ -1025,6 +1213,44 @@ function ReportsContent() {
 
     const bookingRegisteredDate = booking.bookingDate || (booking.createdAt ? booking.createdAt.split('T')[0] : '') || (booking.timestamp ? booking.timestamp.split('T')[0] : '') || booking.checkIn;
 
+    const bookingTotal = Number(total) || 0;
+    let paidAmount: number = booking.paidAmount !== undefined && booking.paidAmount !== null && !isNaN(Number(booking.paidAmount))
+      ? Number(booking.paidAmount)
+      : -1;
+    let remainingAmount: number = booking.remainingAmount !== undefined && booking.remainingAmount !== null && !isNaN(Number(booking.remainingAmount))
+      ? Number(booking.remainingAmount)
+      : -1;
+
+    // استخراج المدفوع والمتبقي إذا لم يكونا محددين مباشرة في الحقول
+    if (paidAmount < 0 || remainingAmount < 0) {
+      const combinedNotes = `${booking.notes || ''} ${booking.paymentInfo || ''}`.toLowerCase();
+      const remMatch = combinedNotes.match(/\[متبقي:\s*(\d+)\]/i) || combinedNotes.match(/\[باقي:\s*(\d+)\]/i) || combinedNotes.match(/(?:متبقي|باقي|باقى)\s*:?\s*(\d+)/i);
+      const paidMatch = combinedNotes.match(/\[مدفوع:\s*(\d+)\]/i) || combinedNotes.match(/(?:دفع|مدفوع)\s*:?\s*(\d+)/i);
+
+      if (remMatch && remMatch[1]) {
+        remainingAmount = Number(remMatch[1]);
+        paidAmount = paidMatch && paidMatch[1] ? Number(paidMatch[1]) : Math.max(0, bookingTotal - remainingAmount);
+      } else if (paidMatch && paidMatch[1]) {
+        paidAmount = Number(paidMatch[1]);
+        remainingAmount = Math.max(0, bookingTotal - paidAmount);
+      } else {
+        const isClean = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'].some(kw => combinedNotes.includes(kw)) || booking.paymentStatus === 'خالص';
+        if (isClean) {
+          paidAmount = bookingTotal;
+          remainingAmount = 0;
+        } else if (booking.paymentStatus === 'باقي') {
+          paidAmount = 0;
+          remainingAmount = bookingTotal;
+        } else {
+          paidAmount = bookingTotal;
+          remainingAmount = 0;
+        }
+      }
+    }
+
+    const isFullyPaid = remainingAmount === 0;
+    const finalPaymentStatus = isFullyPaid ? 'خالص' : 'باقي';
+
     return {
       no: i + 1,
       id: booking.id,
@@ -1038,7 +1264,7 @@ function ReportsContent() {
       checkOut: booking.checkOut,
       days,
       pricePerNight,
-      total,
+      total: bookingTotal,
       commission,
       brokerName: booking.brokerName || '',
       netValue,
@@ -1051,31 +1277,16 @@ function ReportsContent() {
         if (match && match[1]) return match[1].trim();
         return 'قائد الشيفت';
       })(),
-      paymentMethod: booking.paymentMethod || '',
-      paymentStatus: (() => {
-        const noteStr = String(booking.notes || '').trim().toLowerCase();
-        const infoStr = String(booking.paymentInfo || '').trim().toLowerCase();
-        const combined = `${noteStr} ${infoStr}`;
-
-        const cleanKeywords = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'];
-        const isExplicitlyClean = cleanKeywords.some(kw => combined.includes(kw));
-
-        const debtKeywords = ['متبقي', 'باقي', 'باقى', 'علية', 'عليها', 'دين', 'مستحق', 'آجل', 'اجل', 'عقد'];
-        const hasNumbers = /\d+/.test(noteStr);
-        const hasDebtKeyword = debtKeywords.some(kw => combined.includes(kw));
-
-        if (!isExplicitlyClean && (hasDebtKeyword || hasNumbers)) {
-          return 'باقي';
-        }
-        if (isExplicitlyClean) {
-          return 'خالص';
-        }
-        if (booking.paymentStatus === 'باقي') return 'باقي';
-        return 'خالص';
-      })(),
-      notes: typeof booking.notes === 'string' ? booking.notes.replace(/خصم بقيمة \d+/, '').trim() : '',
+      paymentMethod: booking.paymentMethod || 'كاش',
+      paidAmount,
+      remainingAmount,
+      isFullyPaid,
+      paymentStatus: finalPaymentStatus,
+      notes: cleanNotesForDisplay(booking.notes),
+      rawNotes: booking.notes || '',
       isCarriedOver: booking.isCarriedOver,
       hasData: true,
+      originalBooking: booking,
     };
   });
 
@@ -1099,7 +1310,9 @@ function ReportsContent() {
     id: '', date: '', name: '', nationality: '', idNumber: '', phone: '',
     checkIn: '', checkOut: '', days: 0, pricePerNight: 0, total: 0,
     commission: 0, brokerName: '', netValue: 0, clientStatus: '',
-    bookingManager: '', paymentMethod: '', paymentStatus: 'خالص', notes: '', isCarriedOver: false, hasData: false,
+    bookingManager: '', paymentMethod: '', paymentStatus: 'خالص',
+    paidAmount: 0, remainingAmount: 0, isFullyPaid: true,
+    notes: '', isCarriedOver: false, hasData: false,
   }));
 
   const allRows = [...renumberedRows, ...emptyRows];
@@ -1843,10 +2056,43 @@ function ReportsContent() {
                             {row.hasData ? <EditableCell value={row.bookingManager} bookingId={row.id} field="bookingManager" onSave={handleCellSave} className="text-[#2A2723] font-bold" readOnly={row.isCarriedOver} /> : <span className="text-[#EAE4D9]">—</span>}
                           </td>
 
-                          {/* EDITABLE: Payment Method */}
-                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20">
+                          {/* INTERACTIVE: Payment Method Cell (تكّة واحدة تفتح المربع الصغير للتفاصيل وسداد المتبقي) */}
+                          <td className="px-1 py-1 border-l border-[#EAE4D9]/20">
                             {row.hasData ? (
-                              <EditableCell value={row.paymentMethod} bookingId={row.id} field="paymentMethod" onSave={handleCellSave} className="text-blue-600 font-bold" readOnly={row.isCarriedOver} />
+                              <button
+                                type="button"
+                                disabled={row.isCarriedOver}
+                                onClick={() => openPaymentBreakdownModal(row)}
+                                className={`w-full text-right p-1.5 md:p-2 rounded-xl transition-all cursor-pointer group flex flex-col gap-0.5 border shadow-2xs ${
+                                  row.isCarriedOver
+                                    ? 'bg-stone-50 border-stone-200 opacity-70 cursor-not-allowed'
+                                    : row.isFullyPaid
+                                      ? 'bg-emerald-50/80 hover:bg-emerald-100/90 border-emerald-300/80 text-emerald-950'
+                                      : 'bg-rose-50/80 hover:bg-rose-100/90 border-rose-300/80 text-rose-950'
+                                }`}
+                                title="اضغط لعرض تفاصيل الدفعات أو إضافة دفعة جديدة"
+                              >
+                                <div className="flex items-center justify-between gap-1 w-full">
+                                  <span className="font-black text-[11px] text-[#1a1714]">
+                                    دفع {row.paidAmount.toLocaleString()}
+                                  </span>
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                                    row.isFullyPaid
+                                      ? 'bg-emerald-200 text-emerald-950 border-emerald-300'
+                                      : 'bg-rose-200 text-rose-950 border-rose-300'
+                                  }`}>
+                                    {row.isFullyPaid ? 'الحساب خالص 🟢' : `متبقي ${row.remainingAmount.toLocaleString()} 🔴`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[9px] font-bold text-[#7A7061] mt-0.5">
+                                  <span className="text-blue-700 truncate max-w-[100px] font-bold">
+                                    {row.paymentMethod || 'كاش'}
+                                  </span>
+                                  <span className="text-[9px] text-[#A88B70] group-hover:text-[#2A2723] font-black underline flex items-center gap-0.5">
+                                    تفاصيل 🔍
+                                  </span>
+                                </div>
+                              </button>
                             ) : <span className="text-[#EAE4D9]">—</span>}
                           </td>
 
@@ -1855,18 +2101,21 @@ function ReportsContent() {
                             {row.hasData ? (
                               <button
                                 disabled={row.isCarriedOver}
-                                onClick={() => {
-                                  const nextStatus = row.paymentStatus === 'باقي' ? 'خالص' : 'باقي';
-                                  handleCellSave(row.id, 'paymentStatus', nextStatus);
+                                onClick={async () => {
+                                  if (row.paymentStatus === 'باقي') {
+                                    await handleCellSave(row.id, 'paymentStatus', 'خالص');
+                                  } else {
+                                    openPaymentBreakdownModal(row);
+                                  }
                                 }}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-black transition-all shadow-sm flex items-center justify-center gap-1 mx-auto ${
+                                className={`px-2.5 py-1.5 rounded-full text-[10px] font-black transition-all shadow-sm flex items-center justify-center gap-1 mx-auto ${
                                   row.isCarriedOver ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:scale-105'
                                 } ${
                                   row.paymentStatus === 'باقي'
                                     ? 'bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200'
                                     : 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200'
                                 }`}
-                                title={row.paymentStatus === 'باقي' ? 'باقي فلوس - اضغط للتغيير إلى خالص' : 'خالص - اضغط للتغيير إلى باقي فلوس'}
+                                title={row.paymentStatus === 'باقي' ? 'متبقي فلوس - اضغط للتسوية كخالص' : 'الحساب خالص - اضغط لعرض التفاصيل'}
                               >
                                 {row.paymentStatus === 'باقي' ? (
                                   <>
@@ -1883,7 +2132,7 @@ function ReportsContent() {
                             ) : <span className="text-[#EAE4D9]">—</span>}
                           </td>
 
-                          {/* EDITABLE: Notes */}
+                          {/* EDITABLE: Notes (نظيفة تماماً وخاصة بالمستخدم فقط دون أي وسوم تلقائية) */}
                           <td className="px-0 py-0 border-l border-[#EAE4D9]/20">
                             {row.hasData ? <EditableCell value={row.notes} bookingId={row.id} field="notes" onSave={handleCellSave} className="text-[#7A7061] font-bold text-[9px]" readOnly={row.isCarriedOver} /> : <span className="text-[#EAE4D9]">—</span>}
                           </td>
@@ -2339,6 +2588,166 @@ function ReportsContent() {
               onClose={() => setProfileModal({ isOpen: false, name: null })}
               onRefresh={loadData}
             />
+
+            {/* ── مربع تفاصيل طريقة الدفع وسداد المتبقي (النافذة الصغيرة التفاعلية) ── */}
+            {paymentModalRow && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in" dir="rtl">
+                <div className="bg-white border-2 border-[#C1A68D] rounded-[2rem] p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+                  
+                  {/* رأس النافذة */}
+                  <div className="flex items-start justify-between border-b border-[#EAE4D9] pb-3">
+                    <div>
+                      <h3 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
+                        <Wallet className="text-[#C1A68D]" size={20} />
+                        طريقة وتفاصيل الدفع — {paymentModalRow.name}
+                      </h3>
+                      <p className="text-xs text-[#7A7061] font-bold mt-0.5">
+                        إجمالي الحساب: <strong className="text-[#2A2723] font-black">{paymentModalRow.total.toLocaleString()} ج.م</strong>
+                        {paymentModalRow.phone && <span className="mr-2">| هاتف: {paymentModalRow.phone}</span>}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModalRow(null)}
+                      className="text-stone-400 hover:text-stone-700 font-black text-lg p-1.5 rounded-xl hover:bg-stone-100 transition cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* بطاقات الملخص (المدفوع والمتبقي) كما في ورقة العميل */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-emerald-50 border-2 border-emerald-200 p-3.5 rounded-2xl text-center">
+                      <p className="text-[11px] text-emerald-800 font-bold mb-1">إجمالي المدفوع</p>
+                      <p className="text-2xl font-black text-emerald-950">
+                        {modalCurrentPaid.toLocaleString()} <small className="text-xs font-bold text-emerald-700">ج.م</small>
+                      </p>
+                    </div>
+                    <div className={`p-3.5 rounded-2xl text-center border-2 ${
+                      modalCurrentRemaining === 0
+                        ? 'bg-emerald-100/70 border-emerald-300 text-emerald-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-950'
+                    }`}>
+                      <p className="text-[11px] font-bold mb-1 opacity-80">
+                        {modalCurrentRemaining === 0 ? 'حالة الحساب' : 'المتبقي المطلوب'}
+                      </p>
+                      <p className={`text-2xl font-black ${modalCurrentRemaining === 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                        {modalCurrentRemaining === 0 ? '✓ الحساب خالص' : `${modalCurrentRemaining.toLocaleString()} ج.م`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* زر سريع لسداد كامل المتبقي إذا كان عليه باقي */}
+                  {modalCurrentRemaining > 0 && (
+                    <button
+                      type="button"
+                      onClick={handlePayFullRemainingInModal}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <span>✓ سداد كامل المتبقي الآن ({modalCurrentRemaining.toLocaleString()} ج.م) وتصفير الحساب</span>
+                    </button>
+                  )}
+
+                  {/* قائمة وتفاصيل الدفعات المسجلة (طرق الدفع المجزأة) */}
+                  <div className="space-y-2 bg-[#FDFBF7] p-4 rounded-2xl border border-[#EAE4D9]">
+                    <div className="flex items-center justify-between pb-1 border-b border-[#EAE4D9]/60">
+                      <label className="text-xs font-black text-[#2A2723]">
+                        📋 بيان الدفعات وطريقة التحصيل (كاش / ف كاش / إنستا باي):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddModalSplit}
+                        className="text-[11px] font-black text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
+                      >
+                        <Plus size={13} /> إضافة دفعة أخرى
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5 pt-1">
+                      {modalSplits.map((split, idx) => (
+                        <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white p-2.5 rounded-xl border border-[#EAE4D9] shadow-2xs">
+                          <select
+                            value={split.method}
+                            onChange={e => handleUpdateModalSplit(idx, 'method', e.target.value)}
+                            className="bg-white border border-[#EAE4D9] rounded-lg px-2.5 py-2 text-xs font-black text-[#2A2723] outline-none cursor-pointer w-36"
+                          >
+                            <option value="كاش">كاش 🟢</option>
+                            <option value="فودافون كاش">فودافون كاش 🔴</option>
+                            <option value="إنستا باي">إنستا باي 🔵</option>
+                            <option value="حساب بنكي">حساب بنكي 🏦</option>
+                            <option value="فيزا">فيزا 💳</option>
+                          </select>
+
+                          <div className="relative flex-1 min-w-[120px]">
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="المبلغ المسدد"
+                              value={split.amount}
+                              onChange={e => handleUpdateModalSplit(idx, 'amount', e.target.value)}
+                              className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-lg px-3 py-2 text-xs font-black text-[#2A2723] outline-none"
+                            />
+                            <span className="absolute left-2.5 top-2 text-[10px] text-stone-400 font-bold">ج.م</span>
+                          </div>
+
+                          <input
+                            type="text"
+                            placeholder="تاريخ أو ملاحظة الدفعة (مثلاً 11/9)"
+                            value={split.date || ''}
+                            onChange={e => handleUpdateModalSplit(idx, 'date', e.target.value)}
+                            className="w-28 bg-[#FDFBF7] border border-[#EAE4D9] rounded-lg px-2 py-2 text-xs font-bold text-stone-600 outline-none text-center"
+                          />
+
+                          {modalSplits.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveModalSplit(idx)}
+                              className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg cursor-pointer font-black text-xs transition"
+                              title="حذف"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* حقل الملاحظات الشخصية (التي يرغب المستخدم في كتابتها بحرية تامة دون نصوص آلية) */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#2A2723] block">
+                      ملاحظاتك الإضافية للحجز (تظهر في عمود الملاحظات فقط):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={modalCustomNotes}
+                      onChange={e => setModalCustomNotes(e.target.value)}
+                      placeholder="اكتب هنا أي ملاحظة شخصية تريدها للعميل..."
+                      className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl p-2.5 text-xs font-bold text-[#2A2723] outline-none focus:border-[#C1A68D]"
+                    />
+                  </div>
+
+                  {/* أزرار الحفظ والإلغاء */}
+                  <div className="flex gap-2 pt-2 border-t border-[#EAE4D9]">
+                    <button
+                      type="button"
+                      disabled={isSavingPaymentModal}
+                      onClick={handleSavePaymentModal}
+                      className="flex-1 bg-[#2A2723] hover:bg-black text-white font-black py-3 rounded-xl text-xs transition cursor-pointer disabled:opacity-50 shadow-md"
+                    >
+                      {isSavingPaymentModal ? 'جاري الحفظ والتسجيل...' : 'حفظ وتحديث الدفعات بالخزنة 💾'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModalRow(null)}
+                      className="px-5 py-3 border border-[#EAE4D9] text-[#7A7061] hover:bg-stone-50 font-black rounded-xl text-xs transition cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
