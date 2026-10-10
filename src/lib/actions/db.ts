@@ -867,6 +867,8 @@ export async function getDbStaff() {
     let transport = s.transport_allowance || 0;
     let otherAllowances = s.other_allowances || 0;
     let nationalId = s.national_id || '';
+    let age = s.age || '';
+    let address = s.address || '';
     let notes = s.notes || '';
 
     if (position.includes('[بدلات:')) {
@@ -888,6 +890,22 @@ export async function getDbStaff() {
       }
     }
 
+    if (position.includes('[سن:')) {
+      const match = position.match(/\[سن:\s*([^\]]+)\]/);
+      if (match) {
+        age = match[1];
+        position = position.replace(/\[سن:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
+    if (position.includes('[عنوان:')) {
+      const match = position.match(/\[عنوان:\s*([^\]]+)\]/);
+      if (match) {
+        address = match[1];
+        position = position.replace(/\[عنوان:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
     if (position.includes('[ملاحظات:')) {
       const match = position.match(/\[ملاحظات:\s*([^\]]+)\]/);
       if (match) {
@@ -903,6 +921,8 @@ export async function getDbStaff() {
       transport_allowance: transport,
       other_allowances: otherAllowances,
       national_id: nationalId,
+      age,
+      address,
       notes,
     };
   });
@@ -930,6 +950,16 @@ export async function saveDbStaff(staff: any) {
         delete fallbackStaff.national_id;
       }
 
+      if (staff.age) {
+        metaTags.push(`[سن: ${staff.age}]`);
+        delete fallbackStaff.age;
+      }
+
+      if (staff.address) {
+        metaTags.push(`[عنوان: ${staff.address}]`);
+        delete fallbackStaff.address;
+      }
+
       if (staff.notes) {
         metaTags.push(`[ملاحظات: ${staff.notes}]`);
         delete fallbackStaff.notes;
@@ -942,11 +972,13 @@ export async function saveDbStaff(staff: any) {
       const { error: retryError } = await supabase.from('staff').upsert(fallbackStaff);
       if (retryError) throw retryError;
       revalidatePath('/admin/dashboard/hr/salaries');
+      revalidatePath('/admin/dashboard/hr/staff');
       return fallbackStaff;
     }
     throw error;
   }
   revalidatePath('/admin/dashboard/hr/salaries');
+  revalidatePath('/admin/dashboard/hr/staff');
   return staff;
 }
 
@@ -957,6 +989,7 @@ export async function deleteDbStaff(id: string) {
   const { error } = await supabase.from('staff').delete().eq('id', id);
   if (error) throw error;
   revalidatePath('/admin/dashboard/hr/salaries');
+  revalidatePath('/admin/dashboard/hr/staff');
 }
 
 // --- HR: SALARIES ---
@@ -978,13 +1011,33 @@ export async function getDbSalaries() {
       payment_method = matchMethod[1];
       notes = notes.replace(/\[طريقة:\s*([^\]]+)\]/g, '').trim();
     }
-    const cleanAmount = Number(sal.net_salary || sal.amount || 0);
+
+    let handed_by = '';
+    const matchHanded = notes.match(/\[مسلم_من:\s*([^\]]+)\]/);
+    if (matchHanded) {
+      handed_by = matchHanded[1];
+      notes = notes.replace(/\[مسلم_من:\s*([^\]]+)\]/g, '').trim();
+    }
+
+    let entry_type = 'salary';
+    if (notes.includes('[نوع: خصم]') || (sal.deductions > 0 && Number(sal.net_salary || 0) === 0) || sal.payment_status === 'deduction') {
+      entry_type = 'deduction';
+      notes = notes.replace(/\[نوع:\s*([^\]]+)\]/g, '').trim();
+    } else if (notes.includes('[نوع: راتب]')) {
+      entry_type = 'salary';
+      notes = notes.replace(/\[نوع:\s*([^\]]+)\]/g, '').trim();
+    }
+
+    const cleanAmount = Number(sal.net_salary || sal.amount || sal.deductions || 0);
     return {
       ...sal,
       notes,
       payment_method,
+      handed_by: handed_by || 'مؤمن',
+      entry_type,
       amount: cleanAmount,
-      net_salary: cleanAmount,
+      net_salary: entry_type === 'salary' ? cleanAmount : 0,
+      deductions: entry_type === 'deduction' ? cleanAmount : (Number(sal.deductions) || 0),
       payment_date: sal.payment_date || sal.date || ''
     };
   });
@@ -996,13 +1049,23 @@ export async function saveDbSalary(salary: any) {
 
   const salaryId = salary.id || `sal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
   const paymentDate = salary.payment_date || salary.date || new Date().toISOString().split('T')[0];
-  const amountVal = Number(salary.net_salary || salary.amount || 0);
+  const amountVal = Number(salary.net_salary || salary.amount || salary.deductions || 0);
   const paymentMethod = salary.payment_method || 'كاش';
+  const entryType = salary.entry_type || salary.type || 'salary';
+  const handedBy = salary.handed_by || 'مؤمن';
 
-  // Format notes to include payment method if needed
+  // Format notes to include payment method, handed by, and entry type
   let notesWithMeta = salary.notes || '';
-  if (paymentMethod && !notesWithMeta.includes('[طريقة:')) {
-    notesWithMeta = `[طريقة: ${paymentMethod}] ${notesWithMeta}`.trim();
+  if (entryType === 'deduction') {
+    if (!notesWithMeta.includes('[نوع: خصم]')) notesWithMeta = `[نوع: خصم] ${notesWithMeta}`.trim();
+  } else {
+    if (!notesWithMeta.includes('[نوع: راتب]')) notesWithMeta = `[نوع: راتب] ${notesWithMeta}`.trim();
+    if (paymentMethod && !notesWithMeta.includes('[طريقة:')) {
+      notesWithMeta = `[طريقة: ${paymentMethod}] ${notesWithMeta}`.trim();
+    }
+    if (handedBy && !notesWithMeta.includes('[مسلم_من:')) {
+      notesWithMeta = `[مسلم_من: ${handedBy}] ${notesWithMeta}`.trim();
+    }
   }
 
   const payload: any = {
@@ -1011,9 +1074,9 @@ export async function saveDbSalary(salary: any) {
     month: Number(salary.month) || (new Date(paymentDate).getMonth() + 1),
     year: Number(salary.year) || new Date(paymentDate).getFullYear(),
     bonuses: Number(salary.bonuses) || 0,
-    deductions: Number(salary.deductions) || 0,
-    net_salary: amountVal,
-    payment_status: salary.payment_status || 'paid',
+    deductions: entryType === 'deduction' ? amountVal : (Number(salary.deductions) || 0),
+    net_salary: entryType === 'salary' ? amountVal : 0,
+    payment_status: entryType === 'deduction' ? 'deduction' : (salary.payment_status || 'paid'),
     payment_date: paymentDate,
     notes: notesWithMeta
   };
@@ -1027,17 +1090,17 @@ export async function saveDbSalary(salary: any) {
     if (retryError) throw retryError;
   }
 
-  // --- GUARANTEED DEDUCTION FROM SMALL TREASURY (الخزنة الصغيرة) ---
-  // Every salary payment or advance ('إن شاء الله حتى لو جنيه') is recorded as an expense from الخزنة الصغيرة
-  if (amountVal > 0) {
+  // Auto-deduct salary payouts from small treasury (only for actual salary payouts, not deductions)
+  if (entryType === 'salary' && amountVal > 0) {
     try {
       const staffList = await getDbStaff();
       const staffMember = staffList.find((s: any) => s.id === salary.staff_id);
       const staffName = staffMember?.name || 'موظف';
-      const cleanNote = (salary.notes || '').replace(/\[طريقة:\s*[^\]]+\]/g, '').trim();
-      const expenseDesc = `صرف للموظف: ${staffName} - ${cleanNote || 'دفعة راتب'} [قيد:${salaryId}] [طريقة:${paymentMethod}]`;
+      const cleanNote = (salary.notes || '')
+        .replace(/\[(طريقة|نوع|مسلم_من):\s*[^\]]+\]/g, '')
+        .trim();
+      const expenseDesc = `صرف للموظف: ${staffName} - ${cleanNote || 'دفعة راتب'} [قيد:${salaryId}] [طريقة:${paymentMethod}] [مسلم:${handedBy}]`;
 
-      // Check if expense already exists for this payment ID
       const { data: existingExpenses } = await supabase
         .from('expenses')
         .select('id')
@@ -1051,7 +1114,7 @@ export async function saveDbSalary(salary: any) {
         description: expenseDesc,
         from_entity: 'الخزنة الصغيرة',
         to_entity: staffName,
-        ordered_by: 'إدارة الموظفين',
+        ordered_by: handedBy || 'إدارة الموظفين',
         notes: `طريقة الصرف: ${paymentMethod}`
       };
 
