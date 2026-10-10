@@ -178,6 +178,43 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): A
   return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
 };
 
+// دالة ذكية لتفصيل مدفوعات الحجز حسب طرق الدفع الفعلية وتوزيعها بدقة
+const getBookingPaymentSplits = (b: any, paidAmount: number): Array<{ methodId: PaymentMethodId; methodLabel: string; amount: number }> => {
+  if (!paidAmount || paidAmount <= 0) return [];
+
+  const rawMethod = String(b.paymentMethod || '').trim();
+  const rawInfo = String(b.paymentInfo || '').trim();
+  const rawNotes = String(b.notes || '').trim();
+
+  // 1) فحص المبالغ المجزأة إذا كانت بصيغة مثل: "فودافون كاش: 1000 | إنستا باي: 2000"
+  if (rawMethod.includes(':') || rawMethod.includes('|')) {
+    const splits = parsePaymentSplitsFromString(rawMethod, paidAmount);
+    const valid = splits.filter(s => s.amount !== '' && !isNaN(Number(s.amount)) && Number(s.amount) > 0);
+    if (valid.length > 0) {
+      const sumSplits = valid.reduce((acc, s) => acc + (Number(s.amount) || 0), 0);
+      const diff = paidAmount - sumSplits;
+      return valid.map((s, idx) => {
+        const detected = detectPaymentMethod(s.method);
+        const extra = (idx === 0 && diff > 0) ? diff : 0;
+        return {
+          methodId: detected.id,
+          methodLabel: detected.label,
+          amount: (Number(s.amount) || 0) + extra,
+        };
+      });
+    }
+  }
+
+  // 2) طريقة موحدة من طريقة الدفع أو الملاحظات
+  const fullText = `${rawMethod} ${rawInfo} ${rawNotes}`;
+  const detected = detectPaymentMethod(fullText);
+  return [{
+    methodId: detected.id,
+    methodLabel: detected.label,
+    amount: paidAmount,
+  }];
+};
+
 const CONFIRMED_STATUSES = ['approved', 'مؤكد', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 
 const parseArabicNumberString = (raw: string): number | null => {
@@ -545,7 +582,7 @@ export default function TreasuryPage() {
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
 
-  // احتساب المقبوض الفعلي والمتبقي لكل حجز
+  // احتساب المقبوض الفعلي والمتبقي وتوزيع طرق الدفع لكل حجز
   const {
     totalRevenueCollected,
     totalRemainingUncollected,
@@ -554,13 +591,19 @@ export default function TreasuryPage() {
     pendingBookings,
     completedBookings,
     totalCashRevenueCollected,
+    totalVodafoneRevenueCollected,
+    totalInstapayRevenueCollected,
     totalElectronicRevenueCollected,
+    automatedElectronicDeposits,
   } = useMemo(() => {
     let revPaid = 0;
     let revCash = 0;
+    let revVodafone = 0;
+    let revInstapay = 0;
     let revElectronic = 0;
     let remUncollected = 0;
     let comm = 0;
+    const autoElectronic: Array<any> = [];
 
     const list = monthlyBookings.map((b) => {
       const total = Number(b.totalAmount || 0);
@@ -580,24 +623,63 @@ export default function TreasuryPage() {
           p = total;
           r = 0;
         } else {
-          p = total;
-          r = 0;
+          p = 0;
+          r = total;
         }
       }
 
       revPaid += p;
       remUncollected += r;
 
-      const combinedMethod = `${b.paymentMethod || ''} ${b.paymentInfo || ''} ${b.notes || ''}`.toLowerCase();
-      const isElec = combinedMethod.includes('فودافون') || combinedMethod.includes('vodafone') ||
-                     combinedMethod.includes('انستا') || combinedMethod.includes('إنستا') ||
-                     combinedMethod.includes('instapay') || combinedMethod.includes('بنك') ||
-                     combinedMethod.includes('فيزا') || combinedMethod.includes('visa');
-      if (isElec) {
-        revElectronic += p;
-      } else {
-        revCash += p;
+      const splits = getBookingPaymentSplits(b, p);
+      let bCash = 0;
+      let bVodafone = 0;
+      let bInstapay = 0;
+
+      splits.forEach((s) => {
+        if (s.methodId === 'cash') bCash += s.amount;
+        else if (s.methodId === 'vodafone_cash') bVodafone += s.amount;
+        else if (s.methodId === 'instapay') bInstapay += s.amount;
+      });
+
+      revCash += bCash;
+      revVodafone += bVodafone;
+      revInstapay += bInstapay;
+      revElectronic += (bVodafone + bInstapay);
+
+      if (bVodafone > 0) {
+        autoElectronic.push({
+          id: `booking-${b.id}-vodafone`,
+          bookingId: b.id,
+          amount: bVodafone,
+          methodId: 'vodafone_cash' as PaymentMethodId,
+          methodLabel: 'فودافون كاش',
+          handed_by: `${b.name || 'عميل'} (${b.studio || b.apartmentId || 'حجز'})`,
+          received_by: 'الخزنة الكبيرة (ف كاش)',
+          notes: cleanDisplayNotes(b.notes) || 'سداد حجز فودافون كاش',
+          transfer_date: b.bookingDate || b.checkIn || today.toISOString().slice(0, 10),
+          isAutomatic: true,
+          booking: b,
+        });
       }
+
+      if (bInstapay > 0) {
+        autoElectronic.push({
+          id: `booking-${b.id}-instapay`,
+          bookingId: b.id,
+          amount: bInstapay,
+          methodId: 'instapay' as PaymentMethodId,
+          methodLabel: 'إنستا باي / حساب بنكي',
+          handed_by: `${b.name || 'عميل'} (${b.studio || b.apartmentId || 'حجز'})`,
+          received_by: 'الخزنة الكبيرة (إنستاباي / بنك)',
+          notes: cleanDisplayNotes(b.notes) || 'سداد حجز إنستاباي / بنكي',
+          transfer_date: b.bookingDate || b.checkIn || today.toISOString().slice(0, 10),
+          isAutomatic: true,
+          booking: b,
+        });
+      }
+
+      const isElec = (bVodafone + bInstapay) > 0;
 
       return {
         ...b,
@@ -605,18 +687,24 @@ export default function TreasuryPage() {
         calculatedRemaining: r,
         isFullyPaid: r === 0,
         isElectronicPayment: isElec,
+        cashPaid: bCash,
+        vodafonePaid: bVodafone,
+        instapayPaid: bInstapay,
       };
     });
 
     return {
       totalRevenueCollected: revPaid,
       totalCashRevenueCollected: revCash,
+      totalVodafoneRevenueCollected: revVodafone,
+      totalInstapayRevenueCollected: revInstapay,
       totalElectronicRevenueCollected: revElectronic,
       totalRemainingUncollected: remUncollected,
       totalCommissions: comm,
       bookingsWithBreakdown: list,
       pendingBookings: list.filter(b => !b.isFullyPaid),
       completedBookings: list.filter(b => b.isFullyPaid),
+      automatedElectronicDeposits: autoElectronic,
     };
   }, [monthlyBookings]);
 
@@ -631,7 +719,7 @@ export default function TreasuryPage() {
     return monthlyExpenses.reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
   }, [monthlyExpenses]);
 
-  // تحويلات الشهر (من الخزنة الصغيرة إلى الخزنة الكبيرة) - تتبع الشهر المستهدف المخصص
+  // تحويلات الشهر اليدوية (من الخزنة الصغيرة إلى الخزنة الكبيرة) - تتبع الشهر المستهدف المخصص
   const monthlyDeposits = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
     const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
@@ -639,11 +727,7 @@ export default function TreasuryPage() {
     return !isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
-  const totalDepositedToBig = useMemo(() => {
-    return monthlyDeposits.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
-  }, [monthlyDeposits]);
-
-  // تقسيم التوريدات للخزنة الكبيرة: كاش فقط مقابل إلكتروني (فودافون كاش / إنستا باي)
+  // تقسيم التوريدات اليدوية للخزنة الكبيرة: كاش فقط مقابل إلكتروني
   const totalCashDepositedToBig = useMemo(() => {
     return monthlyDeposits.reduce((sum, t) => {
       const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
@@ -652,7 +736,7 @@ export default function TreasuryPage() {
     }, 0);
   }, [monthlyDeposits]);
 
-  const totalElectronicDepositedToBig = useMemo(() => {
+  const totalManualElectronicDepositedToBig = useMemo(() => {
     return monthlyDeposits.reduce((sum, t) => {
       const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
       const method = detectPaymentMethod(fullText).id;
@@ -672,55 +756,94 @@ export default function TreasuryPage() {
     return monthlyWithdrawals.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
   }, [monthlyWithdrawals]);
 
-  // الإجمالي الشامل لصافي أرباح الشهر المقبوضة فعلياً =
-  // ما تم دفعه فعلياً (سواء عربون أو كامل) - العمولات - كل مصروفات الشهر
+  // إجمالي فودافون كاش بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
+  const totalVodafoneTreasury = useMemo(() => {
+    const manualVodafone = monthlyDeposits.reduce((sum, t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      return detectPaymentMethod(fullText).id === 'vodafone_cash' ? sum + (Number(t?.amount) || 0) : sum;
+    }, 0);
+    return (totalVodafoneRevenueCollected || 0) + manualVodafone;
+  }, [monthlyDeposits, totalVodafoneRevenueCollected]);
+
+  // إجمالي إنستا باي والحساب البنكي والفيزا بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
+  const totalInstapayTreasury = useMemo(() => {
+    const manualInstapay = monthlyDeposits.reduce((sum, t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      return detectPaymentMethod(fullText).id === 'instapay' ? sum + (Number(t?.amount) || 0) : sum;
+    }, 0);
+    return (totalInstapayRevenueCollected || 0) + manualInstapay;
+  }, [monthlyDeposits, totalInstapayRevenueCollected]);
+
+  // إجمالي الوارد للخزنة الكبيرة = كاش مورد من الصغيرة + فودافون كاش كله + إنستا باي كله
+  const totalBigTreasuryInflow = useMemo(() => {
+    return totalCashDepositedToBig + totalVodafoneTreasury + totalInstapayTreasury;
+  }, [totalCashDepositedToBig, totalVodafoneTreasury, totalInstapayTreasury]);
+
+  // 1) رصيد الخزنة الكبيرة الفعلي = إجمالي الوارد للخزنة الكبيرة − مسحوبات الشركاء
+  const bigTreasuryBalance = useMemo(() => {
+    return totalBigTreasuryInflow - totalWithdrawnFromBig;
+  }, [totalBigTreasuryInflow, totalWithdrawnFromBig]);
+
+  // 2) رصيد الخزنة الصغيرة = كاش الحجوزات المقبوض − العمولات − كل المصروفات − ما تم تحويله كاش فقط للكبيرة
+  const smallTreasuryBalance = useMemo(() => {
+    return (totalCashRevenueCollected || 0) - (totalCommissions || 0) - (totalExpenses || 0) - totalCashDepositedToBig;
+  }, [totalCashRevenueCollected, totalCommissions, totalExpenses, totalCashDepositedToBig]);
+
+  // الإجمالي الشامل لصافي أرباح الشهر المقبوضة فعلياً
   const grossTreasury = useMemo(() => {
     return (totalRevenueCollected || 0) - (totalCommissions || 0) - (totalExpenses || 0);
   }, [totalRevenueCollected, totalCommissions, totalExpenses]);
 
-  // 1) رصيد الخزنة الكبيرة الفعلي = ما تم توريده إليها - ما تم سحبه منها
-  const bigTreasuryBalance = useMemo(() => {
-    return totalDepositedToBig - totalWithdrawnFromBig;
-  }, [totalDepositedToBig, totalWithdrawnFromBig]);
+  // دمج كل حركات الخزنة الكبيرة (التوريدات اليدوية + تحويلات الحجوزات الإلكترونية التلقائية)
+  const allBigTreasuryRecords = useMemo(() => {
+    const manualRecords = monthlyDeposits.map(t => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      const method = detectPaymentMethod(fullText);
+      return {
+        id: t.id,
+        amount: Number(t.amount) || 0,
+        methodId: method.id,
+        methodLabel: method.label,
+        handed_by: t.handed_by,
+        received_by: t.received_by,
+        notes: getCleanTransferNote(t),
+        transfer_date: t.transfer_date,
+        isAutomatic: false,
+        rawTransfer: t,
+        booking: null,
+      };
+    });
 
-  // 2) رصيد الخزنة الصغيرة = كاش الحجوزات المقبوض - العمولات - كل المصروفات - ما تم تحويله كاش فقط للكبيرة
-  // (المبالغ الإلكترونية إنستا باي وفودافون كاش لا تُخصم من الصغيرة لأنها تذهب مباشرة للكبيرة)
-  const smallTreasuryBalance = useMemo(() => {
-    if (totalCashRevenueCollected > 0) {
-      return totalCashRevenueCollected - (totalCommissions || 0) - (totalExpenses || 0) - totalCashDepositedToBig;
-    }
-    return (grossTreasury || 0) - totalCashDepositedToBig;
-  }, [totalCashRevenueCollected, totalCommissions, totalExpenses, totalCashDepositedToBig, grossTreasury]);
+    const combined = [...manualRecords, ...automatedElectronicDeposits];
+    return combined.sort((a, b) => (b.transfer_date || '').localeCompare(a.transfer_date || ''));
+  }, [monthlyDeposits, automatedElectronicDeposits]);
 
   // ── تفصيل رصيد الخزنة الكبيرة وتجميعات طرق الدفع (كاش، إنستا باي / بنك، فودافون كاش) ──
   const bigTreasuryByMethod = useMemo(() => {
     const summary: Record<PaymentMethodId, { deposited: number; withdrawn: number; balance: number; count: number }> = {
-      cash: { deposited: 0, withdrawn: 0, balance: 0, count: 0 },
-      instapay: { deposited: 0, withdrawn: 0, balance: 0, count: 0 },
-      vodafone_cash: { deposited: 0, withdrawn: 0, balance: 0, count: 0 },
+      cash: { deposited: totalCashDepositedToBig, withdrawn: 0, balance: totalCashDepositedToBig, count: 0 },
+      instapay: { deposited: totalInstapayTreasury, withdrawn: 0, balance: totalInstapayTreasury, count: 0 },
+      vodafone_cash: { deposited: totalVodafoneTreasury, withdrawn: 0, balance: totalVodafoneTreasury, count: 0 },
     };
 
-    // جمع التوريدات مع تحديد الطريقة
-    monthlyDeposits.forEach((t) => {
-      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
-      const method = detectPaymentMethod(fullText).id;
-      summary[method].deposited += Number(t.amount) || 0;
-      summary[method].count += 1;
+    allBigTreasuryRecords.forEach(r => {
+      const mid = r.methodId as PaymentMethodId;
+      if (summary[mid]) {
+        summary[mid].count += 1;
+      }
     });
 
-    // خصم السحوبات
-    monthlyWithdrawals.forEach((w) => {
+    monthlyWithdrawals.forEach(w => {
       const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
       const method = detectPaymentMethod(fullText).id;
-      summary[method].withdrawn += Number(w.amount) || 0;
-    });
-
-    (Object.keys(summary) as PaymentMethodId[]).forEach((m) => {
-      summary[m].balance = summary[m].deposited - summary[m].withdrawn;
+      if (summary[method]) {
+        summary[method].withdrawn += Number(w.amount) || 0;
+        summary[method].balance = summary[method].deposited - summary[method].withdrawn;
+      }
     });
 
     return summary;
-  }, [monthlyDeposits, monthlyWithdrawals]);
+  }, [totalCashDepositedToBig, totalInstapayTreasury, totalVodafoneTreasury, allBigTreasuryRecords, monthlyWithdrawals]);
 
   // ── الحسابات المحاسبية المطابقة لشجرة الورقة بالمليم ──
   const totalAccountMonth = (totalRevenueCollected || 0) + (totalRemainingUncollected || 0);
@@ -729,17 +852,14 @@ export default function TreasuryPage() {
   const uncollectedAmount = totalRemainingUncollected || 0;
   const collectedNetProfit = grossTreasury || 0;
   const branchCashTreasury = smallTreasuryBalance;
-  const bankInstapayTreasury = bigTreasuryByMethod['instapay']?.balance || 0;
-  const vodafoneCashTreasury = bigTreasuryByMethod['vodafone_cash']?.balance || 0;
+  const bankInstapayTreasury = totalInstapayTreasury;
+  const vodafoneCashTreasury = totalVodafoneTreasury;
 
   // فلترة سجل التوريدات حسب طريقة الدفع المختارة
   const filteredDeposits = useMemo(() => {
-    if (transferFilter === 'all') return monthlyDeposits;
-    return monthlyDeposits.filter((t) => {
-      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
-      return detectPaymentMethod(fullText).id === transferFilter;
-    });
-  }, [monthlyDeposits, transferFilter]);
+    if (transferFilter === 'all') return allBigTreasuryRecords;
+    return allBigTreasuryRecords.filter((r) => r.methodId === transferFilter);
+  }, [allBigTreasuryRecords, transferFilter]);
 
   // إرسال تحويل أو سحب
   const submitTransfer = async (event: React.FormEvent) => {
@@ -1396,24 +1516,30 @@ export default function TreasuryPage() {
             </div>
 
             {/* إحصائيات حركة الخزنة الكبيرة السريعة */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 text-xs font-bold">
-              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
-                <span className="text-slate-300 flex items-center gap-1.5">
-                  <Banknote size={15} className="text-emerald-400" /> كاش مورد من الصغيرة:
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs font-bold">
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
+                  <Banknote size={14} className="text-emerald-400" /> كاش مورد من الصغيرة:
                 </span>
-                <span className="text-sm font-black text-emerald-400">{money(totalCashDepositedToBig)}</span>
+                <span className="text-sm font-black text-emerald-400 mt-1">{money(totalCashDepositedToBig)}</span>
               </div>
-              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
-                <span className="text-slate-300 flex items-center gap-1.5">
-                  <ArrowDownRight size={15} className="text-blue-400" /> إجمالي الوارد (كاش + إلكتروني):
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
+                  <Smartphone size={14} className="text-rose-400" /> فودافون كاش:
                 </span>
-                <span className="text-sm font-black text-white">{money(totalDepositedToBig)}</span>
+                <span className="text-sm font-black text-rose-400 mt-1">{money(totalVodafoneTreasury)}</span>
               </div>
-              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
-                <span className="text-slate-300 flex items-center gap-1.5">
-                  <ArrowUpRight size={15} className="text-rose-400" /> مسحوبات مؤمن ومدحت:
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
+                  <Zap size={14} className="text-purple-400" /> إنستا باي / بنك:
                 </span>
-                <span className="text-sm font-black text-rose-400">− {money(totalWithdrawnFromBig)}</span>
+                <span className="text-sm font-black text-purple-400 mt-1">{money(totalInstapayTreasury)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
+                <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
+                  <ArrowUpRight size={14} className="text-amber-400" /> مسحوبات مؤمن ومدحت:
+                </span>
+                <span className="text-sm font-black text-amber-400 mt-1">− {money(totalWithdrawnFromBig)}</span>
               </div>
             </div>
           </div>
@@ -1450,7 +1576,7 @@ export default function TreasuryPage() {
               }`}
             >
               <ArrowDownRight size={18} />
-              <span>توريدات الخزنة الكبيرة ({monthlyDeposits.length})</span>
+              <span>سجل الخزنة الكبيرة ({allBigTreasuryRecords.length})</span>
             </button>
 
             {isOwner && (
@@ -1642,10 +1768,10 @@ export default function TreasuryPage() {
         <div className="flex flex-col items-center text-center justify-center gap-3 mb-6">
           <h2 className="text-2xl md:text-3xl font-black text-indigo-950 flex items-center justify-center gap-3">
             <ArrowDownRight size={28} className="text-indigo-600" />
-            سجل حركات التوريد (من الصغيرة إلى الكبيرة)
+            سجل حركات وتوريدات الخزنة الكبيرة
           </h2>
           <p className="text-xs md:text-base font-bold text-indigo-900/80">
-            كل مبالغ التحويل المنقولة للخزنة الكبيرة مع إمكانية تعديل طريقة الدفع لأي حركة بنقرة واحدة
+            يضم كاش التوريد من الخزنة الصغيرة + كل تحويلات فودافون كاش وإنستاباي المسجلة تلقائياً من الحوافظ والحجوزات
           </p>
 
           {/* تبويبات الفلترة السريعة */}
@@ -1656,7 +1782,7 @@ export default function TreasuryPage() {
                 transferFilter === 'all' ? 'bg-indigo-950 text-white shadow-sm' : 'text-[#7A7061] hover:text-indigo-900'
               }`}
             >
-              الكل ({monthlyDeposits.length})
+              الكل ({allBigTreasuryRecords.length})
             </button>
             {PAYMENT_METHODS.map((pm) => {
               const count = bigTreasuryByMethod[pm.id]?.count || 0;
@@ -1679,7 +1805,7 @@ export default function TreasuryPage() {
         {/* ملخص إجماليات التحويلات */}
         <div className="bg-indigo-100/60 px-6 py-3.5 rounded-2xl border-2 border-indigo-200 mb-4 flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-indigo-950 shadow-sm">
           <div className="flex items-center gap-4">
-            <span>إجمالي التحويلات المعروضة: <strong className="text-base text-indigo-900 font-black">{money(filteredDeposits.reduce((sum, t) => sum + (Number(t.amount) || 0), 0))}</strong></span>
+            <span>إجمالي الوارد المعروض: <strong className="text-base text-indigo-900 font-black">{money(filteredDeposits.reduce((sum, t: any) => sum + (Number(t.amount) || 0), 0))}</strong></span>
             <span>عدد الحركات: <strong className="text-indigo-900 font-black">{filteredDeposits.length}</strong></span>
           </div>
           {transferFilter !== 'all' && (
@@ -1705,47 +1831,53 @@ export default function TreasuryPage() {
             </thead>
             <tbody>
               {filteredDeposits.length === 0 ? (
-                <tr><td colSpan={8} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات توريد مسجلة في هذا التبويب</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات مسجلة في هذا التبويب</td></tr>
               ) : (
-                filteredDeposits.map((transfer) => {
-                  const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
-                  const method = detectPaymentMethod(fullText);
-                  const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                filteredDeposits.map((record: any) => {
+                  const methodObj = PAYMENT_METHODS.find(m => m.id === record.methodId) || PAYMENT_METHODS[0];
                   const MethodIcon = methodObj.icon;
-                  const cleanNotes = getCleanTransferNote(transfer);
-                  const approved = isTransferApproved(transfer);
-                  const approver = getTransferApprover(transfer);
+                  const isAuto = record.isAutomatic;
+                  const rawTransfer = record.rawTransfer;
+                  const approved = isAuto ? true : isTransferApproved(rawTransfer);
+                  const approver = isAuto ? (record.booking?.bookingManager || 'تلقائي من الحجز') : getTransferApprover(rawTransfer);
 
                   return (
                     <tr
-                      key={transfer.id}
+                      key={record.id}
                       className={`border-t font-bold transition-colors ${
                         approved
                           ? 'border-indigo-100/70 hover:bg-indigo-50/30 bg-white'
                           : 'border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70'
                       }`}
                     >
-                      <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(transfer.amount))}</td>
+                      <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(record.amount))}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
                           <MethodIcon size={14} />
                           {methodObj.label}
                         </span>
                       </td>
-                      <td className="p-4 text-[#2A2723]">{transfer.handed_by}</td>
-                      <td className="p-4 text-[#7A7061]">{transfer.received_by}</td>
-                      <td className="p-4 text-[#2A2723] max-w-xs break-words" title={cleanNotes}>
-                        {cleanNotes ? (
-                          <span className="text-[#2A2723] font-semibold">{cleanNotes}</span>
+                      <td className="p-4 text-[#2A2723]">
+                        <div className="font-bold">{record.handed_by}</div>
+                        {isAuto && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-black inline-block mt-0.5">
+                            ⚡ حجز إلكتروني تلقائي
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-[#7A7061]">{record.received_by}</td>
+                      <td className="p-4 text-[#2A2723] max-w-xs break-words" title={record.notes}>
+                        {record.notes ? (
+                          <span className="text-[#2A2723] font-semibold">{record.notes}</span>
                         ) : (
                           <span className="text-[#A59D90] font-normal">—</span>
                         )}
                       </td>
                       <td className="p-4 text-[#7A7061] whitespace-nowrap">
-                        <div className="font-bold text-[#2A2723]">{transfer.transfer_date}</div>
-                        {(() => {
-                          const targetYM = getTransferTargetYM(transfer);
-                          const actualYM = parseDateYM(transfer.transfer_date);
+                        <div className="font-bold text-[#2A2723]">{record.transfer_date}</div>
+                        {!isAuto && rawTransfer && (() => {
+                          const targetYM = getTransferTargetYM(rawTransfer);
+                          const actualYM = parseDateYM(rawTransfer.transfer_date);
                           if (targetYM && actualYM && (targetYM.month !== actualYM.month || targetYM.year !== actualYM.year)) {
                             return (
                               <span className="inline-block mt-1 px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-100 text-indigo-900 border border-indigo-300">
@@ -1759,13 +1891,18 @@ export default function TreasuryPage() {
 
                       {/* عمود حالة الاعتماد (Approve) */}
                       <td className="p-4 text-center whitespace-nowrap">
-                        {isOwner ? (
+                        {isAuto ? (
+                          <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200 font-black text-xs">
+                            <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                            <span>معتمد بالحجز ✅</span>
+                          </div>
+                        ) : isOwner ? (
                           <button
                             type="button"
-                            disabled={togglingTransferId === transfer.id}
+                            disabled={togglingTransferId === rawTransfer.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleTransferApproval(transfer);
+                              handleToggleTransferApproval(rawTransfer);
                             }}
                             title={approved ? "اضغط لإلغاء الاعتماد (فتح للتعديل)" : "اضغط للاعتماد الفوري بضغطة واحدة"}
                             className={`group/btn relative inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl font-black text-xs transition-all duration-200 shadow-sm active:scale-95 cursor-pointer border select-none ${
@@ -1774,7 +1911,7 @@ export default function TreasuryPage() {
                                 : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300 shadow-amber-500/10'
                             }`}
                           >
-                            {togglingTransferId === transfer.id ? (
+                            {togglingTransferId === rawTransfer.id ? (
                               <div className="flex items-center gap-2 px-2 py-0.5">
                                 <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
                                 <span className="text-[10px]">جاري التحديث...</span>
@@ -1814,9 +1951,19 @@ export default function TreasuryPage() {
                         )}
                       </td>
 
-                      {/* عمود الإجراءات (خاص بمؤمن ومدحت فقط، ومقفل تماماً عند الاعتماد) */}
+                      {/* عمود الإجراءات */}
                       <td className="p-4 text-center">
-                        {approved ? (
+                        {isAuto ? (
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(record.booking)}
+                            title="تعديل طريقة الدفع أو المبلغ في الحافظة"
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-xl font-black text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                          >
+                            <Edit3 size={12} />
+                            <span>تعديل الحافظة</span>
+                          </button>
+                        ) : approved ? (
                           <div
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-500 border border-gray-200 text-[10px] font-black select-none shadow-xs"
                             title="هذه الحركة معتمدة ومقفلة ضد التعديل. لإجراء تعديل يجب على الإدارة إلغاء الاعتماد أولاً."
@@ -1827,7 +1974,7 @@ export default function TreasuryPage() {
                         ) : isOwner ? (
                           <div className="flex items-center justify-center gap-1.5">
                             <button
-                              onClick={() => openTransferEditModal(transfer)}
+                              onClick={() => openTransferEditModal(rawTransfer)}
                               title="تعديل طريقة الدفع أو المبلغ (خاص بمؤمن ومدحت)"
                               className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
                             >
@@ -1835,7 +1982,7 @@ export default function TreasuryPage() {
                               تعديل الطريقة
                             </button>
                             <button
-                              onClick={() => removeTransfer(transfer.id)}
+                              onClick={() => removeTransfer(rawTransfer.id)}
                               title="حذف الحركة (خاص بمؤمن ومدحت)"
                               className="text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded-lg cursor-pointer"
                             >
