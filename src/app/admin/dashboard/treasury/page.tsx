@@ -319,14 +319,32 @@ export default function TreasuryPage() {
   type DetailBoxId = 'cash' | 'instapay' | 'vodafone' | 'uncollected' | 'expenses' | 'total_expected' | 'collected_net' | 'net_expected' | 'big_treasury';
   const [activeBox, setActiveBox] = useState<DetailBoxId>('cash');
 
+  // تبويب الجداول والعمليات الموحد بالأسفل (يمنع التكرار نهائياً)
+  const [recordsTab, setRecordsTab] = useState<'bookings' | 'deposits' | 'withdrawals'>('bookings');
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [showWithdrawForm, setShowWithdrawForm] = useState(false);
+
   const handleSelectBox = (boxId: DetailBoxId) => {
     setActiveBox(boxId);
-    if (boxId === 'cash') setTransferFilter('cash');
-    else if (boxId === 'instapay') setTransferFilter('instapay');
-    else if (boxId === 'vodafone') setTransferFilter('vodafone_cash');
-    else if (boxId === 'big_treasury') setTransferFilter('all');
-    else if (boxId === 'uncollected') setBookingFilter('pending');
-    else if (boxId === 'total_expected') setBookingFilter('all');
+    if (boxId === 'cash') {
+      setTransferFilter('cash');
+      setRecordsTab('deposits');
+    } else if (boxId === 'instapay') {
+      setTransferFilter('instapay');
+      setRecordsTab('deposits');
+    } else if (boxId === 'vodafone') {
+      setTransferFilter('vodafone_cash');
+      setRecordsTab('deposits');
+    } else if (boxId === 'big_treasury') {
+      setTransferFilter('all');
+      setRecordsTab('deposits');
+    } else if (boxId === 'uncollected') {
+      setBookingFilter('pending');
+      setRecordsTab('bookings');
+    } else if (boxId === 'total_expected') {
+      setBookingFilter('all');
+      setRecordsTab('bookings');
+    }
     
     setTimeout(() => {
       const el = document.getElementById('treasury-detail-viewer');
@@ -1084,138 +1102,102 @@ export default function TreasuryPage() {
           </div>
         </div>
 
-        {/* ── المستوى الأول: إجمالي الحساب − مصروفات الشهر = صافي الربح الشهري ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+        {/* ── الشريط المحاسبي الموحد للشهر (موجز الحساب والمصروفات والأرباح) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           
-          {/* 1. إجمالي الحساب للشهر (أكتوبر) */}
+          {/* 1. إجمالي الحساب */}
           <button
             type="button"
             onClick={() => handleSelectBox('total_expected')}
-            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+            className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
               activeBox === 'total_expected'
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xl ring-4 ring-slate-400/50 scale-[1.02]'
-                : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 shadow-sm'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400'
+                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 shadow-2xs'
             }`}
           >
-            <div className="text-xs font-bold opacity-80 mb-1">إجمالي الحساب للشهر ({MONTHS_AR[month]})</div>
-            <div className="text-2xl md:text-3xl font-black">{isLoading ? '...' : money(totalAccountMonth)}</div>
-            <div className="text-[11px] mt-2 opacity-75 font-semibold">
-              إجمالي قيمة حجوزات الشهر كاملة (المقبوض + المتبقي)
-            </div>
+            <span className="text-[10px] font-bold opacity-75 block">إجمالي الحساب (الشهر)</span>
+            <span className="text-lg md:text-xl font-black block mt-1">{isLoading ? '...' : money(totalAccountMonth)}</span>
+            <span className="text-[9px] opacity-70 block mt-0.5">المقبوض + المتبقي</span>
           </button>
 
-          {/* 2. مصروفات شهر (أكتوبر) */}
+          {/* 2. المصروفات */}
           <button
             type="button"
             onClick={() => handleSelectBox('expenses')}
-            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+            className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
               activeBox === 'expenses'
-                ? 'bg-rose-900 text-white border-rose-900 shadow-xl ring-4 ring-rose-400/50 scale-[1.02]'
-                : 'bg-rose-50/70 hover:bg-rose-100/70 border-rose-200 text-rose-950 shadow-sm'
+                ? 'bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-400'
+                : 'bg-rose-50/70 hover:bg-rose-100/70 border-rose-200 text-rose-950 shadow-2xs'
             }`}
           >
-            <div className="text-xs font-bold opacity-80 mb-1 flex items-center justify-between">
-              <span>مصروفات شهر ({MONTHS_AR[month]})</span>
-              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
-                activeBox === 'expenses' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'
-              }`}>− طرح</span>
-            </div>
-            <div className={`text-2xl md:text-3xl font-black ${activeBox === 'expenses' ? 'text-white' : 'text-rose-600'}`}>
+            <span className="text-[10px] font-bold opacity-75 flex items-center justify-between">
+              <span>مصروفات شهر</span>
+              <span className="text-[9px] bg-rose-200 text-rose-900 px-1 rounded font-black">− طرح</span>
+            </span>
+            <span className={`text-lg md:text-xl font-black block mt-1 ${activeBox === 'expenses' ? 'text-white' : 'text-rose-700'}`}>
               {isLoading ? '...' : money(monthExpensesAmount)}
-            </div>
-            <div className="text-[11px] mt-2 opacity-75 font-semibold">
-              كل المصروفات المسحوبة من الخزنة ({monthlyExpenses.length} مصروف)
-            </div>
+            </span>
+            <span className="text-[9px] opacity-70 block mt-0.5">{monthlyExpenses.length} مصروف مسجل</span>
           </button>
 
-          {/* 3. صافي الربح الشهري (الكلي) */}
+          {/* 3. صافي الربح الكلي */}
           <button
             type="button"
             onClick={() => handleSelectBox('net_expected')}
-            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+            className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
               activeBox === 'net_expected'
-                ? 'bg-emerald-800 text-white border-emerald-900 shadow-xl ring-4 ring-emerald-400/50 scale-[1.02]'
-                : 'bg-emerald-50/70 hover:bg-emerald-100/70 border-emerald-300 text-emerald-950 shadow-sm'
+                ? 'bg-emerald-900 text-white border-emerald-950 shadow-md ring-2 ring-emerald-400'
+                : 'bg-emerald-50/80 hover:bg-emerald-100/80 border-emerald-300 text-emerald-950 shadow-2xs'
             }`}
           >
-            <div className="text-xs font-bold opacity-80 mb-1 flex items-center justify-between">
-              <span>صافي الربح الشهري الكلي</span>
-              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
-                activeBox === 'net_expected' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'
-              }`}>= الناتج</span>
-            </div>
-            <div className={`text-2xl md:text-3xl font-black ${activeBox === 'net_expected' ? 'text-white' : 'text-emerald-700'}`}>
+            <span className="text-[10px] font-bold opacity-75 flex items-center justify-between">
+              <span>صافي الربح الكلي</span>
+              <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1 rounded font-black">= صافي</span>
+            </span>
+            <span className={`text-lg md:text-xl font-black block mt-1 ${activeBox === 'net_expected' ? 'text-white' : 'text-emerald-800'}`}>
               {isLoading ? '...' : money(totalNetExpectedProfit)}
-            </div>
-            <div className="text-[11px] mt-2 opacity-75 font-semibold">
-              إجمالي الحساب للشهر − كل المصروفات
-            </div>
+            </span>
+            <span className="text-[9px] opacity-70 block mt-0.5">الحساب − المصروفات</span>
           </button>
 
-        </div>
-
-        {/* ── أسهم التفرع للمستوى الثاني ── */}
-        <div className="flex items-center justify-center gap-3 text-stone-400 font-bold text-xs py-1">
-          <div className="h-0.5 flex-1 bg-stone-200" />
-          <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full border border-stone-200">
-            ⬇️ يتفرع إلى: مبالغ لم يتم تحصيلها + ما تم تحصيله ⬇️
-          </span>
-          <div className="h-0.5 flex-1 bg-stone-200" />
-        </div>
-
-        {/* ── المستوى الثاني: مبالغ لم يتم تحصيلها + ما تم تحصيله ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          
-          {/* مبالغ لم يتم تحصيلها */}
+          {/* 4. تحت التحصيل */}
           <button
             type="button"
             onClick={() => handleSelectBox('uncollected')}
-            className={`p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+            className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
               activeBox === 'uncollected'
-                ? 'bg-amber-100/95 border-amber-600 shadow-xl ring-4 ring-amber-500/40 scale-[1.02]'
-                : 'bg-amber-50/60 hover:bg-amber-100/60 border-amber-300 text-amber-950 shadow-sm'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-md ring-2 ring-amber-400'
+                : 'bg-amber-50 hover:bg-amber-100/70 border-amber-300 text-amber-950 shadow-2xs'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-black text-amber-900 flex items-center gap-1.5">
-                <Clock size={16} /> مبالغ لم يتم تحصيلها
-              </span>
-              <span className="text-[10px] bg-amber-200 text-amber-950 px-2.5 py-1 rounded-full font-black border border-amber-300">
-                تحت التحصيل
-              </span>
-            </div>
-            <div className="text-3xl font-black text-amber-800 my-2">
+            <span className="text-[10px] font-bold opacity-75 flex items-center justify-between">
+              <span>تحت التحصيل</span>
+              <span className="text-[9px] bg-amber-200 text-amber-950 px-1 rounded font-black">⏳ معلق</span>
+            </span>
+            <span className={`text-lg md:text-xl font-black block mt-1 ${activeBox === 'uncollected' ? 'text-white' : 'text-amber-800'}`}>
               {isLoading ? '...' : money(uncollectedAmount)}
-            </div>
-            <div className="text-[11px] text-amber-900/80 font-bold">
-              مبالغ متبقية على العملاء لم تُدفع بعد — انقر لعرض الحجوزات المعلقة وسدادها
-            </div>
+            </span>
+            <span className="text-[9px] opacity-70 block mt-0.5">{pendingBookings.length} حجز عليه باقي</span>
           </button>
 
-          {/* ما تم تحصيله (صافي الربح الشهري المحصل) */}
+          {/* 5. ما تم تحصيله */}
           <button
             type="button"
             onClick={() => handleSelectBox('collected_net')}
-            className={`p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+            className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer relative col-span-2 sm:col-span-1 ${
               activeBox === 'collected_net'
-                ? 'bg-emerald-100/95 border-emerald-600 shadow-xl ring-4 ring-emerald-500/40 scale-[1.02]'
-                : 'bg-emerald-50/60 hover:bg-emerald-100/60 border-emerald-300 text-emerald-950 shadow-sm'
+                ? 'bg-teal-800 text-white border-teal-900 shadow-md ring-2 ring-teal-400'
+                : 'bg-teal-50/80 hover:bg-teal-100/80 border-teal-300 text-teal-950 shadow-2xs'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-black text-emerald-900 flex items-center gap-1.5">
-                <CheckCircle2 size={16} /> ما تم تحصيله (صافي الربح الشهري المحصل)
-              </span>
-              <span className="text-[10px] bg-emerald-200 text-emerald-950 px-2.5 py-1 rounded-full font-black border border-emerald-300">
-                المحصل بالخزائن
-              </span>
-            </div>
-            <div className="text-3xl font-black text-emerald-700 my-2">
+            <span className="text-[10px] font-bold opacity-75 flex items-center justify-between">
+              <span>ما تم تحصيله</span>
+              <span className="text-[9px] bg-teal-200 text-teal-950 px-1 rounded font-black">✓ محصل</span>
+            </span>
+            <span className={`text-lg md:text-xl font-black block mt-1 ${activeBox === 'collected_net' ? 'text-white' : 'text-teal-800'}`}>
               {isLoading ? '...' : money(collectedNetProfit)}
-            </div>
-            <div className="text-[11px] text-emerald-900/80 font-bold">
-              مجموع الخزنة الفرعية الكاش + الحوالات البنكية/إنستاباي + فودافون كاش
-            </div>
+            </span>
+            <span className="text-[9px] opacity-70 block mt-0.5">المحصل الفعلي بالخزائن</span>
           </button>
 
         </div>
@@ -1367,20 +1349,34 @@ export default function TreasuryPage() {
 
               {/* أزرار سريعة لتوريد الكاش أو سحب الأرباح */}
               <div className="flex flex-wrap items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
-                <a
-                  href="#transfer-entry-form"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordsTab('deposits');
+                    setShowDepositForm(true);
+                    setTimeout(() => {
+                      document.getElementById('treasury-records-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
                 >
                   <Plus size={15} />
                   <span>توريد كاش من الصغيرة للكبيرة</span>
-                </a>
-                <a
-                  href="#withdraw-entry-form"
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordsTab('withdrawals');
+                    setShowWithdrawForm(true);
+                    setTimeout(() => {
+                      document.getElementById('treasury-records-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
                 >
                   <ArrowDownLeft size={15} />
                   <span>سحب أرباح (مؤمن / مدحت)</span>
-                </a>
+                </button>
               </div>
             </div>
 
@@ -1561,21 +1557,33 @@ export default function TreasuryPage() {
             {/* أزرار سريعة للانتقال للتوريد أو السحب */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <div className="flex flex-wrap gap-2">
-                <a
-                  href="#transfer-entry-form"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordsTab('deposits');
+                    setShowDepositForm(true);
+                    document.getElementById('records-workspace')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                 >
                   <Plus size={14} /> تسجيل توريد للخزنة الكبيرة
-                </a>
-                <a
-                  href="#withdraw-entry-form"
-                  className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5"
-                >
-                  <ArrowDownLeft size={14} /> سحب أرباح لمؤمن أو مدحت
-                </a>
+                </button>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecordsTab('withdrawals');
+                      setShowWithdrawForm(true);
+                      document.getElementById('records-workspace')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <ArrowDownLeft size={14} /> سحب أرباح لمؤمن أو مدحت
+                  </button>
+                )}
               </div>
               <p className="text-xs text-stone-500 font-bold">
-                يمكنك مراجعة وتعديل حركات التوريد والمسحوبات في الجداول أسفله 👇
+                يمكنك مراجعة وتعديل حركات التوريد والمسحوبات في قسم السجلات أسفله 👇
               </p>
             </div>
           </div>
@@ -1813,108 +1821,224 @@ export default function TreasuryPage() {
 
       </section>
 
-      {/* ── كروت توزيع رصيد الخزنة الكبيرة وتجميعات طرق التحويل (تفاعلية للفلترة) ── */}
-      <section className="bg-gradient-to-b from-[#FAF7F2] via-amber-50/20 to-white border-2 border-[#D8C7B5] rounded-[2.5rem] p-6 md:p-8 shadow-lg">
-        <div className="flex flex-col items-center text-center justify-center gap-2.5 mb-6">
-          <h2 className="text-2xl md:text-3xl font-black text-[#2A2723] flex items-center justify-center gap-3">
-            <Coins size={28} className="text-[#A88B70]" />
-            توزيع رصيد الخزنة الكبيرة وإجمالي المحافظ
-          </h2>
-          <p className="text-xs md:text-base font-bold text-[#7A7061]">
-            اضغط على أي كارت لفلترة حركات التحويل الخاصة به ومراجعتها بضغطة زر واحدة
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-            <span className="text-xs md:text-sm font-black text-[#2A2723] bg-white px-5 py-2.5 rounded-xl border-2 border-[#D8C7B5] shadow-sm">
-              إجمالي رصيد المحافظ: {money(bigTreasuryBalance)}
-            </span>
-            {transferFilter !== 'all' && (
+      {/* ── لوحة إدارة السجلات والعمليات الموحدة (Master Operations & Records Tab Bar) ── */}
+      <section id="records-workspace" className="scroll-mt-6">
+        {/* شريط التبويبات الرئيسي الموحد مع أزرار الإجراءات السريعة */}
+        <div className="bg-white border-2 border-stone-200 rounded-[2rem] p-4 md:p-5 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4 mb-6">
+          {/* تبويبات الجداول الرئيسية */}
+          <div className="flex flex-wrap items-center justify-center gap-2 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setRecordsTab('bookings')}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all cursor-pointer ${
+                recordsTab === 'bookings'
+                  ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/20 scale-[1.02]'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              <Banknote size={18} />
+              <span>حسابات الحجوزات ({monthlyBookings.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setRecordsTab('deposits')}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all cursor-pointer ${
+                recordsTab === 'deposits'
+                  ? 'bg-indigo-700 text-white shadow-md shadow-indigo-700/20 scale-[1.02]'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              <ArrowDownRight size={18} />
+              <span>توريدات الخزنة الكبيرة ({monthlyDeposits.length})</span>
+            </button>
+
+            {isOwner && (
               <button
-                onClick={() => setTransferFilter('all')}
-                className="text-xs md:text-sm font-black text-blue-700 hover:underline cursor-pointer bg-blue-50 px-4 py-2.5 rounded-xl border-2 border-blue-200 shadow-sm"
+                type="button"
+                onClick={() => setRecordsTab('withdrawals')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all cursor-pointer ${
+                  recordsTab === 'withdrawals'
+                    ? 'bg-rose-700 text-white shadow-md shadow-rose-700/20 scale-[1.02]'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
               >
-                عرض كل التحويلات 🔄
+                <Receipt size={18} />
+                <span>سحوبات الشركاء لمؤمن ومدحت ({monthlyWithdrawals.length})</span>
+              </button>
+            )}
+          </div>
+
+          {/* أزرار الإجراءات السريعة (فتح نماذج التوريد أو السحب بضغطة زر دون تكرار أو زحمة) */}
+          <div className="flex flex-wrap items-center justify-center gap-2 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setRecordsTab('deposits');
+                setShowDepositForm(prev => !prev);
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                showDepositForm && recordsTab === 'deposits'
+                  ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
+                  : 'bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100'
+              }`}
+            >
+              <Plus size={15} />
+              <span>{showDepositForm && recordsTab === 'deposits' ? 'إخفاء نموذج التوريد ✕' : 'تسجيل توريد كاش ➕'}</span>
+            </button>
+
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecordsTab('withdrawals');
+                  setShowWithdrawForm(prev => !prev);
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  showWithdrawForm && recordsTab === 'withdrawals'
+                    ? 'bg-red-700 text-white shadow-sm ring-2 ring-red-400'
+                    : 'bg-rose-50 text-rose-900 border border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                <ArrowDownLeft size={15} />
+                <span>{showWithdrawForm && recordsTab === 'withdrawals' ? 'إخفاء نموذج السحب ✕' : 'تسجيل سحب أرباح ➖'}</span>
               </button>
             )}
           </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PAYMENT_METHODS.map((pm) => {
-            const Icon = pm.icon;
-            const data = bigTreasuryByMethod[pm.id] || { deposited: 0, withdrawn: 0, balance: 0, count: 0 };
-            const isSelected = transferFilter === pm.id;
-            return (
-              <div
-                key={pm.id}
-                onClick={() => setTransferFilter(isSelected ? 'all' : pm.id)}
-                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden shadow-sm ${
-                  isSelected
-                    ? pm.cardSelected
-                    : `${pm.cardBorder} ${pm.cardBg}`
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`p-2.5 rounded-xl border ${pm.color}`}>
-                      <Icon size={18} />
-                    </span>
-                    <div>
-                      <span className={`text-sm font-black block ${pm.textColor}`}>{pm.label}</span>
-                      <span className="text-[10px] text-[#7A7061] font-bold">{data.count} تحويل مسجل</span>
-                    </div>
-                  </div>
-                  {isSelected ? (
-                    <span className="text-[10px] bg-[#2A2723] text-white px-2.5 py-1 rounded-full font-bold shadow-sm">
-                      محدد للجدول ✓
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${pm.badgeColor}`}>
-                      انقر للمراجعة
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-[11px] font-bold text-[#7A7061]">إجمالي المحول (الوارد):</div>
-                  <div className={`text-2xl font-black ${pm.textColor}`}>
-                    {isLoading ? '...' : money(data.deposited)}
-                  </div>
-                </div>
-
-                <div className="text-[10px] text-[#7A7061] font-bold mt-3 pt-2.5 border-t border-[#EAE4D9]/60 flex justify-between">
-                  <span className="text-red-600 font-bold">المسحوب منه: {money(data.withdrawn)}</span>
-                  <span className={`font-black ${pm.textColor}`}>الصافي: {money(data.balance)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* شريط توريد الكاش من الصغيرة للكبيرة */}
-        <div className="mt-4 p-4 rounded-2xl bg-white border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200">
-              <Banknote size={20} />
-            </span>
-            <div>
-              <span className="text-xs font-black text-emerald-950 block">توريد الكاش من الخزنة الصغيرة للكبيرة</span>
-              <span className="text-[11px] text-stone-500 font-bold">
-                إجمالي الكاش المنقول: <strong className="text-emerald-700 font-black">{money(totalCashDepositedToBig)}</strong> ({monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'cash').length} حركة توريد كاش)
-              </span>
-            </div>
-          </div>
-          <a
-            href="#transfer-entry-form"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
-          >
-            <Plus size={15} />
-            <span>تسجيل توريد كاش جديد 💵</span>
-          </a>
-        </div>
       </section>
 
-      {/* ── جدول حركات التوريد (من الخزنة الصغيرة إلى الخزنة الكبيرة) مع الفلترة والتعديل ── */}
-      <section className="bg-gradient-to-b from-indigo-50/90 via-blue-50/30 to-white border-2 border-indigo-300 rounded-[2.5rem] overflow-hidden shadow-lg p-6 md:p-8">
+      {/* ── تبويب توريدات الخزنة الكبيرة (النموذج القابل للطي + الجدول) ── */}
+      {recordsTab === 'deposits' && (
+        <section className="space-y-6 animate-fade-in">
+          {/* نموذج التوريد القابل للطي والإخفاء */}
+          {showDepositForm && (
+            <div id="transfer-entry-form" className="scroll-mt-6 bg-gradient-to-b from-amber-50/70 via-orange-50/20 to-white border-2 border-amber-300 rounded-[2.5rem] p-6 md:p-8 shadow-md">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-amber-950 flex items-center gap-2">
+                    <ArrowUpRight size={24} className="text-amber-600" />
+                    نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة (توريد)
+                  </h2>
+                  <p className="text-xs font-bold text-amber-900/80 mt-1">
+                    تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل لتسميعها فوراً في الخزنة الكبيرة
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDepositForm(false)}
+                  className="text-amber-900 hover:text-black font-black text-xs bg-amber-200/70 hover:bg-amber-300 px-3.5 py-2 rounded-xl transition cursor-pointer"
+                >
+                  إخفاء النموذج ✕
+                </button>
+              </div>
+
+              <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 items-end">
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  المبلغ
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.amount}
+                    onChange={(event) => setForm({ ...form, amount: event.target.value })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+                    placeholder="0"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  طريقة التحويل
+                  <select
+                    value={form.method}
+                    onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethodId })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none focus:border-amber-400"
+                  >
+                    {PAYMENT_METHODS.map((pm) => (
+                      <option key={pm.id} value={pm.id}>{pm.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  المسلّم (من)
+                  <input
+                    required
+                    value={form.handedBy}
+                    onChange={(event) => setForm({ ...form, handedBy: event.target.value })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+                    placeholder="اسم الأدمن المسلّم"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  المستلم (إلى)
+                  <input
+                    required
+                    value={form.receivedBy}
+                    onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+                    placeholder="الخزنة الكبيرة"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-amber-950 bg-amber-100/70 p-1.5 rounded-xl border border-amber-300">
+                  تسميع في حساب شهر
+                  <select
+                    value={form.targetMonth !== undefined ? form.targetMonth : month}
+                    onChange={(e) => setForm({ ...form, targetMonth: Number(e.target.value) })}
+                    className="mt-1.5 w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-amber-500"
+                  >
+                    {MONTHS_AR.map((name, index) => (
+                      <option key={name} value={index}>
+                        {name} {year} {index === month ? '⭐ (المعروض)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  التاريخ
+                  <input
+                    required
+                    type="date"
+                    value={form.date}
+                    onChange={(event) => setForm({ ...form, date: event.target.value })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  ملاحظة
+                  <input
+                    placeholder="ملاحظات التحويل..."
+                    value={form.notes}
+                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+                  />
+                </label>
+                {isOwner && (
+                  <label className="text-[10px] font-black text-emerald-950 bg-emerald-50/90 p-1.5 rounded-xl border border-emerald-300">
+                    حالة الاعتماد
+                    <select
+                      value={form.approvedStatus}
+                      onChange={(e) => setForm({ ...form, approvedStatus: e.target.value as 'PENDING' | 'APPROVED' })}
+                      className="mt-1.5 w-full border border-emerald-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-emerald-500"
+                    >
+                      <option value="PENDING">⏳ غير معتمد (قيد الوصول)</option>
+                      <option value="APPROVED">✅ معتمد فوراً ({approverDisplayName})</option>
+                    </select>
+                  </label>
+                )}
+                <div className="col-span-full flex justify-end mt-2">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="bg-[#2A2723] hover:bg-black text-white rounded-xl px-8 py-3.5 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md"
+                  >
+                    <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* جدول حركات التوريد مع الفلترة والتعديل */}
+          <div className="bg-gradient-to-b from-indigo-50/90 via-blue-50/30 to-white border-2 border-indigo-300 rounded-[2.5rem] overflow-hidden shadow-lg p-6 md:p-8">
         <div className="flex flex-col items-center text-center justify-center gap-3 mb-6">
           <h2 className="text-2xl md:text-3xl font-black text-indigo-950 flex items-center justify-center gap-3">
             <ArrowDownRight size={28} className="text-indigo-600" />
@@ -2129,9 +2253,11 @@ export default function TreasuryPage() {
                 })
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       </section>
+      )}
 
       {/* ── نافذة تعديل حركة التحويل (طريقة الدفع / المبلغ / الملاحظات) ── */}
       {editingTransfer && (
@@ -2258,273 +2384,178 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* ── نموذج نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة (توريد) ── */}
-      <section id="transfer-entry-form" className="scroll-mt-6 bg-gradient-to-b from-amber-50/70 via-orange-50/20 to-white border-2 border-amber-300 rounded-[2.5rem] p-6 md:p-8 shadow-md">
-        <div className="flex flex-col items-center text-center justify-center gap-2 mb-6">
-          <h2 className="text-2xl md:text-3xl font-black text-amber-950 flex items-center justify-center gap-3">
-            <ArrowUpRight size={28} className="text-amber-600" />
-            نقل مبلغ من الخزنة الصغيرة إلى الخزنة الكبيرة
-          </h2>
-          <p className="text-xs md:text-base font-bold text-amber-900/80 mt-1">
-            تسجيل تحويل النقدية المحصلة مع تحديد طريقة التحويل لتسميعها فوراً في الخزنة الكبيرة
-          </p>
-        </div>
 
-        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 items-end">
-          <label className="text-[10px] font-black text-[#7A7061]">
-            المبلغ
-            <input
-              required
-              type="number"
-              min="1"
-              value={form.amount}
-              onChange={(event) => setForm({ ...form, amount: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-              placeholder="0"
-            />
-          </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            طريقة التحويل
-            <select
-              value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethodId })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none focus:border-amber-400"
-            >
-              {PAYMENT_METHODS.map((pm) => (
-                <option key={pm.id} value={pm.id}>{pm.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            المسلّم (من)
-            <input
-              required
-              value={form.handedBy}
-              onChange={(event) => setForm({ ...form, handedBy: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-              placeholder="اسم الأدمن المسلّم"
-            />
-          </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            المستلم (إلى)
-            <input
-              required
-              value={form.receivedBy}
-              onChange={(event) => setForm({ ...form, receivedBy: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-              placeholder="الخزنة الكبيرة"
-            />
-          </label>
-          <label className="text-[10px] font-black text-amber-950 bg-amber-100/70 p-1.5 rounded-xl border border-amber-300">
-            تسميع في حساب شهر
-            <select
-              value={form.targetMonth !== undefined ? form.targetMonth : month}
-              onChange={(e) => setForm({ ...form, targetMonth: Number(e.target.value) })}
-              className="mt-1.5 w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-amber-500"
-            >
-              {MONTHS_AR.map((name, index) => (
-                <option key={name} value={index}>
-                  {name} {year} {index === month ? '⭐ (المعروض)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            التاريخ
-            <input
-              required
-              type="date"
-              value={form.date}
-              onChange={(event) => setForm({ ...form, date: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-            />
-          </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            ملاحظة
-            <input
-              placeholder="ملاحظات التحويل..."
-              value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-            />
-          </label>
-          {isOwner && (
-            <label className="text-[10px] font-black text-emerald-950 bg-emerald-50/90 p-1.5 rounded-xl border border-emerald-300">
-              حالة الاعتماد
-              <select
-                value={form.approvedStatus}
-                onChange={(e) => setForm({ ...form, approvedStatus: e.target.value as 'PENDING' | 'APPROVED' })}
-                className="mt-1.5 w-full border border-emerald-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-emerald-500"
-              >
-                <option value="PENDING">⏳ غير معتمد (قيد الوصول)</option>
-                <option value="APPROVED">✅ معتمد فوراً ({approverDisplayName})</option>
-              </select>
-            </label>
-          )}
-          <div className="col-span-full flex justify-end mt-2">
-            <button
-              disabled={isSaving}
-              className="bg-[#2A2723] hover:bg-black text-white rounded-xl px-8 py-3.5 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md"
-            >
-              <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
-            </button>
-          </div>
-        </form>
-      </section>
+      {/* ── قسم السحب من الخزنة الكبيرة (خاص بـ Owner: مؤمن ومدحت فقط) ── */}
+      {recordsTab === 'withdrawals' && isOwner && (
+        <section className="space-y-6 animate-fade-in">
+          {/* نموذج السحب القابل للطي والإخفاء */}
+          {showWithdrawForm && (
+            <div id="withdraw-entry-form" className="scroll-mt-6 bg-gradient-to-b from-rose-100/70 via-red-50/30 to-white border-2 border-rose-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-red-700 flex items-center gap-2">
+                    <ArrowDownLeft size={24} className="text-red-600" />
+                    سحب من الخزنة الكبيرة
+                  </h2>
+                  <p className="text-xs font-bold text-red-900/80 mt-1">
+                    حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawForm(false)}
+                  className="text-red-900 hover:text-black font-black text-xs bg-rose-200/70 hover:bg-rose-300 px-3.5 py-2 rounded-xl transition cursor-pointer"
+                >
+                  إخفاء النموذج ✕
+                </button>
+              </div>
 
-      {/* ── قسم السحب من الخزنة الكبيرة (خاص بـ Owner: مؤمن ومدحت فقط - يظهر فوق الحجوزات) ── */}
-      {isOwner && (
-        <section id="withdraw-entry-form" className="scroll-mt-6 bg-gradient-to-b from-rose-100/70 via-red-50/30 to-white border-2 border-rose-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg">
-          <div className="flex flex-col items-center text-center justify-center gap-2 mb-6">
-            <h2 className="text-2xl md:text-3xl font-black text-red-700 flex items-center justify-center gap-3">
-              <ArrowDownLeft size={28} className="text-red-600" />
-              سحب من الخزنة الكبيرة
-            </h2>
-            <p className="text-xs md:text-base font-bold text-red-900/80 mt-1">
-              حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
-            </p>
-            <div className="inline-flex items-center gap-2 bg-white px-5 py-2.5 rounded-xl border-2 border-red-200 shadow-sm mt-3">
-              <span className="text-xs font-bold text-[#7A7061]">إجمالي سحوبات الشهر:</span>
-              <span className="text-base font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
+              {withdrawError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-black mb-4">{withdrawError}</div>}
+              {withdrawSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs font-black mb-4">{withdrawSuccess}</div>}
+
+              <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end">
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  المبلغ المسحوب
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={withdrawAmount}
+                    onChange={e => setWithdrawAmount(e.target.value)}
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
+                    placeholder="0"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  طريقة السحب
+                  <select
+                    value={withdrawMethod}
+                    onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none focus:border-red-400"
+                  >
+                    {PAYMENT_METHODS.map((pm) => (
+                      <option key={pm.id} value={pm.id}>{pm.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  المسحوب لـ (المستلم)
+                  <select
+                    value={withdrawBy}
+                    onChange={e => setWithdrawBy(e.target.value)}
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none focus:border-red-400"
+                  >
+                    <option value="مؤمن">مؤمن</option>
+                    <option value="مدحت">مدحت</option>
+                  </select>
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061] sm:col-span-2">
+                  السبب / البيان
+                  <input
+                    required
+                    value={withdrawReason}
+                    onChange={e => setWithdrawReason(e.target.value)}
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
+                    placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
+                  />
+                </label>
+                <label className="text-[10px] font-black text-[#7A7061]">
+                  التاريخ
+                  <input
+                    required
+                    type="date"
+                    value={withdrawDate}
+                    onChange={e => setWithdrawDate(e.target.value)}
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
+                  />
+                </label>
+                <button
+                  disabled={isSavingWithdraw}
+                  className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md shadow-red-600/20"
+                >
+                  <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
+                </button>
+              </form>
             </div>
-          </div>
-
-          {withdrawError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-black mb-4">{withdrawError}</div>}
-          {withdrawSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs font-black mb-4">{withdrawSuccess}</div>}
-
-          <form onSubmit={handleWithdrawSubmit} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end">
-            <label className="text-[10px] font-black text-[#7A7061]">
-              المبلغ المسحوب
-              <input
-                required
-                type="number"
-                min="1"
-                value={withdrawAmount}
-                onChange={e => setWithdrawAmount(e.target.value)}
-                className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
-                placeholder="0"
-              />
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              طريقة السحب
-              <select
-                value={withdrawMethod}
-                onChange={e => setWithdrawMethod(e.target.value as PaymentMethodId)}
-                className="mt-2 w-full border-2 border-red-200 rounded-xl px-3 py-3 text-xs font-black bg-white cursor-pointer outline-none focus:border-red-400"
-              >
-                {PAYMENT_METHODS.map((pm) => (
-                  <option key={pm.id} value={pm.id}>{pm.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              المسحوب لـ (المستلم)
-              <select
-                value={withdrawBy}
-                onChange={e => setWithdrawBy(e.target.value)}
-                className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none focus:border-red-400"
-              >
-                <option value="مؤمن">مؤمن</option>
-                <option value="مدحت">مدحت</option>
-              </select>
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061] sm:col-span-2">
-              السبب / البيان
-              <input
-                required
-                value={withdrawReason}
-                onChange={e => setWithdrawReason(e.target.value)}
-                className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
-                placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
-              />
-            </label>
-            <label className="text-[10px] font-black text-[#7A7061]">
-              التاريخ
-              <input
-                required
-                type="date"
-                value={withdrawDate}
-                onChange={e => setWithdrawDate(e.target.value)}
-                className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
-              />
-            </label>
-            <button
-              disabled={isSavingWithdraw}
-              className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md shadow-red-600/20"
-            >
-              <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
-            </button>
-          </form>
+          )}
 
           {/* جدول سحوبات الخزنة الكبيرة */}
-          <div className="mt-6 overflow-x-auto rounded-2xl border-2 border-rose-300 bg-white shadow-sm">
-            <div className="p-4 bg-gradient-to-b from-rose-100/90 to-red-50/60 border-b-2 border-rose-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-right">
-              <h3 className="text-base md:text-lg font-black text-rose-950 flex items-center justify-center gap-2">
-                <Receipt size={20} className="text-rose-600" />
+          <div className="overflow-x-auto rounded-[2.5rem] border-2 border-rose-300 bg-white shadow-lg p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6 text-center sm:text-right">
+              <h3 className="text-xl md:text-2xl font-black text-rose-950 flex items-center justify-center gap-2">
+                <Receipt size={24} className="text-rose-600" />
                 سجل سحوبات الخزنة الكبيرة لهذا الشهر
               </h3>
-              <span className="text-xs font-black text-red-700 bg-white px-3 py-1.5 rounded-lg border-2 border-rose-200 shadow-sm">
-                {monthlyWithdrawals.length} حركة سحب
-              </span>
+              <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200">
+                <span className="text-xs font-bold text-[#7A7061]">إجمالي السحوبات:</span>
+                <span className="text-sm font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
+                <span className="text-[11px] font-black text-red-700 bg-white px-2 py-0.5 rounded-lg border border-rose-200">
+                  {monthlyWithdrawals.length} حركة
+                </span>
+              </div>
             </div>
-            <table className="w-full text-right text-xs">
-              <thead className="bg-gradient-to-r from-red-950 via-rose-900 to-red-950 text-white font-black">
-                <tr>
-                  <th className="p-4 text-white">المبلغ</th>
-                  <th className="p-4 text-white">طريقة السحب</th>
-                  <th className="p-4 text-white">المسحوب لـ</th>
-                  <th className="p-4 text-white">السبب / البيان</th>
-                  <th className="p-4 text-white">التاريخ</th>
-                  <th className="p-4 text-white text-center">حذف</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyWithdrawals.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
-                ) : (
-                  monthlyWithdrawals.map(w => {
-                    const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
-                    const method = detectPaymentMethod(fullText);
-                    const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
-                    const MethodIcon = methodObj.icon;
 
-                    const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
-                    const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
-                    const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
-                    const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
-                    return (
-                      <tr key={w.id} className="border-t border-rose-100 font-bold hover:bg-rose-50/40 transition-colors">
-                        <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
-                        <td className="p-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
-                            <MethodIcon size={13} />
-                            {methodObj.label}
-                          </span>
-                        </td>
-                        <td className="p-4 text-[#2A2723]">{actor}</td>
-                        <td className="p-4 text-[#7A7061]">{reason}</td>
-                        <td className="p-4">{w.transfer_date}</td>
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => removeTransfer(w.id)}
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
-                            title="حذف حركة السحب"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto rounded-2xl border-2 border-rose-300 bg-white shadow-sm">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gradient-to-r from-red-950 via-rose-900 to-red-950 text-white font-black">
+                  <tr>
+                    <th className="p-4 text-white">المبلغ</th>
+                    <th className="p-4 text-white">طريقة السحب</th>
+                    <th className="p-4 text-white">المسحوب لـ</th>
+                    <th className="p-4 text-white">السبب / البيان</th>
+                    <th className="p-4 text-white">التاريخ</th>
+                    <th className="p-4 text-white text-center">حذف</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyWithdrawals.length === 0 ? (
+                    <tr><td colSpan={6} className="p-8 text-center text-[#7A7061] font-bold">لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر</td></tr>
+                  ) : (
+                    monthlyWithdrawals.map(w => {
+                      const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+                      const method = detectPaymentMethod(fullText);
+                      const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                      const MethodIcon = methodObj.icon;
+
+                      const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
+                      const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
+                      const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
+                      const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
+                      return (
+                        <tr key={w.id} className="border-t border-rose-100 font-bold hover:bg-rose-50/40 transition-colors">
+                          <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
+                          <td className="p-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
+                              <MethodIcon size={13} />
+                              {methodObj.label}
+                            </span>
+                          </td>
+                          <td className="p-4 text-[#2A2723]">{actor}</td>
+                          <td className="p-4 text-[#7A7061]">{reason}</td>
+                          <td className="p-4">{w.transfer_date}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => removeTransfer(w.id)}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                              title="حذف حركة السحب"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       )}
 
       {/* ── جدول حركة الحجوزات (المقبوض والمتبقي بدقة) ── */}
-      <section className="bg-gradient-to-b from-emerald-50/90 via-teal-50/30 to-white border-2 border-emerald-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg overflow-hidden">
+      {recordsTab === 'bookings' && (
+      <section className="bg-gradient-to-b from-emerald-50/90 via-teal-50/30 to-white border-2 border-emerald-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg overflow-hidden animate-fade-in">
         <div className="flex flex-col items-center text-center justify-center gap-2.5 mb-6">
           <h2 className="text-2xl md:text-3xl font-black text-emerald-950 flex items-center justify-center gap-3">
             <Banknote size={28} className="text-emerald-600" />
@@ -2657,6 +2688,7 @@ export default function TreasuryPage() {
           </div>
         )}
       </section>
+      )}
 
       {/* ── نافذة تعديل المدفوع والمتبقي للحجز ── */}
       {editingBooking && (
