@@ -314,6 +314,26 @@ export default function TreasuryPage() {
   // فلتر مراجعة التحويلات حسب طريقة الدفع
   const [transferFilter, setTransferFilter] = useState<'all' | PaymentMethodId>('all');
 
+  // المربع النشط المختار من شجرة الخزنة (عند النقر يفتح ما يخصه فوراً)
+  type DetailBoxId = 'cash' | 'instapay' | 'vodafone' | 'uncollected' | 'expenses' | 'total_expected' | 'collected_net' | 'net_expected';
+  const [activeBox, setActiveBox] = useState<DetailBoxId>('cash');
+
+  const handleSelectBox = (boxId: DetailBoxId) => {
+    setActiveBox(boxId);
+    if (boxId === 'cash') setTransferFilter('cash');
+    else if (boxId === 'instapay') setTransferFilter('instapay');
+    else if (boxId === 'vodafone') setTransferFilter('vodafone_cash');
+    else if (boxId === 'uncollected') setBookingFilter('pending');
+    else if (boxId === 'total_expected') setBookingFilter('all');
+    
+    setTimeout(() => {
+      const el = document.getElementById('treasury-detail-viewer');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
+  };
+
   // فلتر جدول الحجوزات
   const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'completed'>('all');
 
@@ -666,6 +686,16 @@ export default function TreasuryPage() {
 
     return summary;
   }, [monthlyDeposits, monthlyWithdrawals]);
+
+  // ── الحسابات المحاسبية المطابقة لشجرة الورقة بالمليم ──
+  const totalAccountMonth = (totalRevenueCollected || 0) + (totalRemainingUncollected || 0);
+  const monthExpensesAmount = totalExpenses || 0;
+  const totalNetExpectedProfit = totalAccountMonth - monthExpensesAmount;
+  const uncollectedAmount = totalRemainingUncollected || 0;
+  const collectedNetProfit = grossTreasury || 0;
+  const branchCashTreasury = smallTreasuryBalance;
+  const bankInstapayTreasury = bigTreasuryByMethod['instapay']?.balance || 0;
+  const vodafoneCashTreasury = bigTreasuryByMethod['vodafone_cash']?.balance || 0;
 
   // فلترة سجل التوريدات حسب طريقة الدفع المختارة
   const filteredDeposits = useMemo(() => {
@@ -1021,88 +1051,591 @@ export default function TreasuryPage() {
 
       {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-xs font-black">{error}</div>}
 
-      {/* ── كروت إحصائيات الخزائن الرئيسية ── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* كارت 1: الخزنة الصغيرة (كاش فقط) */}
-        <div className="bg-gradient-to-b from-[#FBF9F5] via-white to-stone-50 border-2 border-stone-300 p-6 rounded-[2rem] shadow-md relative overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[#7A7061] text-xs font-black">
-                <Wallet size={18} className="text-[#A88B70]" /> الخزنة الصغيرة (الفرعية)
-              </div>
-              <span className="text-[10px] bg-white text-[#7A7061] px-2.5 py-1 rounded-full font-bold border border-stone-300 shadow-sm">
-                رصيد الكاش المتبقي
-              </span>
-            </div>
-            <div className="text-3xl font-black text-[#2A2723] mt-5">
-              {isLoading ? '...' : money(smallTreasuryBalance)}
-            </div>
-          </div>
-          <p className="text-[10px] text-[#7A7061] font-bold mt-4 pt-3 border-t border-stone-200 leading-relaxed">
-            كاش المقبوض ({money(totalCashRevenueCollected || (totalRevenueCollected - totalElectronicDepositedToBig))}) − كل المصروفات ({money(totalExpenses)}) − المحول كاش للكبيرة ({money(totalCashDepositedToBig)})
-          </p>
-        </div>
-
-        {/* كارت 2: الخزنة الكبيرة (الرصيد الفعلي) */}
-        <div className="bg-gradient-to-br from-[#1C1A17] via-[#2A2723] to-[#121110] border-2 border-[#544E46] text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[#D8C7B5] text-xs font-black">
-                <ArrowLeftRight size={18} /> الخزنة الكبيرة (الرئيسية)
-              </div>
-              <span className="text-[10px] bg-white/10 text-[#D8C7B5] px-2.5 py-1 rounded-full font-bold border border-white/10">
-                الرصيد الفعلي
-              </span>
-            </div>
-            <div className="text-3xl font-black text-white mt-5">
-              {isLoading ? '...' : money(bigTreasuryBalance)}
+      {/* ── شجرة الخزنة المحاسبية التفاعلية (طبق الأصل لرسمة الورقة بالمليم) ── */}
+      <section className="bg-gradient-to-b from-[#FDFBF7] via-white to-[#F8F5EE] border-2 border-[#D8C7B5] rounded-[2.5rem] p-6 md:p-8 shadow-xl space-y-6">
+        
+        {/* شريط الإرشاد والتوجيه */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-4 border-b border-[#EAE4D9]">
+          <div className="flex items-center gap-3">
+            <div className="w-3.5 h-9 bg-amber-500 rounded-full" />
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-[#2A2723]">
+                شجرة الخزنة وحسابات شهر {MONTHS_AR[month]} {year}
+              </h2>
+              <p className="text-xs text-[#7A7061] font-bold mt-0.5">
+                انقر على أي مربع في الشجرة لفتح ما يخصه فوراً في الجدول بالأسفل 👇
+              </p>
             </div>
           </div>
-          <div className="text-[10px] text-white/70 font-bold mt-4 pt-3 border-t border-white/10 flex justify-between">
-            <span>المحول إليها: {money(totalDepositedToBig)}</span>
-            {isOwner && <span className="text-red-300">المسحوب منها: {money(totalWithdrawnFromBig)}</span>}
+          <div className="text-xs font-black bg-amber-50 text-amber-950 px-4 py-2.5 rounded-2xl border-2 border-amber-300 shadow-sm flex items-center gap-2">
+            <span className="text-amber-800">المربع المفتوح حالياً:</span>
+            <strong className="underline text-sm font-black">
+              {activeBox === 'cash' && '🟢 خزنة فرعية (كاش)'}
+              {activeBox === 'instapay' && '🔵 حوالات بنكية / انستاباي / فيزا'}
+              {activeBox === 'vodafone' && '🔴 ف كاش / محفظة'}
+              {activeBox === 'uncollected' && '⏳ مبالغ لم يتم تحصيلها'}
+              {activeBox === 'expenses' && '💸 مصروفات شهر'}
+              {activeBox === 'total_expected' && '📋 إجمالي الحساب للشهر'}
+              {activeBox === 'collected_net' && '✨ ما تم تحصيله'}
+              {activeBox === 'net_expected' && '🏆 صافي الربح الشهري الكلي'}
+            </strong>
           </div>
         </div>
 
-        {/* كارت 3: مبالغ تحت التحصيل (متبقي على العملاء — قبل صافي الربح الشهري) */}
-        <div className="bg-gradient-to-b from-amber-100/70 via-amber-50/30 to-white border-2 border-amber-300 p-6 rounded-[2rem] shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-amber-900 text-xs font-black">
-                <Clock size={16} /> مبالغ تحت التحصيل
-              </div>
-              <span className="text-[10px] bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full font-bold border border-amber-200">
-                متبقي على العملاء
-              </span>
+        {/* ── المستوى الأول: إجمالي الحساب − مصروفات الشهر = صافي الربح الشهري ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+          
+          {/* 1. إجمالي الحساب للشهر (أكتوبر) */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('total_expected')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+              activeBox === 'total_expected'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xl ring-4 ring-slate-400/50 scale-[1.02]'
+                : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 shadow-sm'
+            }`}
+          >
+            <div className="text-xs font-bold opacity-80 mb-1">إجمالي الحساب للشهر ({MONTHS_AR[month]})</div>
+            <div className="text-2xl md:text-3xl font-black">{isLoading ? '...' : money(totalAccountMonth)}</div>
+            <div className="text-[11px] mt-2 opacity-75 font-semibold">
+              إجمالي قيمة حجوزات الشهر كاملة (المقبوض + المتبقي)
             </div>
-            <div className="text-3xl font-black text-amber-800 mt-5">
-              {isLoading ? '...' : money(totalRemainingUncollected)}
+          </button>
+
+          {/* 2. مصروفات شهر (أكتوبر) */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('expenses')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+              activeBox === 'expenses'
+                ? 'bg-rose-900 text-white border-rose-900 shadow-xl ring-4 ring-rose-400/50 scale-[1.02]'
+                : 'bg-rose-50/70 hover:bg-rose-100/70 border-rose-200 text-rose-950 shadow-sm'
+            }`}
+          >
+            <div className="text-xs font-bold opacity-80 mb-1 flex items-center justify-between">
+              <span>مصروفات شهر ({MONTHS_AR[month]})</span>
+              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                activeBox === 'expenses' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'
+              }`}>− طرح</span>
             </div>
-          </div>
-          <p className="text-[10px] text-amber-800 font-bold mt-4 pt-3 border-t border-amber-200 leading-relaxed">
-            مبالغ متبقية على العملاء لم تُدفع بعد — لا تدخل في الخزائن حتى يتم تحصيلها وتصفير المتبقي.
-          </p>
+            <div className={`text-2xl md:text-3xl font-black ${activeBox === 'expenses' ? 'text-white' : 'text-rose-600'}`}>
+              {isLoading ? '...' : money(monthExpensesAmount)}
+            </div>
+            <div className="text-[11px] mt-2 opacity-75 font-semibold">
+              كل المصروفات المسحوبة من الخزنة ({monthlyExpenses.length} مصروف)
+            </div>
+          </button>
+
+          {/* 3. صافي الربح الشهري (الكلي) */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('net_expected')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+              activeBox === 'net_expected'
+                ? 'bg-emerald-800 text-white border-emerald-900 shadow-xl ring-4 ring-emerald-400/50 scale-[1.02]'
+                : 'bg-emerald-50/70 hover:bg-emerald-100/70 border-emerald-300 text-emerald-950 shadow-sm'
+            }`}
+          >
+            <div className="text-xs font-bold opacity-80 mb-1 flex items-center justify-between">
+              <span>صافي الربح الشهري الكلي</span>
+              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                activeBox === 'net_expected' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'
+              }`}>= الناتج</span>
+            </div>
+            <div className={`text-2xl md:text-3xl font-black ${activeBox === 'net_expected' ? 'text-white' : 'text-emerald-700'}`}>
+              {isLoading ? '...' : money(totalNetExpectedProfit)}
+            </div>
+            <div className="text-[11px] mt-2 opacity-75 font-semibold">
+              إجمالي الحساب للشهر − كل المصروفات
+            </div>
+          </button>
+
         </div>
 
-        {/* كارت 4: صافي أرباح الشهر (المحصل بالخزائن) */}
-        <div className="bg-gradient-to-b from-emerald-50/80 via-white to-emerald-50/30 border-2 border-emerald-300 p-6 rounded-[2rem] shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-black text-emerald-900">صافي أرباح الشهر</div>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold border border-emerald-200">
+        {/* ── أسهم التفرع للمستوى الثاني ── */}
+        <div className="flex items-center justify-center gap-3 text-stone-400 font-bold text-xs py-1">
+          <div className="h-0.5 flex-1 bg-stone-200" />
+          <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full border border-stone-200">
+            ⬇️ يتفرع إلى: مبالغ لم يتم تحصيلها + ما تم تحصيله ⬇️
+          </span>
+          <div className="h-0.5 flex-1 bg-stone-200" />
+        </div>
+
+        {/* ── المستوى الثاني: مبالغ لم يتم تحصيلها + ما تم تحصيله ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          
+          {/* مبالغ لم يتم تحصيلها */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('uncollected')}
+            className={`p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+              activeBox === 'uncollected'
+                ? 'bg-amber-100/95 border-amber-600 shadow-xl ring-4 ring-amber-500/40 scale-[1.02]'
+                : 'bg-amber-50/60 hover:bg-amber-100/60 border-amber-300 text-amber-950 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-black text-amber-900 flex items-center gap-1.5">
+                <Clock size={16} /> مبالغ لم يتم تحصيلها
+              </span>
+              <span className="text-[10px] bg-amber-200 text-amber-950 px-2.5 py-1 rounded-full font-black border border-amber-300">
+                تحت التحصيل
+              </span>
+            </div>
+            <div className="text-3xl font-black text-amber-800 my-2">
+              {isLoading ? '...' : money(uncollectedAmount)}
+            </div>
+            <div className="text-[11px] text-amber-900/80 font-bold">
+              مبالغ متبقية على العملاء لم تُدفع بعد — انقر لعرض الحجوزات المعلقة وسدادها
+            </div>
+          </button>
+
+          {/* ما تم تحصيله (صافي الربح الشهري المحصل) */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('collected_net')}
+            className={`p-6 rounded-2xl border-2 text-right transition-all cursor-pointer relative ${
+              activeBox === 'collected_net'
+                ? 'bg-emerald-100/95 border-emerald-600 shadow-xl ring-4 ring-emerald-500/40 scale-[1.02]'
+                : 'bg-emerald-50/60 hover:bg-emerald-100/60 border-emerald-300 text-emerald-950 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-black text-emerald-900 flex items-center gap-1.5">
+                <CheckCircle2 size={16} /> ما تم تحصيله (صافي الربح الشهري المحصل)
+              </span>
+              <span className="text-[10px] bg-emerald-200 text-emerald-950 px-2.5 py-1 rounded-full font-black border border-emerald-300">
                 المحصل بالخزائن
               </span>
             </div>
-            <div className="text-3xl font-black text-emerald-700 mt-5">
-              {isLoading ? '...' : money(grossTreasury)}
+            <div className="text-3xl font-black text-emerald-700 my-2">
+              {isLoading ? '...' : money(collectedNetProfit)}
+            </div>
+            <div className="text-[11px] text-emerald-900/80 font-bold">
+              مجموع الخزنة الفرعية الكاش + الحوالات البنكية/إنستاباي + فودافون كاش
+            </div>
+          </button>
+
+        </div>
+
+        {/* ── أسهم التفرع للمستوى الثالث (المربعات الثلاثة بالألوان المكتوبة في الورقة) ── */}
+        <div className="flex items-center justify-center gap-3 text-stone-400 font-bold text-xs py-1">
+          <div className="h-0.5 flex-1 bg-stone-200" />
+          <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full border border-stone-200">
+            ⬇️ تفريعة ما تم تحصيله إلى الخزائن والمحافظ (أخضر • أزرق • أحمر) ⬇️
+          </span>
+          <div className="h-0.5 flex-1 bg-stone-200" />
+        </div>
+
+        {/* ── المستوى الثالث: المربعات الثلاثة بالألوان الصريحة ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* المربع 1: خزنة فرعية (كاش) [أخضر] */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('cash')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+              activeBox === 'cash'
+                ? 'bg-emerald-700 text-white border-emerald-800 shadow-2xl ring-4 ring-emerald-400/50 scale-[1.03]'
+                : 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-300 text-emerald-950 shadow-sm'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-black text-sm flex items-center gap-1.5">
+                  <Wallet size={16} /> خزنة فرعية (كاش)
+                </span>
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                  activeBox === 'cash' ? 'bg-white text-emerald-800 border-white' : 'bg-emerald-200 text-emerald-900 border-emerald-300'
+                }`}>
+                  أخضر 🟢
+                </span>
+              </div>
+              <div className="text-2xl md:text-3xl font-black my-2">{isLoading ? '...' : money(branchCashTreasury)}</div>
+            </div>
+            <div className={`text-[10px] font-bold pt-2.5 border-t mt-2 leading-relaxed ${
+              activeBox === 'cash' ? 'border-white/20 text-emerald-100' : 'border-emerald-200 text-emerald-800'
+            }`}>
+              رصيد الكاش الفعلي في الدرج (المقبوض كاش − المصروفات − المحول كاش)
+            </div>
+          </button>
+
+          {/* المربع 2: حوالات بنكية / انستاباي / فيزا [أزرق] */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('instapay')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+              activeBox === 'instapay'
+                ? 'bg-blue-700 text-white border-blue-800 shadow-2xl ring-4 ring-blue-400/50 scale-[1.03]'
+                : 'bg-blue-50 hover:bg-blue-100/80 border-blue-300 text-blue-950 shadow-sm'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-black text-sm flex items-center gap-1.5">
+                  <Zap size={16} /> حوالات بنكية / انستاباي / فيزا
+                </span>
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                  activeBox === 'instapay' ? 'bg-white text-blue-800 border-white' : 'bg-blue-200 text-blue-900 border-blue-300'
+                }`}>
+                  أزرق 🔵
+                </span>
+              </div>
+              <div className="text-2xl md:text-3xl font-black my-2">{isLoading ? '...' : money(bankInstapayTreasury)}</div>
+            </div>
+            <div className={`text-[10px] font-bold pt-2.5 border-t mt-2 leading-relaxed ${
+              activeBox === 'instapay' ? 'border-white/20 text-blue-100' : 'border-blue-200 text-blue-800'
+            }`}>
+              إجمالي رصيد الحساب البنكي وإنستا باي والفيزا (الوارد − المسحوب)
+            </div>
+          </button>
+
+          {/* المربع 3: ف كاش / محفظة [أحمر] */}
+          <button
+            type="button"
+            onClick={() => handleSelectBox('vodafone')}
+            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
+              activeBox === 'vodafone'
+                ? 'bg-rose-700 text-white border-rose-800 shadow-2xl ring-4 ring-rose-400/50 scale-[1.03]'
+                : 'bg-rose-50 hover:bg-rose-100/80 border-rose-300 text-rose-950 shadow-sm'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-black text-sm flex items-center gap-1.5">
+                  <Smartphone size={16} /> ف كاش / محفظة
+                </span>
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                  activeBox === 'vodafone' ? 'bg-white text-rose-800 border-white' : 'bg-rose-200 text-rose-900 border-rose-300'
+                }`}>
+                  أحمر 🔴
+                </span>
+              </div>
+              <div className="text-2xl md:text-3xl font-black my-2">{isLoading ? '...' : money(vodafoneCashTreasury)}</div>
+            </div>
+            <div className={`text-[10px] font-bold pt-2.5 border-t mt-2 leading-relaxed ${
+              activeBox === 'vodafone' ? 'border-white/20 text-rose-100' : 'border-rose-200 text-rose-800'
+            }`}>
+              إجمالي رصيد ومحفظة فودافون كاش (الوارد − المسحوب)
+            </div>
+          </button>
+
+        </div>
+
+      </section>
+
+      {/* ── لوحة تفاصيل المربع المختار (انقر على أي مربع يفتح ما يخصه فوراً) ── */}
+      <section id="treasury-detail-viewer" className="scroll-mt-6 bg-white border-2 border-stone-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg space-y-6">
+        
+        {/* رأس قسم التفاصيل */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-stone-200">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className={`p-2 rounded-xl text-white font-black ${
+                activeBox === 'cash' ? 'bg-emerald-600' :
+                activeBox === 'instapay' ? 'bg-blue-600' :
+                activeBox === 'vodafone' ? 'bg-rose-600' :
+                activeBox === 'uncollected' ? 'bg-amber-600' :
+                activeBox === 'expenses' ? 'bg-rose-700' :
+                'bg-slate-800'
+              }`}>
+                {activeBox === 'cash' && <Wallet size={20} />}
+                {activeBox === 'instapay' && <Zap size={20} />}
+                {activeBox === 'vodafone' && <Smartphone size={20} />}
+                {activeBox === 'uncollected' && <Clock size={20} />}
+                {activeBox === 'expenses' && <Receipt size={20} />}
+                {(activeBox === 'total_expected' || activeBox === 'net_expected' || activeBox === 'collected_net') && <Coins size={20} />}
+              </span>
+              <div>
+                <h3 className="text-xl font-black text-stone-900">
+                  {activeBox === 'cash' && 'تفاصيل: خزنة فرعية (كاش) — رصيد الكاش وحركاته'}
+                  {activeBox === 'instapay' && 'تفاصيل: حوالات بنكية / انستاباي / فيزا'}
+                  {activeBox === 'vodafone' && 'تفاصيل: ف كاش / محفظة فودافون كاش'}
+                  {activeBox === 'uncollected' && 'تفاصيل: مبالغ لم يتم تحصيلها (المتبقي على العملاء)'}
+                  {activeBox === 'expenses' && `تفاصيل: مصروفات شهر ${MONTHS_AR[month]} ${year}`}
+                  {activeBox === 'total_expected' && `تفاصيل: إجمالي الحساب وكافة حجوزات شهر ${MONTHS_AR[month]} ${year}`}
+                  {activeBox === 'collected_net' && `تفاصيل: ما تم تحصيله (صافي أرباح الشهر المحصلة)`}
+                  {activeBox === 'net_expected' && `تفاصيل: صافي الربح الشهري الكلي لشهر ${MONTHS_AR[month]} ${year}`}
+                </h3>
+                <p className="text-xs text-stone-500 font-bold">
+                  {activeBox === 'cash' && 'بيان حركات الكاش المسحوبة والموردة ورصيد الدرج الصافي المتبقي'}
+                  {activeBox === 'instapay' && 'بيان حركات التحويل البنكي والإنستاباي والفيزا الموردة للخزنة الكبيرة'}
+                  {activeBox === 'vodafone' && 'بيان حركات وتحويلات فودافون كاش والمحافظ الإلكترونية'}
+                  {activeBox === 'uncollected' && 'قائمة بجميع الحجوزات المعلقة التي عليها متبقي لسداده أو تصفيره'}
+                  {activeBox === 'expenses' && 'قائمة بكافة أذونات وفواتير الصرف المسحوبة من الخزنة الصغيرة'}
+                  {(activeBox === 'total_expected' || activeBox === 'net_expected' || activeBox === 'collected_net') && 'قائمة بالحجوزات المؤكدة والإيرادات المقبوضة'}
+                </p>
+              </div>
             </div>
           </div>
-          <p className="text-[10px] text-[#7A7061] font-bold mt-4 pt-3 border-t border-emerald-200/60 leading-relaxed">
-            {isOwner
-              ? `الصغيرة (${money(smallTreasuryBalance)}) + الكبيرة (${money(bigTreasuryBalance)}) + المسحوب (${money(totalWithdrawnFromBig)})`
-              : `الصغيرة (${money(smallTreasuryBalance)}) + الكبيرة (${money(bigTreasuryBalance)})`}
-          </p>
+
+          {/* تبديل سريع بين المربعات */}
+          <div className="flex flex-wrap gap-1.5 bg-stone-100 p-1.5 rounded-2xl border border-stone-200">
+            <button
+              onClick={() => handleSelectBox('cash')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${activeBox === 'cash' ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-700 hover:bg-white'}`}
+            >
+              كاش 🟢
+            </button>
+            <button
+              onClick={() => handleSelectBox('instapay')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${activeBox === 'instapay' ? 'bg-blue-600 text-white shadow-sm' : 'text-stone-700 hover:bg-white'}`}
+            >
+              إنستاباي/بنك 🔵
+            </button>
+            <button
+              onClick={() => handleSelectBox('vodafone')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${activeBox === 'vodafone' ? 'bg-rose-600 text-white shadow-sm' : 'text-stone-700 hover:bg-white'}`}
+            >
+              ف كاش 🔴
+            </button>
+            <button
+              onClick={() => handleSelectBox('uncollected')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${activeBox === 'uncollected' ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-700 hover:bg-white'}`}
+            >
+              تحت التحصيل ⏳
+            </button>
+            <button
+              onClick={() => handleSelectBox('expenses')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${activeBox === 'expenses' ? 'bg-rose-700 text-white shadow-sm' : 'text-stone-700 hover:bg-white'}`}
+            >
+              المصروفات 💸
+            </button>
+          </div>
         </div>
+
+        {/* ── محتوى المربع المختار ── */}
+        {/* الحالة 1: كاش 🟢 */}
+        {activeBox === 'cash' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200">
+              <div>
+                <p className="text-[10px] text-emerald-800 font-bold">كاش الحجوزات المقبوض</p>
+                <p className="text-lg font-black text-emerald-950">{money(totalCashRevenueCollected || (totalRevenueCollected - totalElectronicDepositedToBig))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-rose-800 font-bold">كل المصروفات المسحوبة</p>
+                <p className="text-lg font-black text-rose-700">− {money(totalExpenses)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-indigo-800 font-bold">المحول كاش للكبيرة</p>
+                <p className="text-lg font-black text-indigo-900">− {money(totalCashDepositedToBig)}</p>
+              </div>
+              <div className="bg-emerald-600 text-white p-2.5 rounded-xl text-center">
+                <p className="text-[10px] text-emerald-100 font-bold">رصيد الكاش المتبقي في الدرج</p>
+                <p className="text-xl font-black">{money(branchCashTreasury)}</p>
+              </div>
+            </div>
+
+            <div className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50">
+              <h4 className="font-black text-xs text-stone-800 mb-2">حركات التوريد الكاش المحولة للخزنة الكبيرة ({monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'cash').length} حركة):</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'cash').map(t => (
+                  <div key={t.id} className="p-2.5 bg-white rounded-xl border border-stone-200 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-black text-emerald-700">{money(Number(t.amount))}</span>
+                      <span className="text-stone-500 mr-2">مسلم من: {t.handed_by} ⬅️ مستلم: {t.received_by}</span>
+                    </div>
+                    <span className="text-stone-400 text-[11px] font-mono">{t.transfer_date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* الحالة 2: حوالات بنكية / انستاباي / فيزا 🔵 */}
+        {activeBox === 'instapay' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-blue-50/70 p-4 rounded-2xl border border-blue-200">
+              <div>
+                <p className="text-[10px] text-blue-800 font-bold">إجمالي المحول للبنك وإنستا باي</p>
+                <p className="text-lg font-black text-blue-950">{money(bigTreasuryByMethod['instapay']?.deposited || 0)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-rose-800 font-bold">المسحوب منه</p>
+                <p className="text-lg font-black text-rose-700">− {money(bigTreasuryByMethod['instapay']?.withdrawn || 0)}</p>
+              </div>
+              <div className="bg-blue-600 text-white p-2.5 rounded-xl text-center">
+                <p className="text-[10px] text-blue-100 font-bold">صافي رصيد البنك وإنستا باي</p>
+                <p className="text-xl font-black">{money(bankInstapayTreasury)}</p>
+              </div>
+            </div>
+
+            <div className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50">
+              <h4 className="font-black text-xs text-stone-800 mb-2">حركات إنستا باي والتحويل البنكي المسجلة:</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'instapay').map(t => (
+                  <div key={t.id} className="p-2.5 bg-white rounded-xl border border-blue-200 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-black text-blue-700">{money(Number(t.amount))}</span>
+                      <span className="text-stone-500 mr-2">من: {t.handed_by} ⬅️ إلى: {t.received_by}</span>
+                      {t.notes && <span className="text-[11px] text-stone-400 block mt-0.5">{t.notes}</span>}
+                    </div>
+                    <span className="text-stone-400 text-[11px] font-mono">{t.transfer_date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* الحالة 3: ف كاش / محفظة 🔴 */}
+        {activeBox === 'vodafone' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-rose-50/70 p-4 rounded-2xl border border-rose-200">
+              <div>
+                <p className="text-[10px] text-rose-800 font-bold">إجمالي المحول لمحفظة فودافون كاش</p>
+                <p className="text-lg font-black text-rose-950">{money(bigTreasuryByMethod['vodafone_cash']?.deposited || 0)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-stone-600 font-bold">المسحوب منه</p>
+                <p className="text-lg font-black text-stone-700">− {money(bigTreasuryByMethod['vodafone_cash']?.withdrawn || 0)}</p>
+              </div>
+              <div className="bg-rose-600 text-white p-2.5 rounded-xl text-center">
+                <p className="text-[10px] text-rose-100 font-bold">صافي رصيد محفظة ف كاش</p>
+                <p className="text-xl font-black">{money(vodafoneCashTreasury)}</p>
+              </div>
+            </div>
+
+            <div className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50">
+              <h4 className="font-black text-xs text-stone-800 mb-2">حركات فودافون كاش المسجلة:</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {monthlyDeposits.filter(t => detectPaymentMethod(`${t.notes || ''} ${t.handed_by || ''}`).id === 'vodafone_cash').map(t => (
+                  <div key={t.id} className="p-2.5 bg-white rounded-xl border border-rose-200 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-black text-rose-700">{money(Number(t.amount))}</span>
+                      <span className="text-stone-500 mr-2">من: {t.handed_by} ⬅️ إلى: {t.received_by}</span>
+                      {t.notes && <span className="text-[11px] text-stone-400 block mt-0.5">{t.notes}</span>}
+                    </div>
+                    <span className="text-stone-400 text-[11px] font-mono">{t.transfer_date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* الحالة 4: مبالغ لم يتم تحصيلها ⏳ */}
+        {activeBox === 'uncollected' && (
+          <div className="space-y-4">
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-amber-900 font-black">إجمالي المتبقي تحت التحصيل على العملاء</p>
+                <p className="text-2xl font-black text-amber-800">{money(uncollectedAmount)}</p>
+              </div>
+              <span className="text-xs font-black bg-amber-200 text-amber-950 px-3 py-1.5 rounded-xl">
+                {pendingBookings.length} حجز معلق عليه باقي
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-amber-200 bg-white">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-amber-100/70 text-amber-950 font-black">
+                  <tr>
+                    <th className="p-3">اسم العميل</th>
+                    <th className="p-3">الإجمالي</th>
+                    <th className="p-3">المدفوع</th>
+                    <th className="p-3 text-red-600">المتبقي المطلوب</th>
+                    <th className="p-3">التاريخ</th>
+                    <th className="p-3 text-center">إجراء سريع</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingBookings.length === 0 ? (
+                    <tr><td colSpan={6} className="p-8 text-center text-stone-400 font-bold">لا توجد مبالغ متبقية، كل الحسابات خالصة ومحصلة بنجاح ✅</td></tr>
+                  ) : (
+                    pendingBookings.map(b => (
+                      <tr key={b.id} className="border-t border-amber-100 hover:bg-amber-50/50">
+                        <td className="p-3 font-bold text-stone-900">{b.name || b.customerName}</td>
+                        <td className="p-3 font-bold">{money(b.totalAmount)}</td>
+                        <td className="p-3 font-bold text-emerald-700">{money(b.calculatedPaid)}</td>
+                        <td className="p-3 font-black text-red-600 text-sm">{money(b.calculatedRemaining)}</td>
+                        <td className="p-3 text-stone-500 font-mono">{b.checkIn}</td>
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => markBookingAsFullyPaid(b)}
+                            disabled={markingId === b.id}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-black text-[11px] transition cursor-pointer"
+                          >
+                            {markingId === b.id ? 'جاري السداد...' : 'سداد كامل الباقي ✓'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* الحالة 5: المصروفات 💸 */}
+        {activeBox === 'expenses' && (
+          <div className="space-y-4">
+            <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-rose-900 font-black">إجمالي مصروفات شهر {MONTHS_AR[month]} {year}</p>
+                <p className="text-2xl font-black text-rose-700">{money(monthExpensesAmount)}</p>
+              </div>
+              <span className="text-xs font-black bg-rose-200 text-rose-950 px-3 py-1.5 rounded-xl">
+                {monthlyExpenses.length} فاتورة وإذن صرف
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white max-h-80 overflow-y-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-rose-100/70 text-rose-950 font-black sticky top-0">
+                  <tr>
+                    <th className="p-3">المبلغ</th>
+                    <th className="p-3">التاريخ</th>
+                    <th className="p-3">البيان / الفاتورة</th>
+                    <th className="p-3">المصروف إليه</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyExpenses.map((e, idx) => (
+                    <tr key={idx} className="border-t border-stone-100 hover:bg-rose-50/30">
+                      <td className="p-3 font-black text-rose-700">{money(Number(e.amount))}</td>
+                      <td className="p-3 font-mono text-stone-500">{e.date}</td>
+                      <td className="p-3 font-semibold text-stone-800">{e.description || e.category}</td>
+                      <td className="p-3 text-stone-600">{e.to_entity || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* الحالة 6: إجمالي الحساب / صافي الربح / ما تم تحصيله 📋 */}
+        {(activeBox === 'total_expected' || activeBox === 'net_expected' || activeBox === 'collected_net') && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-stone-100/70 p-4 rounded-2xl border border-stone-200">
+              <div>
+                <p className="text-[10px] text-stone-600 font-bold">إجمالي الحساب</p>
+                <p className="text-base font-black text-stone-900">{money(totalAccountMonth)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-emerald-800 font-bold">المحصل بالخزائن</p>
+                <p className="text-base font-black text-emerald-700">{money(collectedNetProfit)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-amber-800 font-bold">تحت التحصيل</p>
+                <p className="text-base font-black text-amber-700">{money(uncollectedAmount)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-stone-600 font-bold">عدد الحجوزات</p>
+                <p className="text-base font-black text-stone-900">{monthlyBookings.length} حجز مؤكد</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-500 font-bold text-center">
+              يمكنك الاطلاع على الجدول الكامل لكل الحجوزات أو التحويلات في الأقسام أسفله 👇
+            </p>
+          </div>
+        )}
+
       </section>
 
       {/* ── كروت توزيع رصيد الخزنة الكبيرة وتجميعات طرق التحويل (تفاعلية للفلترة) ── */}
