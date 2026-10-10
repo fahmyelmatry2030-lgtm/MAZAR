@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   Coins,
+  CreditCard,
   Edit3,
   Plus,
   Receipt,
@@ -128,6 +129,39 @@ const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
   const d = new Date(s);
   if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() };
   return null;
+};
+
+const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): Array<{ method: string; amount: number | string }> => {
+  if (!raw || !raw.trim()) {
+    return [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
+  }
+  const clean = raw.trim();
+  const parts = clean.split(/[|+\n،,]+/).map(p => p.trim()).filter(Boolean);
+  const parsed: Array<{ method: string; amount: number | string }> = [];
+
+  for (const part of parts) {
+    const colonMatch = part.match(/^(.*?)\s*[:=]\s*(\d+(?:\.\d+)?)/);
+    if (colonMatch) {
+      let m = colonMatch[1].replace(/ج\.?م|جنيه/g, '').trim();
+      let a = parseFloat(colonMatch[2]) || '';
+      parsed.push({ method: m || 'كاش', amount: a });
+      continue;
+    }
+
+    const revMatch = part.match(/^(\d+(?:\.\d+)?)\s*(?:ج\.?م|جنيه)?\s*(.*)$/);
+    if (revMatch && revMatch[2].trim()) {
+      let a = parseFloat(revMatch[1]) || '';
+      let m = revMatch[2].trim() || 'كاش';
+      parsed.push({ method: m, amount: a });
+      continue;
+    }
+
+    if (part) {
+      parsed.push({ method: part, amount: fallbackTotal > 0 && parsed.length === 0 ? fallbackTotal : '' });
+    }
+  }
+
+  return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
 };
 
 const CONFIRMED_STATUSES = ['approved', 'مؤكد', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
@@ -244,6 +278,9 @@ export default function TreasuryPage() {
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
   const [editPaidInput, setEditPaidInput] = useState<string>('');
   const [editNotesInput, setEditNotesInput] = useState<string>('');
+  const [editSplits, setEditSplits] = useState<Array<{ method: string; amount: number | string }>>([
+    { method: 'كاش', amount: '' }
+  ]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // نافذة تعديل حركة التحويل (المبلغ / طريقة الدفع / الملاحظات)
@@ -649,8 +686,48 @@ export default function TreasuryPage() {
   // فتح نافذة تعديل المدفوع والمتبقي للحجز
   const openEditModal = (booking: any) => {
     setEditingBooking(booking);
-    setEditPaidInput(String(booking.calculatedPaid ?? booking.totalAmount ?? ''));
+    const paid = booking.calculatedPaid ?? booking.totalAmount ?? '';
+    setEditPaidInput(String(paid));
     setEditNotesInput(booking.notes || '');
+    setEditSplits(parsePaymentSplitsFromString(booking.paymentMethod, Number(paid) || 0));
+  };
+
+  const handleAddEditSplit = () => {
+    const currentTotal = editSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(editingBooking?.totalAmount || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    setEditSplits(prev => [
+      ...prev,
+      { method: 'فيزا', amount: remaining > 0 ? remaining : '' }
+    ]);
+  };
+
+  const handleRemoveEditSplit = (idx: number) => {
+    if (editSplits.length <= 1) {
+      setEditSplits([{ method: 'كاش', amount: '' }]);
+      return;
+    }
+    setEditSplits(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateEditSplit = (idx: number, field: 'method' | 'amount', val: any) => {
+    setEditSplits(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      return next;
+    });
+  };
+
+  const handleFillRemainingEditSplit = () => {
+    const currentTotal = editSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(editingBooking?.totalAmount || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    if (remaining > 0) {
+      setEditSplits(prev => [
+        ...prev,
+        { method: 'فيزا', amount: remaining }
+      ]);
+    }
   };
 
   // حفظ تعديل المدفوع والمتبقي للحجز
@@ -658,19 +735,28 @@ export default function TreasuryPage() {
     e.preventDefault();
     if (!editingBooking) return;
     const total = Number(editingBooking.totalAmount || 0);
-    const paid = Math.min(total, Math.max(0, parseFloat(editPaidInput) || 0));
+
+    const validSplits = editSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
+    const totalSplits = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const paid = totalSplits > 0 ? totalSplits : Math.min(total, Math.max(0, parseFloat(editPaidInput) || 0));
     const remaining = Math.max(0, total - paid);
     const isClean = remaining === 0;
+
+    const formattedPaymentMethod = validSplits.length > 0
+      ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
+      : (editingBooking.paymentMethod || 'كاش');
 
     setIsSavingEdit(true);
     try {
       let notes = editNotesInput.trim();
-      notes = notes.replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').trim();
-      const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}]${isClean ? ' [حساب خالص]' : ''}`;
+      notes = notes.replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').replace(/\[طريقة:[^\]]+\]/g, '').replace(/\[طريقة الدفع:[^\]]+\]/g, '').trim();
+      const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
       const finalNotes = notes ? `${notes} | ${tagString}` : tagString;
 
       await updateDbBookingStatus(editingBooking.id, {
         paidAmount: paid,
+        remainingAmount: remaining,
+        paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
         paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
         notes: finalNotes,
@@ -1400,6 +1486,7 @@ export default function TreasuryPage() {
                   <th className="p-4 text-white">الدخول - الخروج</th>
                   <th className="p-4 text-white">إجمالي الحجز</th>
                   <th className="p-4 bg-emerald-800/80 text-emerald-100">تم دفع (بالخزنة) 🟢</th>
+                  <th className="p-4 text-white">طريقة الدفع 💳</th>
                   <th className="p-4 bg-amber-800/80 text-amber-100">المتبقي (خارجها) ⏳</th>
                   <th className="p-4 text-white">الحالة</th>
                   <th className="p-4 text-white">الملاحظات</th>
@@ -1418,6 +1505,15 @@ export default function TreasuryPage() {
                     <td className="p-4 font-black text-[#2A2723]">{money(Number(b.totalAmount) || 0)}</td>
                     <td className="p-4 bg-emerald-50/30 font-black text-emerald-700 text-sm">
                       {money(b.calculatedPaid)}
+                    </td>
+                    <td className="p-4">
+                      {b.paymentMethod ? (
+                        <span className="inline-block text-[11px] font-black bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-1 rounded-xl max-w-xs break-words shadow-sm">
+                          {b.paymentMethod}
+                        </span>
+                      ) : (
+                        <span className="text-[#A59D90] font-normal text-xs">—</span>
+                      )}
                     </td>
                     <td className="p-4 bg-amber-50/30 font-black text-sm">
                       {b.calculatedRemaining > 0 ? (
@@ -1474,10 +1570,10 @@ export default function TreasuryPage() {
       {/* ── نافذة تعديل المدفوع والمتبقي للحجز ── */}
       {editingBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-md p-6 shadow-2xl space-y-5 animate-scale-in" dir="rtl">
+          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-lg md:max-w-xl p-6 shadow-2xl space-y-5 animate-scale-in" dir="rtl">
             <div className="flex items-center justify-between border-b border-[#EAE4D9]/60 pb-3">
               <div>
-                <h3 className="text-base font-black text-[#2A2723]">تعديل حساب الحجز</h3>
+                <h3 className="text-base font-black text-[#2A2723]">تعديل حساب الحجز وطرق الدفع</h3>
                 <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
                   العميل: {editingBooking.name || 'عميل'} ({editingBooking.apartmentId || editingBooking.studio})
                 </p>
@@ -1496,30 +1592,123 @@ export default function TreasuryPage() {
                 <span className="font-black text-base text-[#2A2723]">{money(Number(editingBooking.totalAmount || 0))}</span>
               </div>
 
-              <div>
-                <label className="text-xs font-black text-[#2A2723] block mb-1.5">
-                  المبلغ المدفوع (المحصل فعلياً بالخزنة)
-                </label>
-                <div className="relative">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    max={Number(editingBooking.totalAmount || 0)}
-                    value={editPaidInput}
-                    onChange={(e) => setEditPaidInput(e.target.value)}
-                    className="w-full border-2 border-emerald-300 focus:border-emerald-600 bg-emerald-50/30 rounded-xl px-4 py-3 text-base font-black text-emerald-800 outline-none"
-                    placeholder="0"
-                  />
-                  <span className="absolute left-3 top-3.5 text-xs font-bold text-[#7A7061]">ج.م</span>
+              {/* طرق الدفع والتوزيع بالخزنة */}
+              <div className="space-y-3 bg-gradient-to-b from-[#FBF9F5] to-white p-4 rounded-2xl border-2 border-[#D8C7B5]">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-[#D8C7B5]/60">
+                  <div>
+                    <label className="text-xs font-black text-[#2A2723] flex items-center gap-1.5">
+                      <CreditCard size={16} className="text-[#A88B70]" />
+                      <span>توزيع طرق الدفع (كاش / فيزا / إنستا باي / فودافون كاش)</span>
+                    </label>
+                    <p className="text-[10px] font-bold text-[#7A7061] mt-0.5">
+                      يمكنك تقسيم المبلغ على أكثر من طريقة دفع لتسجيلها بالخزنة بدقة
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEditSplit}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-3 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>إضافة طريقة</span>
+                  </button>
                 </div>
-              </div>
 
-              <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/80 flex justify-between items-center text-xs">
-                <span className="font-bold text-amber-900">المبلغ المتبقي المحسوب:</span>
-                <span className="font-black text-base text-rose-600">
-                  {money(Math.max(0, Number(editingBooking.totalAmount || 0) - (parseFloat(editPaidInput) || 0)))}
-                </span>
+                <div className="space-y-2">
+                  {editSplits.map((split, idx) => {
+                    const isCustom = !['كاش', 'فيزا', 'إنستا باي / حساب بنكي', 'فودافون كاش'].includes(split.method);
+                    return (
+                      <div key={idx} className="bg-white p-2.5 rounded-xl border border-[#EAE4D9] shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-1">
+                          <span className="text-xs font-black text-[#A88B70] w-4">{idx + 1}.</span>
+                          <select
+                            value={isCustom ? 'أخرى' : split.method}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleUpdateEditSplit(idx, 'method', val === 'أخرى' ? '' : val);
+                            }}
+                            className="bg-[#FAF7F2] border border-[#D8C7B5] rounded-xl px-2.5 py-1.5 text-xs font-black text-[#2A2723] outline-none flex-1"
+                          >
+                            <option value="كاش">💵 كاش (نقدي)</option>
+                            <option value="فيزا">💳 فيزا / بطاقة بنكية</option>
+                            <option value="إنستا باي / حساب بنكي">⚡ إنستا باي / حساب بنكي</option>
+                            <option value="فودافون كاش">📱 فودافون كاش</option>
+                            <option value="أخرى">📝 أخرى...</option>
+                          </select>
+                          {isCustom && (
+                            <input
+                              type="text"
+                              placeholder="اسم الطريقة"
+                              value={split.method}
+                              onChange={(e) => handleUpdateEditSplit(idx, 'method', e.target.value)}
+                              className="bg-white border border-[#D8C7B5] rounded-xl px-2.5 py-1 text-xs font-black text-[#2A2723] outline-none w-28"
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-1">
+                          <label className="text-[10px] font-black text-[#7A7061] whitespace-nowrap">المبلغ:</label>
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min="0"
+                              value={split.amount}
+                              onChange={(e) => handleUpdateEditSplit(idx, 'amount', e.target.value)}
+                              placeholder="0"
+                              className="w-full bg-white border border-[#D8C7B5] rounded-xl px-3 py-1.5 text-xs font-black text-[#2A2723] outline-none"
+                            />
+                            <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-[#7A7061]">ج.م</span>
+                          </div>
+                        </div>
+
+                        {editSplits.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditSplit(idx)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg font-black"
+                            title="حذف"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(() => {
+                  const splitsTotal = editSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                  const bookingTotal = Number(editingBooking?.totalAmount || 0);
+                  const remaining = Math.max(0, bookingTotal - splitsTotal);
+                  return (
+                    <div className="bg-white p-2.5 rounded-xl border border-[#D8C7B5] flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-[#7A7061]">
+                          الموزع: <strong className="text-emerald-700 font-black">{money(splitsTotal)}</strong>
+                        </span>
+                        {remaining > 0 ? (
+                          <span className="text-rose-600 font-black">
+                            المتبقي: {money(remaining)}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 font-black">
+                            خالص ✔️
+                          </span>
+                        )}
+                      </div>
+
+                      {remaining > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleFillRemainingEditSplit}
+                          className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg"
+                        >
+                          ➕ إضافة المتبقي ({money(remaining)})
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

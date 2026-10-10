@@ -9,10 +9,48 @@ import {
   saveDbBooking,
   deleteDbBooking
 } from '@/lib/actions/db';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles } from 'lucide-react';
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
+
+type PaymentSplitItem = {
+  method: string;
+  amount: number | string;
+};
+
+const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): PaymentSplitItem[] => {
+  if (!raw || !raw.trim()) {
+    return [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
+  }
+  const clean = raw.trim();
+  const parts = clean.split(/[|+\n،,]+/).map(p => p.trim()).filter(Boolean);
+  const parsed: PaymentSplitItem[] = [];
+
+  for (const part of parts) {
+    const colonMatch = part.match(/^(.*?)\s*[:=]\s*(\d+(?:\.\d+)?)/);
+    if (colonMatch) {
+      let m = colonMatch[1].replace(/ج\.?م|جنيه/g, '').trim();
+      let a = parseFloat(colonMatch[2]) || '';
+      parsed.push({ method: m || 'كاش', amount: a });
+      continue;
+    }
+
+    const revMatch = part.match(/^(\d+(?:\.\d+)?)\s*(?:ج\.?م|جنيه)?\s*(.*)$/);
+    if (revMatch && revMatch[2].trim()) {
+      let a = parseFloat(revMatch[1]) || '';
+      let m = revMatch[2].trim() || 'كاش';
+      parsed.push({ method: m, amount: a });
+      continue;
+    }
+
+    if (part) {
+      parsed.push({ method: part, amount: fallbackTotal > 0 && parsed.length === 0 ? fallbackTotal : '' });
+    }
+  }
+
+  return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
+};
 
 // Units will be fetched dynamically from the database
 const LAYOUT_VERSION = 'v2.0.0'; // Auto-increment this to force-clear client caches
@@ -196,6 +234,9 @@ function ReportsContent() {
   const [saveStatus, setSaveStatus] = useState('');
   const [editingBooking, setEditingBooking] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
+    { method: 'كاش', amount: '' },
+  ]);
   const [activeTab, setActiveTab] = useState<'operational' | 'expenses'>(() => {
     const tab = searchParams.get('tab');
     if (tab === 'operational' || tab === 'expenses') return tab;
@@ -440,19 +481,110 @@ function ReportsContent() {
     }
   };
 
+  const openEditModal = (fullBooking: any) => {
+    setEditingBooking({ ...fullBooking });
+    const initialSplits = parsePaymentSplitsFromString(
+      fullBooking.paymentMethod,
+      fullBooking.paidAmount !== undefined ? fullBooking.paidAmount : fullBooking.totalAmount
+    );
+    setPaymentSplits(initialSplits);
+    setIsEditModalOpen(true);
+  };
+
+  const handleAddPaymentSplit = () => {
+    const currentTotal = paymentSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(editingBooking?.totalAmount || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    setPaymentSplits(prev => [
+      ...prev,
+      { method: 'فيزا', amount: remaining > 0 ? remaining : '' }
+    ]);
+  };
+
+  const handleRemovePaymentSplit = (idx: number) => {
+    if (paymentSplits.length <= 1) {
+      setPaymentSplits([{ method: 'كاش', amount: '' }]);
+      return;
+    }
+    setPaymentSplits(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdatePaymentSplit = (idx: number, field: 'method' | 'amount', val: any) => {
+    setPaymentSplits(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      return next;
+    });
+  };
+
+  const handleFillRemainingSplit = () => {
+    const currentTotal = paymentSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const bookingTotal = Number(editingBooking?.totalAmount || 0);
+    const remaining = Math.max(0, bookingTotal - currentTotal);
+    if (remaining > 0) {
+      setPaymentSplits(prev => [
+        ...prev,
+        { method: 'فيزا', amount: remaining }
+      ]);
+    }
+  };
+
   const handleFullUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBooking) return;
 
     try {
       setSaveStatus('جاري حفظ التعديلات...');
-      const freshData = await updateDbBookingStatus(editingBooking.id, editingBooking);
+
+      // Process payment splits
+      const validSplits = paymentSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
+      const totalSplits = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      const bookingTotal = Number(editingBooking.totalAmount || 0);
+
+      const formattedPaymentMethod = validSplits.length > 0
+        ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
+        : (editingBooking.paymentMethod || 'كاش');
+
+      let finalPaid = totalSplits > 0 ? totalSplits : (editingBooking.paidAmount ?? bookingTotal);
+      let finalRemaining = Math.max(0, bookingTotal - finalPaid);
+      let finalStatus = finalRemaining === 0 ? 'خالص' : 'باقي';
+
+      // Respect explicit user status if splits didn't specify amounts
+      if (editingBooking.paymentStatus && validSplits.length === 0) {
+        finalStatus = editingBooking.paymentStatus;
+        if (finalStatus === 'خالص') {
+          finalPaid = bookingTotal;
+          finalRemaining = 0;
+        }
+      }
+
+      let existingNotes = String(editingBooking.notes || '')
+        .replace(/\[مدفوع:[^\]]*\]/g, '')
+        .replace(/\[متبقي:[^\]]*\]/g, '')
+        .replace(/\[باقي:[^\]]*\]/g, '')
+        .replace(/\[طريقة:[^\]]*\]/g, '')
+        .replace(/\[طريقة الدفع:[^\]]*\]/g, '')
+        .trim();
+      const tags = `[مدفوع: ${finalPaid}] [متبقي: ${finalRemaining}] [طريقة: ${formattedPaymentMethod}]`;
+      const finalNotes = existingNotes ? `${existingNotes} ${tags}` : tags;
+
+      const payload = {
+        ...editingBooking,
+        paymentMethod: formattedPaymentMethod,
+        paidAmount: finalPaid,
+        remainingAmount: finalRemaining,
+        paymentStatus: finalStatus,
+        paymentInfo: finalStatus,
+        notes: finalNotes,
+      };
+
+      const freshData = await updateDbBookingStatus(editingBooking.id, payload);
       if (freshData && Array.isArray(freshData)) {
         setBookings(freshData);
       }
       setIsEditModalOpen(false);
       setEditingBooking(null);
-      setSaveStatus('✅ تم تحديث كافة البيانات');
+      setSaveStatus('✅ تم تحديث كافة البيانات وحفظ طرق الدفع بالخزنة');
       setTimeout(() => setSaveStatus(''), 3000);
     } catch (err) {
       console.error(err);
@@ -1738,8 +1870,7 @@ function ReportsContent() {
                                     onClick={() => {
                                       const fullBooking = bookings.find(b => b.id === row.id);
                                       if (fullBooking) {
-                                        setEditingBooking({ ...fullBooking });
-                                        setIsEditModalOpen(true);
+                                        openEditModal(fullBooking);
                                       }
                                     }}
                                     className="w-8 h-8 flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
@@ -1967,16 +2098,6 @@ function ReportsContent() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-2">طريقة الدفع</label>
-                        <input
-                          type="text"
-                          value={editingBooking.paymentMethod || ''}
-                          onChange={e => setEditingBooking({ ...editingBooking, paymentMethod: e.target.value })}
-                          placeholder="طريقة الدفع"
-                          className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C1A68D] font-bold"
-                        />
-                      </div>
-                      <div className="space-y-2">
                         <label className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-2">حالة العميل (يدوياً)</label>
                         <select
                           value={editingBooking.clientStatus || 'انتظار'}
@@ -1988,12 +2109,146 @@ function ReportsContent() {
                           <option value="غادر">غادر</option>
                         </select>
                       </div>
-                      <div className="space-y-2">
+
+                      {/* ── طرق الدفع المتعددة والتوزيع بالخزنة (كاش / فيزا / فودافون كاش / إنستا باي) ── */}
+                      <div className="col-span-1 md:col-span-2 space-y-3 bg-gradient-to-b from-[#FBF9F5] to-white p-4 md:p-6 rounded-2xl border-2 border-[#D8C7B5] shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#D8C7B5]/60">
+                          <div>
+                            <label className="text-xs md:text-sm font-black text-[#2A2723] flex items-center gap-2">
+                              <CreditCard size={18} className="text-[#A88B70]" />
+                              <span>طرق الدفع والتوزيع المالي (كاش / فيزا / فودافون كاش / إنستا باي)</span>
+                            </label>
+                            <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
+                              حدد طريقة الدفع والمبلغ، ويمكنك إضافة أكثر من طريقة (مثلاً 600 كاش + 600 فيزا) لتسجيلها بالخزنة بدقة
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAddPaymentSplit}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            <Plus size={15} />
+                            <span>إضافة طريقة دفع أخرى</span>
+                          </button>
+                        </div>
+
+                        {/* قائمة خانات طرق الدفع الموزعة */}
+                        <div className="space-y-2.5">
+                          {paymentSplits.map((split, idx) => {
+                            const isCustom = !['كاش', 'فيزا', 'إنستا باي / حساب بنكي', 'فودافون كاش'].includes(split.method);
+                            return (
+                              <div
+                                key={idx}
+                                className="bg-[#FAF7F2] p-3 rounded-xl border border-[#EAE4D9] shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+                              >
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="text-xs font-black text-[#A88B70] w-5 text-center">{idx + 1}.</span>
+                                  <select
+                                    value={isCustom ? 'أخرى' : split.method}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === 'أخرى') {
+                                        handleUpdatePaymentSplit(idx, 'method', '');
+                                      } else {
+                                        handleUpdatePaymentSplit(idx, 'method', val);
+                                      }
+                                    }}
+                                    className="bg-white border-2 border-[#D8C7B5] rounded-xl px-3 py-2 text-xs font-black text-[#2A2723] outline-none cursor-pointer flex-1 focus:border-[#2A2723]"
+                                  >
+                                    <option value="كاش">💵 كاش (نقدي)</option>
+                                    <option value="فيزا">💳 فيزا / بطاقة بنكية</option>
+                                    <option value="إنستا باي / حساب بنكي">⚡ إنستا باي / حساب بنكي</option>
+                                    <option value="فودافون كاش">📱 فودافون كاش</option>
+                                    <option value="أخرى">📝 طريقة مخصصة أخرى...</option>
+                                  </select>
+                                  {isCustom && (
+                                    <input
+                                      type="text"
+                                      placeholder="اسم الطريقة (مثلاً تحويل...)"
+                                      value={split.method}
+                                      onChange={(e) => handleUpdatePaymentSplit(idx, 'method', e.target.value)}
+                                      className="bg-white border-2 border-[#D8C7B5] rounded-xl px-3 py-2 text-xs font-black text-[#2A2723] outline-none w-36"
+                                    />
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-1">
+                                  <label className="text-[11px] font-black text-[#7A7061] whitespace-nowrap">المبلغ:</label>
+                                  <div className="relative flex-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={split.amount}
+                                      onChange={(e) => handleUpdatePaymentSplit(idx, 'amount', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-white border-2 border-[#D8C7B5] rounded-xl px-4 py-2 text-sm font-black text-[#2A2723] outline-none focus:border-emerald-600"
+                                    />
+                                    <span className="absolute left-3 top-2 text-[10px] font-bold text-[#7A7061]">ج.م</span>
+                                  </div>
+                                </div>
+
+                                {paymentSplits.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePaymentSplit(idx)}
+                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-100/60 p-2 rounded-lg transition-colors cursor-pointer self-end sm:self-center font-black"
+                                    title="حذف هذا البند"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* ملخص الاحتساب والمتبقي */}
+                        {(() => {
+                          const splitsTotal = paymentSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                          const bookingTotal = Number(editingBooking?.totalAmount || 0);
+                          const remaining = Math.max(0, bookingTotal - splitsTotal);
+                          const isFullyPaid = bookingTotal > 0 && splitsTotal >= bookingTotal;
+
+                          return (
+                            <div className="bg-white p-3.5 rounded-xl border border-[#D8C7B5] flex flex-wrap items-center justify-between gap-3 text-xs mt-1">
+                              <div className="flex flex-wrap items-center gap-4">
+                                <span className="font-bold text-[#7A7061]">
+                                  إجمالي الموزع بالطرق: <strong className="text-emerald-700 font-black text-sm">{splitsTotal.toLocaleString()} ج.م</strong>
+                                </span>
+                                <span className="font-bold text-[#7A7061]">
+                                  إجمالي قيمة الحجز: <strong className="text-[#2A2723] font-black text-sm">{bookingTotal.toLocaleString()} ج.م</strong>
+                                </span>
+                                {isFullyPaid ? (
+                                  <span className="text-emerald-700 font-black bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
+                                    مسدد بالكامل ✔️ (يدخل الخزنة)
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-600 font-black bg-rose-50 px-3 py-1 rounded-lg border border-rose-200">
+                                    المتبقي: {remaining.toLocaleString()} ج.م (باقي فلوس ❌)
+                                  </span>
+                                )}
+                              </div>
+
+                              {remaining > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={handleFillRemainingSplit}
+                                  className="text-[11px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                                >
+                                  ➕ توزيع المتبقي ({remaining.toLocaleString()} ج.م) كبند دفع إضافي
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="space-y-2 col-span-1 md:col-span-2">
                         <label className="text-[10px] font-black text-[#C1A68D] uppercase tracking-widest px-2">حالة الحساب والخزنة</label>
                         <select
                           value={editingBooking.paymentStatus || 'خالص'}
                           onChange={e => setEditingBooking({ ...editingBooking, paymentStatus: e.target.value })}
-                          className={`w-full border rounded-xl px-4 py-3 text-sm outline-none font-black ${
+                          className={`w-full border-2 rounded-xl px-4 py-3 text-sm outline-none font-black ${
                             editingBooking.paymentStatus === 'باقي'
                               ? 'bg-rose-50 text-rose-700 border-rose-300'
                               : 'bg-green-50 text-green-700 border-green-300'
