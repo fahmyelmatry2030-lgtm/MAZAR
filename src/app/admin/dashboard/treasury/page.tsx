@@ -498,8 +498,12 @@ export default function TreasuryPage() {
     bookingsWithBreakdown,
     pendingBookings,
     completedBookings,
+    totalCashRevenueCollected,
+    totalElectronicRevenueCollected,
   } = useMemo(() => {
     let revPaid = 0;
+    let revCash = 0;
+    let revElectronic = 0;
     let remUncollected = 0;
     let comm = 0;
 
@@ -529,16 +533,30 @@ export default function TreasuryPage() {
       revPaid += p;
       remUncollected += r;
 
+      const combinedMethod = `${b.paymentMethod || ''} ${b.paymentInfo || ''} ${b.notes || ''}`.toLowerCase();
+      const isElec = combinedMethod.includes('فودافون') || combinedMethod.includes('vodafone') ||
+                     combinedMethod.includes('انستا') || combinedMethod.includes('إنستا') ||
+                     combinedMethod.includes('instapay') || combinedMethod.includes('بنك') ||
+                     combinedMethod.includes('فيزا') || combinedMethod.includes('visa');
+      if (isElec) {
+        revElectronic += p;
+      } else {
+        revCash += p;
+      }
+
       return {
         ...b,
         calculatedPaid: p,
         calculatedRemaining: r,
         isFullyPaid: r === 0,
+        isElectronicPayment: isElec,
       };
     });
 
     return {
       totalRevenueCollected: revPaid,
+      totalCashRevenueCollected: revCash,
+      totalElectronicRevenueCollected: revElectronic,
       totalRemainingUncollected: remUncollected,
       totalCommissions: comm,
       bookingsWithBreakdown: list,
@@ -570,6 +588,23 @@ export default function TreasuryPage() {
     return monthlyDeposits.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
   }, [monthlyDeposits]);
 
+  // تقسيم التوريدات للخزنة الكبيرة: كاش فقط مقابل إلكتروني (فودافون كاش / إنستا باي)
+  const totalCashDepositedToBig = useMemo(() => {
+    return monthlyDeposits.reduce((sum, t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      const method = detectPaymentMethod(fullText).id;
+      return method === 'cash' ? sum + (Number(t?.amount) || 0) : sum;
+    }, 0);
+  }, [monthlyDeposits]);
+
+  const totalElectronicDepositedToBig = useMemo(() => {
+    return monthlyDeposits.reduce((sum, t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      const method = detectPaymentMethod(fullText).id;
+      return method !== 'cash' ? sum + (Number(t?.amount) || 0) : sum;
+    }, 0);
+  }, [monthlyDeposits]);
+
   // سحوبات الخزنة الكبيرة في هذا الشهر (مؤمن ومدحت) - تتبع الشهر المستهدف المخصص
   const monthlyWithdrawals = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
@@ -593,10 +628,14 @@ export default function TreasuryPage() {
     return totalDepositedToBig - totalWithdrawnFromBig;
   }, [totalDepositedToBig, totalWithdrawnFromBig]);
 
-  // 2) رصيد الخزنة الصغيرة = صافي المقبوض فعلياً بعد المصروفات - ما تم تحويله للخزنة الكبيرة
+  // 2) رصيد الخزنة الصغيرة = كاش الحجوزات المقبوض - العمولات - كل المصروفات - ما تم تحويله كاش فقط للكبيرة
+  // (المبالغ الإلكترونية إنستا باي وفودافون كاش لا تُخصم من الصغيرة لأنها تذهب مباشرة للكبيرة)
   const smallTreasuryBalance = useMemo(() => {
-    return (grossTreasury || 0) - totalDepositedToBig;
-  }, [grossTreasury, totalDepositedToBig]);
+    if (totalCashRevenueCollected > 0) {
+      return totalCashRevenueCollected - (totalCommissions || 0) - (totalExpenses || 0) - totalCashDepositedToBig;
+    }
+    return (grossTreasury || 0) - totalCashDepositedToBig;
+  }, [totalCashRevenueCollected, totalCommissions, totalExpenses, totalCashDepositedToBig, grossTreasury]);
 
   // ── تفصيل رصيد الخزنة الكبيرة وتجميعات طرق الدفع (كاش، إنستا باي / بنك، فودافون كاش) ──
   const bigTreasuryByMethod = useMemo(() => {
@@ -984,7 +1023,7 @@ export default function TreasuryPage() {
 
       {/* ── كروت إحصائيات الخزائن الرئيسية ── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* كارت الخزنة الصغيرة */}
+        {/* كارت 1: الخزنة الصغيرة (كاش فقط) */}
         <div className="bg-gradient-to-b from-[#FBF9F5] via-white to-stone-50 border-2 border-stone-300 p-6 rounded-[2rem] shadow-md relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -992,7 +1031,7 @@ export default function TreasuryPage() {
                 <Wallet size={18} className="text-[#A88B70]" /> الخزنة الصغيرة (الفرعية)
               </div>
               <span className="text-[10px] bg-white text-[#7A7061] px-2.5 py-1 rounded-full font-bold border border-stone-300 shadow-sm">
-                المتبقي للتحويل
+                رصيد الكاش المتبقي
               </span>
             </div>
             <div className="text-3xl font-black text-[#2A2723] mt-5">
@@ -1000,11 +1039,11 @@ export default function TreasuryPage() {
             </div>
           </div>
           <p className="text-[10px] text-[#7A7061] font-bold mt-4 pt-3 border-t border-stone-200 leading-relaxed">
-            صافي المقبوض فعلياً ({money(totalRevenueCollected - totalCommissions)}) − كل المصروفات ({money(totalExpenses)}) − المحول للكبيرة ({money(totalDepositedToBig)})
+            كاش المقبوض ({money(totalCashRevenueCollected || (totalRevenueCollected - totalElectronicDepositedToBig))}) − كل المصروفات ({money(totalExpenses)}) − المحول كاش للكبيرة ({money(totalCashDepositedToBig)})
           </p>
         </div>
 
-        {/* كارت الخزنة الكبيرة (الرصيد الإجمالي) */}
+        {/* كارت 2: الخزنة الكبيرة (الرصيد الفعلي) */}
         <div className="bg-gradient-to-br from-[#1C1A17] via-[#2A2723] to-[#121110] border-2 border-[#544E46] text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -1025,7 +1064,27 @@ export default function TreasuryPage() {
           </div>
         </div>
 
-        {/* كارت إجمالي صافي الأرباح المقبوضة فعلياً */}
+        {/* كارت 3: مبالغ تحت التحصيل (متبقي على العملاء — قبل صافي الربح الشهري) */}
+        <div className="bg-gradient-to-b from-amber-100/70 via-amber-50/30 to-white border-2 border-amber-300 p-6 rounded-[2rem] shadow-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-amber-900 text-xs font-black">
+                <Clock size={16} /> مبالغ تحت التحصيل
+              </div>
+              <span className="text-[10px] bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full font-bold border border-amber-200">
+                متبقي على العملاء
+              </span>
+            </div>
+            <div className="text-3xl font-black text-amber-800 mt-5">
+              {isLoading ? '...' : money(totalRemainingUncollected)}
+            </div>
+          </div>
+          <p className="text-[10px] text-amber-800 font-bold mt-4 pt-3 border-t border-amber-200 leading-relaxed">
+            مبالغ متبقية على العملاء لم تُدفع بعد — لا تدخل في الخزائن حتى يتم تحصيلها وتصفير المتبقي.
+          </p>
+        </div>
+
+        {/* كارت 4: صافي أرباح الشهر (المحصل بالخزائن) */}
         <div className="bg-gradient-to-b from-emerald-50/80 via-white to-emerald-50/30 border-2 border-emerald-300 p-6 rounded-[2rem] shadow-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -1038,25 +1097,10 @@ export default function TreasuryPage() {
               {isLoading ? '...' : money(grossTreasury)}
             </div>
           </div>
-          <p className="text-[10px] text-[#7A7061] font-bold mt-4 pt-3 border-t border-emerald-200/60">
+          <p className="text-[10px] text-[#7A7061] font-bold mt-4 pt-3 border-t border-emerald-200/60 leading-relaxed">
             {isOwner
               ? `الصغيرة (${money(smallTreasuryBalance)}) + الكبيرة (${money(bigTreasuryBalance)}) + المسحوب (${money(totalWithdrawnFromBig)})`
               : `الصغيرة (${money(smallTreasuryBalance)}) + الكبيرة (${money(bigTreasuryBalance)})`}
-          </p>
-        </div>
-
-        {/* كارت مبالغ تحت التحصيل (متبقي على العملاء) */}
-        <div className="bg-gradient-to-b from-amber-100/70 via-amber-50/30 to-white border-2 border-amber-300 p-6 rounded-[2rem] shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-amber-900 text-xs font-black">
-              <Clock size={16} /> مبالغ تحت التحصيل
-            </div>
-            <div className="text-3xl font-black text-amber-800 mt-5">
-              {isLoading ? '...' : money(totalRemainingUncollected)}
-            </div>
-          </div>
-          <p className="text-[10px] text-amber-800 font-bold mt-4 pt-3 border-t border-amber-200 leading-relaxed">
-            مبالغ متبقية على العملاء لم تُدفع بعد — لا تدخل في الخزنة حتى يتم تحصيلها وتصفير المتبقي.
           </p>
         </div>
       </section>
