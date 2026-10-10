@@ -1555,6 +1555,21 @@ export async function getDbTreasuryTransfers() {
       }
     }
 
+    let targetMonthTag = '';
+    if (handedBy.includes('[حساب_شهر:')) {
+      const match = handedBy.match(/\[حساب_شهر:\s*([^\]]+)\]/);
+      if (match) {
+        targetMonthTag = `[حساب_شهر: ${match[1]}]`;
+        handedBy = handedBy.replace(/\[حساب_شهر:\s*([^\]]+)\]/g, '').trim();
+      }
+    } else if (handedBy.includes('[شهر:')) {
+      const match = handedBy.match(/\[شهر:\s*([^\]]+)\]/);
+      if (match) {
+        targetMonthTag = `[حساب_شهر: ${match[1]}]`;
+        handedBy = handedBy.replace(/\[شهر:\s*([^\]]+)\]/g, '').trim();
+      }
+    }
+
     if (handedBy.includes('[سبب:')) {
       const match = handedBy.match(/\[سبب:\s*([^\]]+)\]/);
       if (match) {
@@ -1613,6 +1628,7 @@ export async function getDbTreasuryTransfers() {
     const reconstructedNotes = [
       type === 'withdrawal' ? '[نوع: سحب]' : '',
       methodTag,
+      targetMonthTag,
       reason ? `[سبب: ${reason}]` : '',
       cleanUserNote,
     ].filter(Boolean).join(' ');
@@ -1659,6 +1675,14 @@ export async function saveDbTreasuryTransfer(transfer: any) {
     if (notesText.includes('[سبب:')) {
       const m = notesText.match(/\[سبب:\s*([^\]]+)\]/);
       if (m && !metaTags.some(t => t.startsWith('[سبب:'))) metaTags.push(`[سبب: ${m[1]}]`);
+    }
+
+    if (notesText.includes('[حساب_شهر:')) {
+      const m = notesText.match(/\[حساب_شهر:\s*([^\]]+)\]/);
+      if (m && !metaTags.some(t => t.startsWith('[حساب_شهر:'))) metaTags.push(`[حساب_شهر: ${m[1]}]`);
+    } else if (notesText.includes('[شهر:')) {
+      const m = notesText.match(/\[شهر:\s*([^\]]+)\]/);
+      if (m && !metaTags.some(t => t.startsWith('[حساب_شهر:'))) metaTags.push(`[حساب_شهر: ${m[1]}]`);
     }
 
     const plain = notesText.replace(/\[[^\]]+\]/g, '').trim();
@@ -1726,6 +1750,8 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
       .replace(/\[نوع:[^\]]+\]/g, '')
       .replace(/\[طريقة:[^\]]+\]/g, '')
       .replace(/\[ملاحظة:[^\]]+\]/g, '')
+      .replace(/\[حساب_شهر:[^\]]+\]/g, '')
+      .replace(/\[شهر:[^\]]+\]/g, '')
       .replace(/\[سبب:[^\]]+\]/g, '')
       .replace(/\[المستلم:[^\]]+\]/g, '')
       .replace(/\[وقت:[^\]]+\]/g, '')
@@ -1737,6 +1763,13 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
       if (updates.notes.includes('[طريقة:')) {
         const m = updates.notes.match(/\[طريقة:\s*([^\]]+)\]/);
         if (m) tags.push(`[طريقة: ${m[1]}]`);
+      }
+      if (updates.notes.includes('[حساب_شهر:')) {
+        const m = updates.notes.match(/\[حساب_شهر:\s*([^\]]+)\]/);
+        if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
+      } else if (updates.notes.includes('[شهر:')) {
+        const m = updates.notes.match(/\[شهر:\s*([^\]]+)\]/);
+        if (m) tags.push(`[حساب_شهر: ${m[1]}]`);
       }
       const plainNote = updates.notes.replace(/\[[^\]]+\]/g, '').trim();
       if (plainNote) {

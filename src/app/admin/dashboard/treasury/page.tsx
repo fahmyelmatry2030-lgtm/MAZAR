@@ -131,6 +131,18 @@ const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
   return null;
 };
 
+// Extracts target accounting month (حساب شهر) from transfer metadata/notes if set, otherwise falls back to transfer date
+const getTransferTargetYM = (t: TreasuryTransfer): { year: number; month: number } | null => {
+  const combined = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+  const tagMatch = combined.match(/\[(?:حساب_شهر|شهر_التقرير|حساب|شهر|target_month):\s*(\d{4})[-/](\d{1,2})\]/);
+  if (tagMatch) {
+    const y = parseInt(tagMatch[1], 10);
+    const m = parseInt(tagMatch[2], 10) - 1; // 0-indexed
+    return { year: y, month: m };
+  }
+  return parseDateYM(t.transfer_date);
+};
+
 const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): Array<{ method: string; amount: number | string }> => {
   if (!raw || !raw.trim()) {
     return [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
@@ -229,7 +241,7 @@ const getCleanTransferNote = (transfer: TreasuryTransfer): string => {
   if (noteMatch) return noteMatch[1].trim();
 
   return raw
-    .replace(/\[(طريقة|نوع|سبب|المستلم|وقت):[^\]]+\]/g, '')
+    .replace(/\[(طريقة|نوع|سبب|المستلم|وقت|حساب_شهر|شهر):[^\]]+\]/g, '')
     .replace(/\[[^\]]+\]/g, '')
     .trim();
 };
@@ -251,6 +263,8 @@ export default function TreasuryPage() {
     receivedBy: string;
     method: PaymentMethodId;
     date: string;
+    targetMonth: number;
+    targetYear: number;
     notes: string;
     type: 'deposit' | 'withdrawal';
   }>({
@@ -259,6 +273,8 @@ export default function TreasuryPage() {
     receivedBy: 'الخزنة الكبيرة',
     method: 'cash' as PaymentMethodId,
     date: today.toISOString().slice(0, 10),
+    targetMonth: today.getMonth(),
+    targetYear: today.getFullYear(),
     notes: '',
     type: 'deposit',
   });
@@ -283,12 +299,31 @@ export default function TreasuryPage() {
   ]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // نافذة تعديل حركة التحويل (المبلغ / طريقة الدفع / الملاحظات)
+  // نافذة تعديل حركة التحويل (المبلغ / طريقة الدفع / الملاحظات / الشهر المستهدف)
   const [editingTransfer, setEditingTransfer] = useState<any | null>(null);
   const [editTransferMethod, setEditTransferMethod] = useState<PaymentMethodId>('cash');
   const [editTransferAmount, setEditTransferAmount] = useState<string>('');
   const [editTransferNotes, setEditTransferNotes] = useState<string>('');
+  const [editTransferDate, setEditTransferDate] = useState<string>('');
+  const [editTransferMonth, setEditTransferMonth] = useState<number>(today.getMonth());
+  const [editTransferYear, setEditTransferYear] = useState<number>(today.getFullYear());
   const [isSavingTransferEdit, setIsSavingTransferEdit] = useState(false);
+
+  // مزامنة تلقائية لنموذج التحويل والسحب عند تغيير الشهر أو السنة في رأس الصفحة
+  useEffect(() => {
+    const isCurrent = today.getMonth() === month && today.getFullYear() === year;
+    const defaultDate = isCurrent
+      ? today.toISOString().slice(0, 10)
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+    setForm(prev => ({
+      ...prev,
+      date: defaultDate,
+      targetMonth: month,
+      targetYear: year,
+    }));
+    setWithdrawDate(defaultDate);
+  }, [month, year]);
 
   // --- Owner detection ---
   const [adminInfo, setAdminInfo] = useState<any>(() => {
@@ -367,9 +402,22 @@ export default function TreasuryPage() {
   useEffect(() => { loadData(); }, []);
 
   // ── الحسابات الشهرية المفلترة بالشهر والسنة (تصفير شهري - شهر بشهر) ──
-  // حجوزات الشهر المؤكدة
+  // حجوزات الشهر المؤكدة (تشمل الحجوزات داخل الشهر أو الممتدة إليه)
   const monthlyBookings = useMemo(() => (bookings || []).filter((booking) => {
-    if (!booking || !CONFIRMED_STATUSES.includes(String(booking.status))) return false;
+    if (!booking) return false;
+    const isApproved = CONFIRMED_STATUSES.includes(String(booking.status)) || booking.status === 'approved' || booking.status === 'مؤكد';
+    if (!isApproved) return false;
+
+    // دعم الحجوزات الممتدة عبر الشهور مثل شاشة التقارير
+    const partsIn = booking.checkIn?.split('-');
+    const partsOut = booking.checkOut?.split('-');
+    if (partsIn && partsIn.length >= 2 && partsOut && partsOut.length >= 2) {
+      const inVal = parseInt(partsIn[0], 10) * 12 + (parseInt(partsIn[1], 10) - 1);
+      const outVal = parseInt(partsOut[0], 10) * 12 + (parseInt(partsOut[1], 10) - 1);
+      const selVal = year * 12 + month;
+      if (selVal >= inVal && selVal <= outVal) return true;
+    }
+
     const parsed = parseDateYM(booking.checkIn);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
@@ -442,11 +490,11 @@ export default function TreasuryPage() {
     return monthlyExpenses.reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
   }, [monthlyExpenses]);
 
-  // تحويلات الشهر (من الخزنة الصغيرة إلى الخزنة الكبيرة)
+  // تحويلات الشهر (من الخزنة الصغيرة إلى الخزنة الكبيرة) - تتبع الشهر المستهدف المخصص
   const monthlyDeposits = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
     const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
-    const parsed = parseDateYM(t.transfer_date);
+    const parsed = getTransferTargetYM(t);
     return !isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
@@ -454,11 +502,11 @@ export default function TreasuryPage() {
     return monthlyDeposits.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
   }, [monthlyDeposits]);
 
-  // سحوبات الخزنة الكبيرة في هذا الشهر (مؤمن ومدحت)
+  // سحوبات الخزنة الكبيرة في هذا الشهر (مؤمن ومدحت) - تتبع الشهر المستهدف المخصص
   const monthlyWithdrawals = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
     const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
-    const parsed = parseDateYM(t.transfer_date);
+    const parsed = getTransferTargetYM(t);
     return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
@@ -540,8 +588,11 @@ export default function TreasuryPage() {
         ? (form.receivedBy.includes('مدحت') ? 'مدحت' : 'مؤمن')
         : form.receivedBy;
 
+      const targetM = form.targetMonth !== undefined ? form.targetMonth : month;
+      const targetY = form.targetYear || year;
+      const monthTag = `[حساب_شهر: ${targetY}-${String(targetM + 1).padStart(2, '0')}]`;
       const typeTag = isWithdrawal ? '[نوع: سحب]' : '';
-      const combinedNotes = `${typeTag} [طريقة: ${methodObj.label}]${customNotes ? ` ${customNotes}` : ''}`.trim();
+      const combinedNotes = `${typeTag} [طريقة: ${methodObj.label}] ${monthTag}${customNotes ? ` ${customNotes}` : ''}`.trim();
 
       await saveDbTreasuryTransfer({
         amount: form.amount,
@@ -558,6 +609,8 @@ export default function TreasuryPage() {
         receivedBy: 'الخزنة الكبيرة',
         method: form.method,
         date: form.date,
+        targetMonth: month,
+        targetYear: year,
         notes: '',
         type: 'deposit',
       });
@@ -575,11 +628,15 @@ export default function TreasuryPage() {
     const fullText = `${transfer.notes || ''} ${transfer.handed_by || ''} ${transfer.received_by || ''}`;
     const detected = detectPaymentMethod(fullText).id;
     const cleanNotes = getCleanTransferNote(transfer);
+    const targetYM = getTransferTargetYM(transfer);
 
     setEditingTransfer(transfer);
     setEditTransferMethod(detected);
     setEditTransferAmount(String(transfer.amount || ''));
     setEditTransferNotes(cleanNotes);
+    setEditTransferDate(transfer.transfer_date || '');
+    setEditTransferMonth(targetYM ? targetYM.month : month);
+    setEditTransferYear(targetYM ? targetYM.year : year);
   };
 
   // حفظ تعديل حركة التحويل
@@ -593,10 +650,12 @@ export default function TreasuryPage() {
     try {
       const methodObj = PAYMENT_METHODS.find(m => m.id === editTransferMethod) || PAYMENT_METHODS[0];
       const customNotes = editTransferNotes.trim();
-      const newNotes = `[طريقة: ${methodObj.label}]${customNotes ? ` ${customNotes}` : ''}`;
+      const monthTag = `[حساب_شهر: ${editTransferYear}-${String(editTransferMonth + 1).padStart(2, '0')}]`;
+      const newNotes = `[طريقة: ${methodObj.label}] ${monthTag}${customNotes ? ` ${customNotes}` : ''}`;
 
       await updateDbTreasuryTransfer(editingTransfer.id, {
         amount: amt,
+        transfer_date: editTransferDate || editingTransfer.transfer_date,
         notes: newNotes,
       });
 
@@ -637,6 +696,7 @@ export default function TreasuryPage() {
     try {
       const actorName = withdrawBy.includes('مدحت') ? 'مدحت' : 'مؤمن';
       const methodObj = PAYMENT_METHODS.find(m => m.id === withdrawMethod) || PAYMENT_METHODS[0];
+      const monthTag = `[حساب_شهر: ${year}-${String(month + 1).padStart(2, '0')}]`;
       await saveDbTreasuryTransfer({
         amount: String(amt),
         type: 'withdrawal',
@@ -644,7 +704,7 @@ export default function TreasuryPage() {
         received_by: actorName,
         reason: withdrawReason.trim(),
         transfer_date: withdrawDate,
-        notes: `[نوع: سحب] [طريقة: ${methodObj.label}] [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
+        notes: `[نوع: سحب] [طريقة: ${methodObj.label}] ${monthTag} [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
       });
       setWithdrawAmount('');
       setWithdrawReason('');
@@ -1070,7 +1130,21 @@ export default function TreasuryPage() {
                           <span className="text-[#A59D90] font-normal">—</span>
                         )}
                       </td>
-                      <td className="p-4 text-[#7A7061]">{transfer.transfer_date}</td>
+                      <td className="p-4 text-[#7A7061] whitespace-nowrap">
+                        <div className="font-bold text-[#2A2723]">{transfer.transfer_date}</div>
+                        {(() => {
+                          const targetYM = getTransferTargetYM(transfer);
+                          const actualYM = parseDateYM(transfer.transfer_date);
+                          if (targetYM && actualYM && (targetYM.month !== actualYM.month || targetYM.year !== actualYM.year)) {
+                            return (
+                              <span className="inline-block mt-1 px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-100 text-indigo-900 border border-indigo-300">
+                                🏷️ حساب {MONTHS_AR[targetYM.month]} {targetYM.year} (مبكّر)
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
@@ -1163,6 +1237,34 @@ export default function TreasuryPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-black text-[#2A2723] block mb-1.5">
+                    تسميع في حساب شهر
+                  </label>
+                  <select
+                    value={editTransferMonth}
+                    onChange={(e) => setEditTransferMonth(Number(e.target.value))}
+                    className="w-full border border-[#EAE4D9] rounded-xl px-3 py-2.5 text-xs font-black bg-[#FDFBF7] outline-none cursor-pointer"
+                  >
+                    {MONTHS_AR.map((name, index) => (
+                      <option key={name} value={index}>{name} {editTransferYear}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-black text-[#2A2723] block mb-1.5">
+                    تاريخ المعاملة الفعلي
+                  </label>
+                  <input
+                    type="date"
+                    value={editTransferDate}
+                    onChange={(e) => setEditTransferDate(e.target.value)}
+                    className="w-full border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-black bg-[#FDFBF7] outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-black text-[#2A2723] block mb-1.5">
                   ملاحظات التحويل
@@ -1208,7 +1310,7 @@ export default function TreasuryPage() {
           </p>
         </div>
 
-        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-end">
+        <form onSubmit={submitTransfer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
           <label className="text-[10px] font-black text-[#7A7061]">
             المبلغ
             <input
@@ -1253,14 +1355,19 @@ export default function TreasuryPage() {
               placeholder="الخزنة الكبيرة"
             />
           </label>
-          <label className="text-[10px] font-black text-[#7A7061]">
-            ملاحظة
-            <input
-              placeholder="ملاحظات التحويل..."
-              value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
-            />
+          <label className="text-[10px] font-black text-amber-950 bg-amber-100/70 p-1.5 rounded-xl border border-amber-300">
+            تسميع في حساب شهر
+            <select
+              value={form.targetMonth !== undefined ? form.targetMonth : month}
+              onChange={(e) => setForm({ ...form, targetMonth: Number(e.target.value) })}
+              className="mt-1.5 w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-black bg-white cursor-pointer outline-none focus:border-amber-500"
+            >
+              {MONTHS_AR.map((name, index) => (
+                <option key={name} value={index}>
+                  {name} {year} {index === month ? '⭐ (المعروض)' : ''}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-[10px] font-black text-[#7A7061]">
             التاريخ
@@ -1272,12 +1379,23 @@ export default function TreasuryPage() {
               className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
             />
           </label>
-          <button
-            disabled={isSaving}
-            className="bg-[#2A2723] hover:bg-black text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md"
-          >
-            <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
-          </button>
+          <label className="text-[10px] font-black text-[#7A7061]">
+            ملاحظة
+            <input
+              placeholder="ملاحظات التحويل..."
+              value={form.notes}
+              onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              className="mt-2 w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-amber-400"
+            />
+          </label>
+          <div className="sm:col-span-2 md:col-span-3 lg:col-span-7 flex justify-end mt-2">
+            <button
+              disabled={isSaving}
+              className="bg-[#2A2723] hover:bg-black text-white rounded-xl px-8 py-3.5 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md"
+            >
+              <Plus size={16} /> {isSaving ? 'جاري التحويل...' : 'تسجيل التحويل'}
+            </button>
+          </div>
         </form>
       </section>
 
