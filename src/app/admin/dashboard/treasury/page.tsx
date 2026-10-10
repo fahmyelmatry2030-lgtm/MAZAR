@@ -701,8 +701,12 @@ export default function TreasuryPage() {
     }
   };
 
-  // فتح نافذة تعديل حركة التحويل
+  // فتح نافذة تعديل حركة التحويل (مؤمن ومدحت فقط)
   const openTransferEditModal = (transfer: TreasuryTransfer) => {
+    if (!isOwner) {
+      alert('عفواً، تعديل حركات التوريد مقتصر حصرياً على مؤمن ومدحت فقط.');
+      return;
+    }
     if (isTransferApproved(transfer)) {
       alert('لا يمكن تعديل هذه الحركة لأنها معتمدة رسمياً ومقفلة ضد التعديل. لإجراء تعديل، يجب أولاً إلغاء الاعتماد بواسطة مؤمن أو مدحت.');
       return;
@@ -724,6 +728,10 @@ export default function TreasuryPage() {
   // حفظ تعديل حركة التحويل
   const handleSaveTransferEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOwner) {
+      setError('غير مصرح لك بالتعديل.');
+      return;
+    }
     if (!editingTransfer) return;
     if (isTransferApproved(editingTransfer)) {
       alert('لا يمكن تعديل حركة معتمدة.');
@@ -755,8 +763,12 @@ export default function TreasuryPage() {
     }
   };
 
-  // حذف حركة تحويل
+  // حذف حركة تحويل (مؤمن ومدحت فقط)
   const removeTransfer = async (id: string) => {
+    if (!isOwner) {
+      alert('عفواً، حذف حركات التوريد مقتصر حصرياً على مؤمن ومدحت فقط.');
+      return;
+    }
     const target = transfers.find(t => t.id === id);
     if (target && isTransferApproved(target)) {
       alert('لا يمكن حذف هذه الحركة لأنها معتمدة رسمياً ومقفلة ضد الحذف. لإجراء حذف، يجب أولاً إلغاء الاعتماد بواسطة مؤمن أو مدحت.');
@@ -1304,7 +1316,7 @@ export default function TreasuryPage() {
                         )}
                       </td>
 
-                      {/* عمود الإجراءات (مقفل في حال تم الاعتماد) */}
+                      {/* عمود الإجراءات (خاص بمؤمن ومدحت فقط، ومقفل تماماً عند الاعتماد) */}
                       <td className="p-4 text-center">
                         {approved ? (
                           <div
@@ -1314,11 +1326,11 @@ export default function TreasuryPage() {
                             <Lock size={12} className="text-gray-400 shrink-0" />
                             <span>مغلق ضد التعديل 🔒</span>
                           </div>
-                        ) : (
+                        ) : isOwner ? (
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => openTransferEditModal(transfer)}
-                              title="تعديل طريقة الدفع أو المبلغ"
+                              title="تعديل طريقة الدفع أو المبلغ (خاص بمؤمن ومدحت)"
                               className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
                             >
                               <Edit3 size={12} />
@@ -1326,12 +1338,16 @@ export default function TreasuryPage() {
                             </button>
                             <button
                               onClick={() => removeTransfer(transfer.id)}
-                              title="حذف الحركة"
+                              title="حذف الحركة (خاص بمؤمن ومدحت)"
                               className="text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded-lg cursor-pointer"
                             >
                               <Trash2 size={15} />
                             </button>
                           </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 font-bold bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200 select-none">
+                            عرض فقط 🔒
+                          </span>
                         )}
                       </td>
                     </tr>
