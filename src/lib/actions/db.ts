@@ -197,6 +197,25 @@ export async function getFreshDbBookings(nonce?: string) {
     return null;
   };
 
+  const extractBookingDate = (b: any): string => {
+    if (b.booking_date && String(b.booking_date).trim()) {
+      return normalizeDateString(b.booking_date);
+    }
+    const notesMatch = String(b.notes || '').match(/\[تاريخ\s*(?:الحجز|التسجيل)\s*:\s*([^\]]+)\]/);
+    if (notesMatch && notesMatch[1]) {
+      return normalizeDateString(notesMatch[1].trim());
+    }
+    if (b.created_at) {
+      const d = String(b.created_at).split('T')[0];
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    }
+    if (b.timestamp) {
+      const d = String(b.timestamp).split('T')[0];
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    }
+    return normalizeDateString(b.check_in);
+  };
+
   return data
     .filter((b: any) => !expiredIds.includes(b.id))
     .map((b: any) => {
@@ -265,6 +284,8 @@ export async function getFreshDbBookings(nonce?: string) {
         phone: b.phone,
         checkIn: normalizeDateString(b.check_in),
         checkOut: normalizeDateString(b.check_out),
+        bookingDate: extractBookingDate(b),
+        createdAt: b.created_at,
         apartmentId: b.apartment_id,
         studio: b.studio,
         status: b.status,
@@ -332,6 +353,13 @@ export async function saveDbBooking(booking: any) {
     // Append optional columns only if they have values (they may not exist in the DB schema yet)
     if (newBookingWithId.bookingManager) insertData.booking_manager = newBookingWithId.bookingManager;
     if (newBookingWithId.paymentMethod) insertData.payment_method = newBookingWithId.paymentMethod;
+    if (newBookingWithId.bookingDate) {
+      insertData.booking_date = newBookingWithId.bookingDate;
+      const bDateTag = `[تاريخ الحجز: ${newBookingWithId.bookingDate}]`;
+      if (!String(insertData.notes || '').includes(bDateTag)) {
+        insertData.notes = insertData.notes ? `${insertData.notes} ${bDateTag}` : bDateTag;
+      }
+    }
 
     let { error } = await supabase.from('bookings').insert(insertData);
 
@@ -341,13 +369,15 @@ export async function saveDbBooking(booking: any) {
       error.code === '42703' ||
       error.message?.toLowerCase().includes('schema cache') ||
       error.message?.toLowerCase().includes('booking_manager') ||
-      error.message?.toLowerCase().includes('payment_method')
+      error.message?.toLowerCase().includes('payment_method') ||
+      error.message?.toLowerCase().includes('booking_date')
     );
 
     if (isSchemaError) {
-      console.warn('Retrying insert without booking_manager/payment_method columns...');
+      console.warn('Retrying insert without optional booking_manager/payment_method/booking_date columns...');
       delete insertData.booking_manager;
       delete insertData.payment_method;
+      delete insertData.booking_date;
       // Preserve booking_manager/payment_method info in notes if they were provided
       const extras: string[] = [];
       if (newBookingWithId.bookingManager) extras.push(`مسئول الحجز: ${newBookingWithId.bookingManager}`);
@@ -413,6 +443,26 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   if (updates.paymentMethod !== undefined) patch.payment_method = updates.paymentMethod;
   if (updates.paidAmount !== undefined) patch.paid_amount = updates.paidAmount;
   if (updates.notes !== undefined) patch.notes = updates.notes;
+
+  if (updates.bookingDate !== undefined) {
+    const bDate = normalizeDateString(updates.bookingDate);
+    patch.booking_date = bDate;
+    let currentNotes = patch.notes !== undefined ? String(patch.notes) : '';
+    if (patch.notes === undefined) {
+      try {
+        const existing = await supabase.from('bookings').select('notes').eq('id', id).single();
+        currentNotes = String(existing.data?.notes || '');
+      } catch {
+        currentNotes = '';
+      }
+    }
+    const tagRegex = /\[تاريخ\s*(?:الحجز|التسجيل)\s*:\s*[^\]]+\]/;
+    if (tagRegex.test(currentNotes)) {
+      patch.notes = currentNotes.replace(tagRegex, `[تاريخ الحجز: ${bDate}]`);
+    } else {
+      patch.notes = currentNotes ? `${currentNotes} [تاريخ الحجز: ${bDate}]` : `[تاريخ الحجز: ${bDate}]`;
+    }
+  }
   
   // ALWAYS update the timestamp on edit to ensure "Fresh First" sync logic works
   patch.timestamp = new Date().toISOString();
@@ -430,7 +480,8 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     error.message?.toLowerCase().includes('booking_manager') ||
     error.message?.toLowerCase().includes('payment_method') ||
     error.message?.toLowerCase().includes('payment_status') ||
-    error.message?.toLowerCase().includes('paid_amount')
+    error.message?.toLowerCase().includes('paid_amount') ||
+    error.message?.toLowerCase().includes('booking_date')
   );
 
   if (isSchemaError) {
@@ -439,6 +490,7 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     delete patch.payment_method;
     delete patch.payment_status;
     delete patch.paid_amount;
+    delete patch.booking_date;
     if (updates.paymentStatus !== undefined) {
       patch.payment_info = updates.paymentStatus;
     }

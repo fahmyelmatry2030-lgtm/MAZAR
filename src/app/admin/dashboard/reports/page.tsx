@@ -299,6 +299,7 @@ function ReportsContent() {
     nationality: '',
     idNumber: '',
     phone: '',
+    bookingDate: new Date().toISOString().split('T')[0],
     checkIn: '',
     checkOut: '',
     pricePerNight: 0,
@@ -415,7 +416,7 @@ function ReportsContent() {
       if (!currentBooking) return;
 
       let finalValue = value;
-      if (field === 'checkIn' || field === 'checkOut') {
+      if (field === 'checkIn' || field === 'checkOut' || field === 'bookingDate') {
         finalValue = parseDate(value);
       }
 
@@ -482,7 +483,10 @@ function ReportsContent() {
   };
 
   const openEditModal = (fullBooking: any) => {
-    setEditingBooking({ ...fullBooking });
+    setEditingBooking({
+      ...fullBooking,
+      bookingDate: fullBooking.bookingDate || (fullBooking.createdAt ? fullBooking.createdAt.split('T')[0] : '') || (fullBooking.timestamp ? fullBooking.timestamp.split('T')[0] : '') || fullBooking.checkIn,
+    });
     const initialSplits = parsePaymentSplitsFromString(
       fullBooking.paymentMethod,
       fullBooking.paidAmount !== undefined ? fullBooking.paidAmount : fullBooking.totalAmount
@@ -570,6 +574,7 @@ function ReportsContent() {
 
       const payload = {
         ...editingBooking,
+        bookingDate: editingBooking.bookingDate || editingBooking.checkIn,
         paymentMethod: formattedPaymentMethod,
         paidAmount: finalPaid,
         remainingAmount: finalRemaining,
@@ -848,6 +853,7 @@ function ReportsContent() {
         phone: newRecord.phone,
         checkIn: checkInStr,
         checkOut: checkOutStr,
+        bookingDate: (newRecord as any).bookingDate || new Date().toISOString().split('T')[0],
         apartmentId: selectedUnit,
         studio: units.find((u: any) => u.id === selectedUnit)?.title?.ar || selectedUnit,
         status: 'approved',
@@ -881,6 +887,7 @@ function ReportsContent() {
           nationality: '',
           idNumber: '',
           phone: '',
+          bookingDate: new Date().toISOString().split('T')[0],
           checkIn: sDateStr,
           checkOut: sDateStr,
           pricePerNight: 0,
@@ -1016,10 +1023,13 @@ function ReportsContent() {
       }
     }
 
+    const bookingRegisteredDate = booking.bookingDate || (booking.createdAt ? booking.createdAt.split('T')[0] : '') || (booking.timestamp ? booking.timestamp.split('T')[0] : '') || booking.checkIn;
+
     return {
       no: i + 1,
       id: booking.id,
-      date: booking.checkIn,
+      date: bookingRegisteredDate,
+      bookingDate: bookingRegisteredDate,
       name: booking.name,
       nationality: booking.nationality || '',
       idNumber: booking.idNumber || '',
@@ -1327,6 +1337,15 @@ function ReportsContent() {
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">الهاتف</label>
                     <input type="text" value={newRecord.phone} onChange={e => setNewRecord({ ...newRecord, phone: e.target.value })} className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-[#C1A68D]" />
+                  </div>
+                  <div className="col-span-2 xl:col-span-2 space-y-1">
+                    <AdminDatePicker
+                      label="تاريخ تسجيل الحجز (تاريخ الحجز)"
+                      value={(newRecord as any).bookingDate || new Date().toISOString().split('T')[0]}
+                      onChange={(v: string) => setNewRecord({ ...newRecord, bookingDate: v } as any)}
+                      icon="📅"
+                      color="gold"
+                    />
                   </div>
                   <div className="col-span-2 xl:col-span-2 space-y-1">
                     <AdminDatePicker
@@ -1732,7 +1751,19 @@ function ReportsContent() {
                           <td className="px-2 py-3 text-[#8B7355] font-black tracking-widest sticky right-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.06)] transition-colors" style={{ backgroundColor: !row.hasData ? '#F0EBE2' : row.isCarriedOver ? '#F5F0E6' : index % 2 === 0 ? '#FDFBF7' : '#F7F3EC' }}>
                             {row.no.toString().padStart(2, '0')}
                           </td>
-                          <td className="px-3 py-3 border-l border-[#D5CBB8]/40 font-black text-[#1a1714] whitespace-nowrap">{formatDate(row.date)}</td>
+                          {/* EDITABLE: Booking Registration Date (تاريخ الحجز) */}
+                          <td className="px-0 py-0 border-l border-[#D5CBB8]/40">
+                            {row.hasData ? (
+                              <EditableCell
+                                value={formatDate(row.date)}
+                                bookingId={row.id}
+                                field="bookingDate"
+                                onSave={handleCellSave}
+                                className="font-black text-[#1a1714] whitespace-nowrap bg-amber-50/40 hover:bg-amber-100/60"
+                                readOnly={row.isCarriedOver}
+                              />
+                            ) : <span className="text-[#D5CBB8]">—</span>}
+                          </td>
                           
                           {/* EDITABLE: Name */}
                           <td className="px-0 py-0 border-l border-[#EAE4D9]/20 relative group/name flex items-center justify-between">
@@ -1993,6 +2024,15 @@ function ReportsContent() {
                           value={editingBooking.idNumber || ''}
                           onChange={e => setEditingBooking({ ...editingBooking, idNumber: e.target.value })}
                           className="w-full bg-white border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C1A68D] font-bold"
+                        />
+                      </div>
+                      <div className="space-y-2 col-span-1 md:col-span-2">
+                        <AdminDatePicker
+                          label="تاريخ تسجيل الحجز (تاريخ الحجز)"
+                          value={editingBooking.bookingDate || editingBooking.checkIn}
+                          onChange={(v: string) => setEditingBooking({ ...editingBooking, bookingDate: v })}
+                          icon="📅"
+                          color="gold"
                         />
                       </div>
                       <div className="space-y-2 col-span-1">
