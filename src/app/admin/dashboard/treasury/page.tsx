@@ -10,6 +10,7 @@ import {
   updateDbBookingStatus,
   updateDbTreasuryTransfer,
 } from '@/lib/actions/db';
+import { formatUnitName } from '@/lib/utils';
 import {
   ArrowLeftRight,
   ArrowDownLeft,
@@ -628,7 +629,7 @@ export default function TreasuryPage() {
       revElectronic += (bVodafone + bInstapay);
 
       const bookingPerson = b.bookingManager ? `مسؤول الحجز: ${b.bookingManager}` : (b.name ? `العميل: ${b.name}` : 'حجز');
-      const unitInfo = b.studio || (b.apartmentId ? `استوديو ${b.apartmentId}` : 'الوحدة');
+      const unitInfo = formatUnitName(b.studio || b.apartmentId) || 'الوحدة';
       const bookingDateStr = b.bookingDate || b.checkIn || today.toISOString().slice(0, 10);
       const customNotesClean = cleanDisplayNotes(b.notes);
 
@@ -2356,7 +2357,7 @@ export default function TreasuryPage() {
                       <div className="font-black text-[#2A2723]">{b.name || 'عميل'}</div>
                       <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
                     </td>
-                    <td className="p-4 text-[#C1A68D] font-black">{b.apartmentId || b.studio || '—'}</td>
+                    <td className="p-4 text-[#C1A68D] font-black">{formatUnitName(b.apartmentId || b.studio)}</td>
                     <td className="p-4 text-[#7A7061] text-[11px]">{b.checkIn} ⬅️ {b.checkOut}</td>
                     <td className="p-4 font-black text-[#2A2723]">{money(Number(b.totalAmount) || 0)}</td>
                     <td className="p-4 bg-emerald-50/30 font-black text-emerald-700 text-sm">
@@ -2432,7 +2433,7 @@ export default function TreasuryPage() {
               <div>
                 <h3 className="text-base font-black text-[#2A2723]">تعديل حساب الحجز وطرق الدفع</h3>
                 <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
-                  العميل: {editingBooking.name || 'عميل'} ({editingBooking.apartmentId || editingBooking.studio})
+                  العميل: {editingBooking.name || 'عميل'} ({formatUnitName(editingBooking.apartmentId || editingBooking.studio)})
                 </p>
               </div>
               <button

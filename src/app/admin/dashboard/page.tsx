@@ -8,7 +8,7 @@ import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, get
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
@@ -143,22 +143,35 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
   if (targetId.startsWith('b2-') && (bAptId.startsWith('b1-') || bUnitId.startsWith('b1-'))) return false;
 
   if (bAptId === targetId || bStudio === targetId || bUnitId === targetId) return true;
-  if (titleAr && (bAptId === titleAr || bStudio === titleAr || bUnitId === titleAr)) return true;
+  if (titleAr && (bAptId === titleAr.toLowerCase() || bStudio === titleAr.toLowerCase() || bUnitId === titleAr.toLowerCase())) return true;
 
-  if (targetId === 'b1-s5') {
-    if (['s5', '5', 'b1-s5', 'استوديو 5', 'استوديو 5 (دبل)'].some(alias => 
-      bAptId === alias || bStudio === alias || bUnitId === alias
-    )) return true;
+  if (targetId === 'apt-1') {
+    if (['apt-1', 'زكي رستم', 'ذكي رستم', 'ذكي سيستم', 'شقة 1', 'شقة فاخرة 1', 'شقة فندقية فاخرة 1'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
   }
-  
+  if (targetId === 'apt-2') {
+    if (['apt-2', 'سيتي ستارز', 'شقة 2', 'شقة فاخرة 2', 'شقة فندقية فاخرة 2'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
+  }
+  if (targetId === 'apt-3') {
+    if (['apt-3', 'عباس الرئيسي', 'دائري التحرير', 'شقة 3', 'شقة فاخرة 3', 'شقة فندقية فاخرة 3'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
+  }
+
   if (targetId.startsWith('b1-s')) {
     const num = targetId.replace('b1-s', '');
-    if (bAptId === num || bStudio === num || bAptId === `استوديو ${num}` || bStudio === `استوديو ${num}`) return true;
+    const aliases = [num, `استوديو ${num}`, `استوديو ${num} (دبل)`, `استوديو ${num} (سنجل)`, `استوديو ${num} (تريبل)`, `س ${num}`, `س${num}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
   }
 
   if (targetId.startsWith('b2-s')) {
     const num = targetId.replace('b2-s', '');
-    if (bAptId === `b2-s${num}` || bStudio === `b2-s${num}`) return true;
+    const globalNum = parseInt(num, 10) + 12;
+    const aliases = [`b2-s${num}`, `س ${globalNum}`, `س${globalNum}`, `استوديو بريميوم ${globalNum}`, `${globalNum}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
+  }
+
+  if (targetId.startsWith('p-s')) {
+    const num = targetId.replace('p-s', '');
+    const aliases = [`p-s${num}`, `س ${num}`, `س${num}`, `شقة غرفتين (${num})`, `${num}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
   }
 
   return false;
@@ -1104,7 +1117,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                             <span>{b.name}</span>
                           </button>
                           <div className="flex items-center gap-3 text-xs text-gray-300 font-bold flex-wrap">
-                            <span>🏠 الوحدة: <strong className="text-amber-400">{b.studio || b.apartmentId}</strong></span>
+                            <span>🏠 الوحدة: <strong className="text-amber-400">{formatUnitName(b.studio || b.apartmentId)}</strong></span>
                             <span>📅 الفترة: <strong className="text-blue-300">{b.checkIn} ← {b.checkOut}</strong></span>
                           </div>
                         </div>
@@ -1160,7 +1173,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                             <span>{b.name}</span>
                           </button>
                           <div className="flex items-center gap-3 text-xs text-gray-300 font-bold flex-wrap">
-                            <span>🏠 الوحدة: <strong className="text-amber-400">{b.studio || b.apartmentId}</strong></span>
+                            <span>🏠 الوحدة: <strong className="text-amber-400">{formatUnitName(b.studio || b.apartmentId)}</strong></span>
                             <span>📅 خروج: <strong className="text-rose-300">{b.checkOut}</strong></span>
                           </div>
                         </div>

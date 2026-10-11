@@ -73,3 +73,32 @@ export function normalizeDateString(dateStr: any, defaultYear = 2026): string {
   return str;
 }
 
+export function formatUnitName(rawIdOrName?: any): string {
+  if (!rawIdOrName) return '—';
+  const str = String(rawIdOrName).trim();
+  if (str === 'apt-1' || str === 'شقة 1' || str.includes('ذكي رستم') || str.includes('زكي رستم') || str.includes('ذكي سيستم')) return 'زكي رستم';
+  if (str === 'apt-2' || str === 'شقة 2' || str.includes('سيتي ستارز') || str.includes('شقة سيتي')) return 'سيتي ستارز';
+  if (str === 'apt-3' || str === 'شقة 3' || str.includes('عباس الرئيسي') || str.includes('دائري التحرير')) return 'عباس الرئيسي';
+  
+  // b1-s1 to b1-s12 -> س 1 to س 12
+  const b1Match = str.match(/^b1-s(\d+)$/i);
+  if (b1Match) return `س ${b1Match[1]}`;
+  
+  // b2-s1 to b2-s12 -> س 13 to س 24
+  const b2Match = str.match(/^b2-s(\d+)$/i);
+  if (b2Match) {
+    const n = parseInt(b2Match[1], 10);
+    return `س ${n + 12}`;
+  }
+  
+  // p-s25 to p-s30 -> س 25 to س 30
+  const psMatch = str.match(/^p-s(\d+)$/i);
+  if (psMatch) return `س ${psMatch[1]}`;
+
+  // If old format like 'استوديو 5' -> 'س 5' or 'استوديو بريميوم 14' -> 'س 14'
+  const studioMatch = str.match(/^استوديو\s*(?:بريميوم\s*)?(\d+)/i);
+  if (studioMatch) return `س ${studioMatch[1]}`;
+
+  return str;
+}
+

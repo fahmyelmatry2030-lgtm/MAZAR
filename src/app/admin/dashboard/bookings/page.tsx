@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getSystemUnits, updateBookingStatus, getBookings, deleteBooking } from '@/lib/data-init';
-import { formatWhatsAppNumber } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName } from '@/lib/utils';
 import { CheckCircle, Trash2, Smartphone } from 'lucide-react';
 import ReceiptImageModal from '@/components/ReceiptImageModal';
 
@@ -465,8 +465,8 @@ export default function BookingsManagement() {
                             </div>
                             <div className="border-r-2 border-white/5 pr-4 group-hover:border-[#4ECDC4]/50 transition-colors">
                                <p className="text-[9px] text-gray-500 font-black uppercase mb-1">الوحدة:</p>
-                               <h4 className="text-[#C1A68D] text-md font-black italic">{b.studio || 'لم يتم الربط'}</h4>
-                               <p className="text-[8px] text-gray-600 mt-1 font-bold">Studio: {b.apartmentId || '??'}</p>
+                               <h4 className="text-[#C1A68D] text-md font-black italic">{formatUnitName(b.studio || b.apartmentId)}</h4>
+                               <p className="text-[8px] text-gray-600 mt-1 font-bold">{formatUnitName(b.apartmentId || b.studio)}</p>
                             </div>
                         </section>
                         <section className="space-y-4 text-left">
@@ -563,7 +563,7 @@ export default function BookingsManagement() {
                     onChange={e => setSelectedAptId(e.target.value)}
                   >
                     {availableAptsForBooking.map(apt => (
-                      <option key={apt.id} value={apt.id}>وحدة: {apt.id} ({apt.title.ar})</option>
+                      <option key={apt.id} value={apt.id}>{apt.title?.ar || formatUnitName(apt.id)}</option>
                     ))}
                     {availableAptsForBooking.length === 0 && (
                       <option value="">لا توجد وحدات متاحة في هذه التواريخ!</option>
