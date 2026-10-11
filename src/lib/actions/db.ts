@@ -432,15 +432,14 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   if (updates.brokerName !== undefined) patch.broker_name = updates.brokerName;
   if (updates.clientStatus !== undefined) patch.client_status = updates.clientStatus;
   if (updates.guestsCount !== undefined) patch.guests_count = updates.guestsCount;
-  // booking_manager, payment_method, payment_status & paid_amount: try to include, will be stripped on retry if columns don't exist
+  
+  // booking_manager and payment_method DO exist in the schema
   if (updates.bookingManager !== undefined) patch.booking_manager = updates.bookingManager;
   if (updates.paymentMethod !== undefined) patch.payment_method = updates.paymentMethod;
-  if (updates.paidAmount !== undefined) patch.paid_amount = updates.paidAmount;
   if (updates.notes !== undefined) patch.notes = updates.notes;
 
   if (updates.bookingDate !== undefined) {
     const bDate = normalizeDateString(updates.bookingDate);
-    patch.booking_date = bDate;
     let currentNotes = patch.notes !== undefined ? String(patch.notes) : '';
     if (patch.notes === undefined) {
       try {
@@ -466,28 +465,18 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     .eq('id', id)
     .select();
 
-  // Retry without optional columns if they don't exist in the schema
+  // Retry if schema cache reports an issue
   const isSchemaError = error && (
     error.code === 'PGRST204' ||
     error.code === '42703' ||
-    error.message?.toLowerCase().includes('schema cache') ||
-    error.message?.toLowerCase().includes('booking_manager') ||
-    error.message?.toLowerCase().includes('payment_method') ||
-    error.message?.toLowerCase().includes('payment_status') ||
-    error.message?.toLowerCase().includes('paid_amount') ||
-    error.message?.toLowerCase().includes('booking_date')
+    error.message?.toLowerCase().includes('schema cache')
   );
 
   if (isSchemaError) {
-    console.warn('Retrying update without optional columns...');
-    delete patch.booking_manager;
-    delete patch.payment_method;
-    delete patch.payment_status;
-    delete patch.paid_amount;
+    console.warn('Retrying update without optional columns...', error?.message);
     delete patch.booking_date;
-    if (updates.paymentStatus !== undefined) {
-      patch.payment_info = updates.paymentStatus;
-    }
+    delete patch.paid_amount;
+    delete patch.payment_status;
     const retry = await supabase.from('bookings')
       .update(patch)
       .eq('id', id)

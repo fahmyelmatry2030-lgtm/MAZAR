@@ -540,22 +540,26 @@ function ReportsContent() {
       if (field === 'paymentStatus') {
         const isClean = value === 'خالص';
         const total = Number(currentBooking.totalAmount || 0);
+        const paid = isClean ? total : 0;
+        const remaining = isClean ? 0 : total;
         updates.paymentStatus = value;
         updates.paymentInfo = value;
-        if (isClean) {
-          updates.paidAmount = total;
-          updates.remainingAmount = 0;
-        } else {
-          updates.remainingAmount = total;
-          updates.paidAmount = 0;
-        }
+        updates.paidAmount = paid;
+        updates.remainingAmount = remaining;
         const cleanNote = cleanNotesForDisplay(currentBooking.notes);
-        updates.notes = cleanNote;
+        const method = currentBooking.paymentMethod || 'كاش';
+        const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${method}]${isClean ? ' [حساب خالص]' : ''}`;
+        updates.notes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
       }
 
       if (field === 'notes') {
         const cleanNote = cleanNotesForDisplay(value);
-        updates.notes = cleanNote;
+        const paid = currentBooking.paidAmount !== undefined ? currentBooking.paidAmount : (currentBooking.totalAmount || 0);
+        const remaining = currentBooking.remainingAmount !== undefined ? currentBooking.remainingAmount : 0;
+        const isClean = remaining === 0;
+        const method = currentBooking.paymentMethod || 'كاش';
+        const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${method}]${isClean ? ' [حساب خالص]' : ''}`;
+        updates.notes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
       }
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
@@ -651,6 +655,8 @@ function ReportsContent() {
         : (paymentModalRow.paymentMethod || 'كاش');
 
       const cleanNote = cleanNotesForDisplay(modalCustomNotes);
+      const tagString = `[مدفوع: ${totalPaid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
+      const finalNotes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
 
       const updates = {
         paidAmount: totalPaid,
@@ -658,7 +664,7 @@ function ReportsContent() {
         paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
         paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
-        notes: cleanNote,
+        notes: finalNotes,
       };
 
       const freshData = await updateDbBookingStatus(paymentModalRow.id, updates);
