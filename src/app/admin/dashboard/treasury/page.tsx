@@ -362,13 +362,15 @@ export default function TreasuryPage() {
   const [activeBox, setActiveBox] = useState<DetailBoxId>('cash');
 
   // تبويب الجداول والعمليات الموحد بالأسفل (يمنع التكرار نهائياً)
-  const [recordsTab, setRecordsTab] = useState<'bookings' | 'deposits' | 'withdrawals'>('bookings');
+  const [recordsTab, setRecordsTab] = useState<'bookings' | 'deposits' | 'withdrawals' | 'expenses'>('bookings');
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
 
   const handleSelectBox = (boxId: DetailBoxId) => {
     setActiveBox(boxId);
-    if (boxId === 'cash') {
+    if (boxId === 'expenses') {
+      setRecordsTab('expenses');
+    } else if (boxId === 'cash') {
       setTransferFilter('cash');
       setRecordsTab('deposits');
     } else if (boxId === 'instapay') {
@@ -383,7 +385,10 @@ export default function TreasuryPage() {
     } else if (boxId === 'uncollected') {
       setBookingFilter('pending');
       setRecordsTab('bookings');
-    } else if (boxId === 'total_expected') {
+    } else if (boxId === 'collected_net') {
+      setBookingFilter('completed');
+      setRecordsTab('bookings');
+    } else if (boxId === 'total_expected' || boxId === 'net_expected') {
       setBookingFilter('all');
       setRecordsTab('bookings');
     }
@@ -770,10 +775,10 @@ export default function TreasuryPage() {
     return totalBigTreasuryInflow - totalWithdrawnFromBig;
   }, [totalBigTreasuryInflow, totalWithdrawnFromBig]);
 
-  // 2) رصيد الخزنة الصغيرة = كاش الحجوزات المقبوض − العمولات − كل المصروفات − ما تم تحويله كاش فقط للكبيرة
+  // 2) رصيد الخزنة الفرعية = كاش الحجوزات المقبوض − ما تم تحويله كاش فقط للكبيرة (مطابق تماماً لما كتبه العميل)
   const smallTreasuryBalance = useMemo(() => {
-    return (totalCashRevenueCollected || 0) - (totalCommissions || 0) - (totalExpenses || 0) - totalCashDepositedToBig;
-  }, [totalCashRevenueCollected, totalCommissions, totalExpenses, totalCashDepositedToBig]);
+    return (totalCashRevenueCollected || 0) - totalCashDepositedToBig;
+  }, [totalCashRevenueCollected, totalCashDepositedToBig]);
 
   // الإجمالي الشامل لصافي أرباح الشهر المقبوضة فعلياً
   const grossTreasury = useMemo(() => {
@@ -1361,7 +1366,7 @@ export default function TreasuryPage() {
             <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
               activeBox === 'cash' ? 'border-white/20 text-emerald-100' : 'border-emerald-200 text-emerald-800'
             }`}>
-              رصيد الكاش بالدرج (المقبوض كاش − المصروفات − المحول كاش)
+              رصيد الكاش بالدرج (كاش الحجوزات المقبوض − المحول كاش للخزنة الكبيرة)
             </div>
           </button>
 
@@ -1563,6 +1568,19 @@ export default function TreasuryPage() {
             >
               <ArrowDownRight size={18} />
               <span>سجل الخزنة الكبيرة ({allBigTreasuryRecords.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setRecordsTab('expenses')}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all cursor-pointer ${
+                recordsTab === 'expenses'
+                  ? 'bg-rose-800 text-white shadow-md shadow-rose-800/20 scale-[1.02]'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              <Receipt size={18} />
+              <span>مصروفات الشهر ({monthlyExpenses.length})</span>
             </button>
 
             {isOwner && (
@@ -2284,6 +2302,69 @@ export default function TreasuryPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── جدول مصروفات الشهر (يفتح عند الضغط على كارت المصروفات) ── */}
+      {recordsTab === 'expenses' && (
+        <section className="bg-white border-2 border-rose-300 rounded-[2.5rem] p-6 md:p-8 shadow-lg space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#EAE4D9]/60 pb-4">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-rose-950 flex items-center gap-2">
+                <Receipt size={24} className="text-rose-600" />
+                مصروفات شهر {MONTHS_AR[month]} {year} ({monthlyExpenses.length} مصروف مسجل)
+              </h2>
+              <p className="text-xs font-bold text-[#7A7061] mt-0.5">
+                إجمالي المصروفات: <span className="font-black text-rose-700 text-sm">{money(totalExpenses)}</span>
+              </p>
+            </div>
+            <a
+              href="/admin/dashboard/reports?tab=expenses"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 font-black text-xs px-4 py-2.5 rounded-xl transition"
+            >
+              إدارة المصروفات بالتفصيل ↗
+            </a>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-rose-200 shadow-sm">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 text-white font-black">
+                <tr>
+                  <th className="p-4 text-center w-12">#</th>
+                  <th className="p-4">المبلغ</th>
+                  <th className="p-4">البيان / السبب</th>
+                  <th className="p-4">التاريخ</th>
+                  <th className="p-4">الآمر بالصرف</th>
+                  <th className="p-4">من ⬅️ إلى</th>
+                  <th className="p-4">القسم / الفرع</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyExpenses.length === 0 ? (
+                  <tr><td colSpan={7} className="p-10 text-center text-[#7A7061] font-bold">لا توجد مصروفات مسجلة لهذا الشهر</td></tr>
+                ) : (
+                  monthlyExpenses.map((exp: any, idx: number) => {
+                    const branchLabel = exp.branch === '12' ? 'مزار 1 و 2' : exp.branch === '3' ? 'مزار 3' : exp.branch === '4' ? 'زكي رستم' : exp.branch === '5' ? 'سيتي ستارز' : exp.branch === '6' ? 'عباس الرئيسي' : 'عام';
+                    return (
+                      <tr key={exp.id || idx} className="border-t border-stone-200 hover:bg-rose-50/30 transition-colors font-bold">
+                        <td className="p-4 text-center text-stone-500 font-black">{idx + 1}</td>
+                        <td className="p-4 text-rose-700 font-black text-sm">{money(Number(exp.amount) || 0)}</td>
+                        <td className="p-4 text-stone-900 font-black">{exp.description || '—'}</td>
+                        <td className="p-4 text-stone-600 font-mono text-[11px]">{exp.date || '—'}</td>
+                        <td className="p-4 text-stone-700">{exp.ordered_by || '—'}</td>
+                        <td className="p-4 text-stone-600 text-[11px]">{exp.from_entity || 'الخزنة'} ⬅️ {exp.to_entity || '—'}</td>
+                        <td className="p-4">
+                          <span className="inline-block px-2.5 py-1 rounded-lg text-[10px] font-black bg-stone-100 text-stone-700 border border-stone-200">
+                            {branchLabel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
