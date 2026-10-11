@@ -75,45 +75,35 @@ const PAYMENT_METHODS = [
 
 type PaymentMethodId = typeof PAYMENT_METHODS[number]['id'];
 
-// دالة ذكية لتحديد طريقة الدفع (تدمج إنستا باي، الحساب البنكي، والفيزا القديمة في إنستا باي / حساب بنكي)
-const detectPaymentMethod = (text: string = ''): { id: PaymentMethodId; label: string } => {
-  const t = String(text).toLowerCase();
+// طرق الدفع والتحويل المدعومة
+const detectPaymentMethod = (text: string | null | undefined = ''): { id: PaymentMethodId; label: string } => {
+  if (!text) return { id: 'cash', label: 'كاش' };
+  const raw = String(text).trim();
 
-  const tagMatch = text.match(/\[طريقة:\s*([^\]]+)\]/);
+  // 1) فحص وسم [طريقة: ...] بدقة
+  const tagMatch = raw.match(/\[طريقة:\s*([^\]]+)\]/);
   if (tagMatch) {
     const rawTag = tagMatch[1].trim();
-    if (
-      rawTag.includes('إنستا') ||
-      rawTag.includes('انستا') ||
-      rawTag.includes('instapay') ||
-      rawTag.includes('بنك') ||
-      rawTag.includes('حساب') ||
-      rawTag.includes('فيزا') ||
-      rawTag.includes('visa')
-    ) {
+    if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(rawTag)) {
       return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
     }
-    if (rawTag.includes('فودافون') || rawTag.includes('vodafone')) {
+    if (/فودافون|vodafone/i.test(rawTag)) {
       return { id: 'vodafone_cash', label: 'فودافون كاش' };
     }
-    if (rawTag.includes('كاش') || rawTag.includes('cash')) {
-      return { id: 'cash', label: 'كاش' };
-    }
+    return { id: 'cash', label: 'كاش' };
   }
 
-  if (
-    t.includes('انستا') ||
-    t.includes('إنستا') ||
-    t.includes('instapay') ||
-    t.includes('بنك') ||
-    t.includes('حساب بنكي') ||
-    t.includes('حساب') ||
-    t.includes('فيزا') ||
-    t.includes('visa')
-  ) {
+  // 2) تنظيف النص من أي وسوم نظام أو كلمة "الحساب خالص" أو "حساب خالص" لتجنب اعتبار كلمة "حساب" كـ "حساب بنكي"
+  const clean = raw
+    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/(?:ال)?حساب\s*(?:خالص|بالكامل)/gi, ' ')
+    .replace(/حساب\s*س\s*\d+/gi, ' ')
+    .trim();
+
+  if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(clean)) {
     return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
   }
-  if (t.includes('فودافون') || t.includes('vodafone') || t.includes('فودافون كاش')) {
+  if (/فودافون|vodafone/i.test(clean)) {
     return { id: 'vodafone_cash', label: 'فودافون كاش' };
   }
 
@@ -183,7 +173,6 @@ const getBookingPaymentSplits = (b: any, paidAmount: number): Array<{ methodId: 
   if (!paidAmount || paidAmount <= 0) return [];
 
   const rawMethod = String(b.paymentMethod || '').trim();
-  const rawInfo = String(b.paymentInfo || '').trim();
   const rawNotes = String(b.notes || '').trim();
 
   // 1) فحص المبالغ المجزأة إذا كانت بصيغة مثل: "فودافون كاش: 1000 | إنستا باي: 2000"
@@ -205,9 +194,9 @@ const getBookingPaymentSplits = (b: any, paidAmount: number): Array<{ methodId: 
     }
   }
 
-  // 2) طريقة موحدة من طريقة الدفع أو الملاحظات
-  const fullText = `${rawMethod} ${rawInfo} ${rawNotes}`;
-  const detected = detectPaymentMethod(fullText);
+  // 2) طريقة موحدة: الاعتماد أولاً على paymentMethod الأصلي الصريح، فإن لم يوجد فعلى وسوم الملاحظات
+  const primaryText = rawMethod || rawNotes;
+  const detected = detectPaymentMethod(primaryText);
   return [{
     methodId: detected.id,
     methodLabel: detected.label,
