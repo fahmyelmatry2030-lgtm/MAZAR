@@ -1804,6 +1804,7 @@ export default function TreasuryPage() {
           <table className="w-full text-right text-xs">
             <thead className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-950 text-white font-black">
               <tr>
+                <th className="p-4 text-white text-center w-12">#</th>
                 <th className="p-4 text-white">المبلغ</th>
                 <th className="p-4 text-white">طريقة التحويل</th>
                 <th className="p-4 text-white">مسلم (من)</th>
@@ -1816,9 +1817,9 @@ export default function TreasuryPage() {
             </thead>
             <tbody>
               {filteredDeposits.length === 0 ? (
-                <tr><td colSpan={8} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات مسجلة في هذا التبويب</td></tr>
+                <tr><td colSpan={9} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات مسجلة في هذا التبويب</td></tr>
               ) : (
-                filteredDeposits.map((record: any) => {
+                filteredDeposits.map((record: any, idx: number) => {
                   const methodObj = PAYMENT_METHODS.find(m => m.id === record.methodId) || PAYMENT_METHODS[0];
                   const MethodIcon = methodObj.icon;
                   const isAuto = record.isAutomatic;
@@ -1835,6 +1836,7 @@ export default function TreasuryPage() {
                           : 'border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70'
                       }`}
                     >
+                      <td className="p-4 text-center text-[#7A7061] font-black">{idx + 1}</td>
                       <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(record.amount))}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
