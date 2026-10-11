@@ -647,6 +647,11 @@ export default function TreasuryPage() {
       revInstapay += bInstapay;
       revElectronic += (bVodafone + bInstapay);
 
+      const bookingPerson = b.bookingManager ? `مسؤول الحجز: ${b.bookingManager}` : (b.name ? `العميل: ${b.name}` : 'حجز');
+      const unitInfo = b.studio || (b.apartmentId ? `استوديو ${b.apartmentId}` : 'الوحدة');
+      const bookingDateStr = b.bookingDate || b.checkIn || today.toISOString().slice(0, 10);
+      const customNotesClean = cleanDisplayNotes(b.notes);
+
       if (bVodafone > 0) {
         autoElectronic.push({
           id: `booking-${b.id}-vodafone`,
@@ -654,10 +659,10 @@ export default function TreasuryPage() {
           amount: bVodafone,
           methodId: 'vodafone_cash' as PaymentMethodId,
           methodLabel: 'فودافون كاش',
-          handed_by: `${b.name || 'عميل'} (${b.studio || b.apartmentId || 'حجز'})`,
-          received_by: 'الخزنة الكبيرة (ف كاش)',
-          notes: cleanDisplayNotes(b.notes) || 'سداد حجز فودافون كاش',
-          transfer_date: b.bookingDate || b.checkIn || today.toISOString().slice(0, 10),
+          handed_by: bookingPerson,
+          received_by: 'محفظة فودافون كاش (الخزنة الكبيرة)',
+          notes: customNotesClean ? `${unitInfo} — ${customNotesClean}` : `${unitInfo} (حجز ${bookingDateStr})`,
+          transfer_date: bookingDateStr,
           isAutomatic: true,
           booking: b,
         });
@@ -670,10 +675,10 @@ export default function TreasuryPage() {
           amount: bInstapay,
           methodId: 'instapay' as PaymentMethodId,
           methodLabel: 'إنستا باي / حساب بنكي',
-          handed_by: `${b.name || 'عميل'} (${b.studio || b.apartmentId || 'حجز'})`,
-          received_by: 'الخزنة الكبيرة (إنستاباي / بنك)',
-          notes: cleanDisplayNotes(b.notes) || 'سداد حجز إنستاباي / بنكي',
-          transfer_date: b.bookingDate || b.checkIn || today.toISOString().slice(0, 10),
+          handed_by: bookingPerson,
+          received_by: 'حساب إنستا باي / البنك (الخزنة الكبيرة)',
+          notes: customNotesClean ? `${unitInfo} — ${customNotesClean}` : `${unitInfo} (حجز ${bookingDateStr})`,
+          transfer_date: bookingDateStr,
           isAutomatic: true,
           booking: b,
         });
