@@ -1172,8 +1172,8 @@ function ReportsContent() {
     const outVal = checkOutYear * 12 + checkOutMonth;
     const selVal = selectedYear * 12 + selectedMonth;
     
-    const isCarriedOver = selVal > inVal;
-    const matches = selVal >= inVal && selVal <= outVal;
+    const isCarriedOver = false;
+    const matches = checkInYear === selectedYear && checkInMonth === selectedMonth;
     
     return { ...b, isCarriedOver, matches };
   }).filter((b: any) => {

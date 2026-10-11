@@ -94,18 +94,18 @@ const detectPaymentMethod = (text: string | null | undefined = ''): { id: Paymen
     return { id: 'cash', label: 'كاش' };
   }
 
-  // 2) تنظيف النص من أي وسوم نظام أو كلمة "الحساب خالص" أو "حساب خالص" لتجنب اعتبار كلمة "حساب" كـ "حساب بنكي"
+  // 2) تنظيف النص من وسوم النظام وكلمة "الحساب خالص" ولكن الحفاظ على محتوى الملاحظات
   const clean = raw
-    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/\[(?:طريقة|اعتماد|حساب_شهر|شهر_التقرير|تاريخ[^\]]*|مدفوع|متبقي|باقي):[^\]]*\]/gi, ' ')
     .replace(/(?:ال)?حساب\s*(?:خالص|بالكامل)/gi, ' ')
     .replace(/حساب\s*س\s*\d+/gi, ' ')
     .trim();
 
-  if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(clean)) {
-    return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
-  }
   if (/فودافون|vodafone/i.test(clean)) {
     return { id: 'vodafone_cash', label: 'فودافون كاش' };
+  }
+  if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(clean)) {
+    return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
   }
 
   return { id: 'cash', label: 'كاش' };
