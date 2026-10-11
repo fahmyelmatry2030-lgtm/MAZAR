@@ -84,7 +84,15 @@ const parseDetailedSplits = (
   paidAmount: number,
   fallbackDate: string
 ): Array<{ method: string; amount: number | string; date?: string }> => {
-  const splits = parsePaymentSplitsFromString(paymentMethodStr, paidAmount);
+  let effectiveMethod = paymentMethodStr || '';
+  if (!effectiveMethod.includes('|') && notesStr) {
+    const methodTag = notesStr.match(/\[طريقة:\s*([^\]]+)\]/i);
+    if (methodTag && methodTag[1] && methodTag[1].includes('|')) {
+      effectiveMethod = methodTag[1].trim();
+    }
+  }
+
+  const splits = parsePaymentSplitsFromString(effectiveMethod, paidAmount);
   const lines = (notesStr || '').split(/[|\n\r]+/);
   const paymentLines = lines.filter(l => /(?:دفع|سداد|حول|تحويل)\s*\d+/i.test(l));
 
@@ -583,12 +591,37 @@ function ReportsContent() {
     const fullBooking = bookings.find(b => b.id === row.id) || row;
     setPaymentModalRow(row);
     const dateFallback = row.bookingDate || row.checkIn || '';
-    const splits = parseDetailedSplits(
+    let splits = parseDetailedSplits(
       row.paymentMethod,
       fullBooking.notes || row.rawNotes || '',
       row.paidAmount,
       dateFallback
     );
+
+    // Normalize methods to match dropdown options exactly
+    splits = splits.map(s => {
+      let m = s.method || 'كاش';
+      if (/فودافون/i.test(m)) m = 'فودافون كاش';
+      else if (/انستا|إنستا/i.test(m)) m = 'إنستا باي';
+      else if (/بنك|حساب/i.test(m)) m = 'حساب بنكي';
+      else if (/فيزا/i.test(m)) m = 'فيزا';
+      else if (/كاش|عربون/i.test(m)) m = 'كاش';
+      return { ...s, method: m };
+    });
+
+    const bookingTotal = Number(row.total || 0);
+    const currentSplitsTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+
+    // إذا كان الحجز في الجدول خالصاً بالفعل، يجب أن يكون المجموع في النافذة أيضاً خالصاً ومطابقاً للإجمالي
+    if (row.isFullyPaid && currentSplitsTotal < bookingTotal) {
+      const diff = bookingTotal - currentSplitsTotal;
+      splits.push({
+        method: 'كاش',
+        amount: diff,
+        date: dateFallback,
+      });
+    }
+
     setModalSplits(splits);
     setModalCustomNotes(row.notes || '');
   };
@@ -688,10 +721,19 @@ function ReportsContent() {
       ...fullBooking,
       bookingDate: fullBooking.bookingDate || (fullBooking.createdAt ? fullBooking.createdAt.split('T')[0] : '') || (fullBooking.timestamp ? fullBooking.timestamp.split('T')[0] : '') || fullBooking.checkIn,
     });
-    const initialSplits = parsePaymentSplitsFromString(
+    const bookingTotal = Number(fullBooking.totalAmount || fullBooking.total || 0);
+    let initialSplits = parsePaymentSplitsFromString(
       fullBooking.paymentMethod,
-      fullBooking.paidAmount !== undefined ? fullBooking.paidAmount : fullBooking.totalAmount
+      fullBooking.paidAmount !== undefined ? fullBooking.paidAmount : bookingTotal
     );
+    const splitsTotal = initialSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const isClean = fullBooking.paymentStatus === 'خالص' || fullBooking.remainingAmount === 0 || String(fullBooking.notes || '').includes('خالص');
+    if (isClean && splitsTotal < bookingTotal) {
+      initialSplits.push({
+        method: 'كاش',
+        amount: bookingTotal - splitsTotal,
+      });
+    }
     setPaymentSplits(initialSplits);
     setIsEditModalOpen(true);
   };
