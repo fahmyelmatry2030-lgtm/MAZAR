@@ -561,23 +561,14 @@ export default function TreasuryPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // ── الحسابات الشهرية المفلترة بالشهر والسنة (تصفير شهري - شهر بشهر) ──
-  // حجوزات الشهر المؤكدة (تشمل الحجوزات داخل الشهر أو الممتدة إليه)
+  // ── الحسابات الشهرية المفلترة بالشهر والسنة (فصل كل شهر بالكامل على حدة) ──
+  // حجوزات الشهر المؤكدة بحسب تاريخ الدخول (شهر بشهر دون خلط بين الشهور)
   const monthlyBookings = useMemo(() => (bookings || []).filter((booking) => {
     if (!booking) return false;
     const isApproved = CONFIRMED_STATUSES.includes(String(booking.status)) || booking.status === 'approved' || booking.status === 'مؤكد';
     if (!isApproved) return false;
 
-    // دعم الحجوزات الممتدة عبر الشهور مثل شاشة التقارير
-    const partsIn = booking.checkIn?.split('-');
-    const partsOut = booking.checkOut?.split('-');
-    if (partsIn && partsIn.length >= 2 && partsOut && partsOut.length >= 2) {
-      const inVal = parseInt(partsIn[0], 10) * 12 + (parseInt(partsIn[1], 10) - 1);
-      const outVal = parseInt(partsOut[0], 10) * 12 + (parseInt(partsOut[1], 10) - 1);
-      const selVal = year * 12 + month;
-      if (selVal >= inVal && selVal <= outVal) return true;
-    }
-
+    // فلترة دقيقة وصارمة بحسب شهر وسنة تاريخ الدخول checkIn (تمنع تسريب شهر 9 في شهر 10 نهائياً)
     const parsed = parseDateYM(booking.checkIn);
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
