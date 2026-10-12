@@ -355,10 +355,6 @@ export async function saveDbBooking(booking: any) {
     if (newBookingWithId.paymentMethod) insertData.payment_method = newBookingWithId.paymentMethod;
     if (newBookingWithId.bookingDate) {
       insertData.booking_date = newBookingWithId.bookingDate;
-      const bDateTag = `[تاريخ الحجز: ${newBookingWithId.bookingDate}]`;
-      if (!String(insertData.notes || '').includes(bDateTag)) {
-        insertData.notes = insertData.notes ? `${insertData.notes} ${bDateTag}` : bDateTag;
-      }
     }
 
     let { error } = await supabase.from('bookings').insert(insertData);
@@ -439,22 +435,7 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   if (updates.notes !== undefined) patch.notes = updates.notes;
 
   if (updates.bookingDate !== undefined) {
-    const bDate = normalizeDateString(updates.bookingDate);
-    let currentNotes = patch.notes !== undefined ? String(patch.notes) : '';
-    if (patch.notes === undefined) {
-      try {
-        const existing = await supabase.from('bookings').select('notes').eq('id', id).single();
-        currentNotes = String(existing.data?.notes || '');
-      } catch {
-        currentNotes = '';
-      }
-    }
-    const tagRegex = /\[تاريخ\s*(?:الحجز|التسجيل)\s*:\s*[^\]]+\]/;
-    if (tagRegex.test(currentNotes)) {
-      patch.notes = currentNotes.replace(tagRegex, `[تاريخ الحجز: ${bDate}]`);
-    } else {
-      patch.notes = currentNotes ? `${currentNotes} [تاريخ الحجز: ${bDate}]` : `[تاريخ الحجز: ${bDate}]`;
-    }
+    patch.booking_date = normalizeDateString(updates.bookingDate);
   }
   
   // ALWAYS update the timestamp on edit to ensure "Fresh First" sync logic works

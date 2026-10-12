@@ -723,9 +723,7 @@ function ReportsContent() {
         ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
         : (paymentModalRow.paymentMethod || 'كاش');
 
-      const cleanNote = cleanNotesForDisplay(modalCustomNotes);
-      const tagString = `[مدفوع: ${totalPaid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
-      const finalNotes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
+      const finalNotes = cleanNotesForDisplay(modalCustomNotes);
 
       const updates = {
         paidAmount: totalPaid,
@@ -848,8 +846,7 @@ function ReportsContent() {
         .replace(/\[طريقة:[^\]]*\]/g, '')
         .replace(/\[طريقة الدفع:[^\]]*\]/g, '')
         .trim();
-      const tags = `[مدفوع: ${finalPaid}] [متبقي: ${finalRemaining}] [طريقة: ${formattedPaymentMethod}]`;
-      const finalNotes = existingNotes ? `${existingNotes} ${tags}` : tags;
+      const finalNotes = existingNotes;
 
       const payload = {
         ...editingBooking,
@@ -1136,7 +1133,10 @@ function ReportsContent() {
         apartmentId: selectedUnit,
         studio: units.find((u: any) => u.id === selectedUnit)?.title?.ar || selectedUnit,
         status: 'approved',
-        paymentInfo: 'حجز يدوي من التقارير',
+        paymentInfo: `متبقي ${totalAmount}`,
+        paymentStatus: 'باقي',
+        paidAmount: 0,
+        remainingAmount: totalAmount,
         totalAmount,
         numberOfDays: nights,
         pricePerNight: newRecord.pricePerNight,

@@ -789,7 +789,7 @@ export default function TreasuryPage() {
     }, 0);
   }, [monthlyDeposits]);
 
-  // سحوبات الخزنة الكبيرة في هذا الشهر (مؤمن ومدحت) - تتبع الشهر المستهدف المخصص
+  // سحوبات الخزنة الكبيرة في هذا الشهر (سحب من الإدارة) - تتبع الشهر المستهدف المخصص
   const monthlyWithdrawals = useMemo(() => (transfers || []).filter((t) => {
     if (!t) return false;
     const isWithdraw = t.type === 'withdrawal' || (t.notes || '').includes('[نوع: سحب') || (t.handed_by || '').includes('[نوع: سحب');
@@ -797,9 +797,30 @@ export default function TreasuryPage() {
     return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
-  const totalWithdrawnFromBig = useMemo(() => {
-    return monthlyWithdrawals.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
+  // تقسيم مسحوبات الإدارة حسب طريقة الدفع (كاش، فودافون كاش، إنستا باي)
+  const withdrawalsBreakdown = useMemo(() => {
+    let cash = 0;
+    let vodafone = 0;
+    let instapay = 0;
+    monthlyWithdrawals.forEach((w) => {
+      const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+      const mid = detectPaymentMethod(fullText).id;
+      const amt = Number(w.amount) || 0;
+      if (mid === 'vodafone_cash') vodafone += amt;
+      else if (mid === 'instapay') instapay += amt;
+      else cash += amt;
+    });
+    return {
+      cash,
+      vodafone,
+      instapay,
+      total: cash + vodafone + instapay,
+    };
   }, [monthlyWithdrawals]);
+
+  const totalWithdrawnFromBig = useMemo(() => {
+    return withdrawalsBreakdown.total;
+  }, [withdrawalsBreakdown]);
 
   // إجمالي فودافون كاش بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
   const totalVodafoneTreasury = useMemo(() => {
@@ -920,9 +941,9 @@ export default function TreasuryPage() {
       const customNotes = form.notes.trim();
       const isWithdrawal = (form.type === 'withdrawal' && isOwner);
 
-      // السحب يقتصر حصرياً على مؤمن أو مدحت
+      // السحب يقتصر حصرياً على الإدارة
       const finalReceiver = isWithdrawal
-        ? (form.receivedBy.includes('مدحت') ? 'مدحت' : 'مؤمن')
+        ? 'سحب من الإدارة'
         : form.receivedBy;
 
       const targetM = form.targetMonth !== undefined ? form.targetMonth : month;
@@ -932,10 +953,10 @@ export default function TreasuryPage() {
       const combinedNotes = `${typeTag} [طريقة: ${methodObj.label}] ${monthTag}${customNotes ? ` ${customNotes}` : ''}`.trim();
 
       const initialStatus = isWithdrawal
-        ? `تم الموافقة بواسطة: ${finalReceiver}`
+        ? `تم الموافقة بواسطة: ${approverDisplayName}`
         : (isOwner && form.approvedStatus === 'APPROVED' ? `تم الموافقة بواسطة: ${approverDisplayName}` : 'PENDING');
       const initialApprovedBy = isWithdrawal
-        ? finalReceiver
+        ? approverDisplayName
         : (isOwner && form.approvedStatus === 'APPROVED' ? approverDisplayName : '');
 
       await saveDbTreasuryTransfer({
@@ -1053,7 +1074,7 @@ export default function TreasuryPage() {
     }
   };
 
-  // سحب من الخزنة الكبيرة (خاص بمؤمن ومدحت فقط)
+  // سحب من الخزنة الكبيرة (خاص بمؤمن ومدحت فقط - سحب من الإدارة)
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isOwner) {
@@ -1066,7 +1087,7 @@ export default function TreasuryPage() {
     setIsSavingWithdraw(true);
     setWithdrawError('');
     try {
-      const actorName = withdrawBy.includes('مدحت') ? 'مدحت' : 'مؤمن';
+      const actorName = 'سحب من الإدارة';
       const methodObj = PAYMENT_METHODS.find(m => m.id === withdrawMethod) || PAYMENT_METHODS[0];
       const monthTag = `[حساب_شهر: ${year}-${String(month + 1).padStart(2, '0')}]`;
       await saveDbTreasuryTransfer({
@@ -1077,6 +1098,8 @@ export default function TreasuryPage() {
         reason: withdrawReason.trim(),
         transfer_date: withdrawDate,
         notes: `[نوع: سحب] [طريقة: ${methodObj.label}] ${monthTag} [سبب: ${withdrawReason.trim()}] [المستلم: ${actorName}]`,
+        status: `تم الموافقة بواسطة: ${approverDisplayName}`,
+        approved_by: approverDisplayName,
       });
       setWithdrawAmount('');
       setWithdrawReason('');
@@ -1098,14 +1121,13 @@ export default function TreasuryPage() {
     setError('');
     try {
       const total = Number(booking.totalAmount || 0);
-      const cleanNotes = (booking.notes || '').replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').trim();
-      const updatedNotes = cleanNotes ? `${cleanNotes} | [مدفوع: ${total}] [متبقي: 0] [حساب خالص]` : `[مدفوع: ${total}] [متبقي: 0] [حساب خالص]`;
+      const cleanNotes = (booking.notes || '').replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').replace(/\[حساب خالص\]/g, '').trim();
 
       await updateDbBookingStatus(booking.id, {
         paidAmount: total,
         paymentStatus: 'خالص',
         paymentInfo: 'خالص',
-        notes: updatedNotes,
+        notes: cleanNotes,
       });
       await loadData(true); // Silent reload!
 
@@ -1194,9 +1216,15 @@ export default function TreasuryPage() {
     setIsSavingEdit(true);
     try {
       let notes = editNotesInput.trim();
-      notes = notes.replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').replace(/\[طريقة:[^\]]+\]/g, '').replace(/\[طريقة الدفع:[^\]]+\]/g, '').trim();
-      const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${formattedPaymentMethod}]${isClean ? ' [حساب خالص]' : ''}`;
-      const finalNotes = notes ? `${notes} | ${tagString}` : tagString;
+      notes = notes
+        .replace(/\[مدفوع:[^\]]+\]/g, '')
+        .replace(/\[متبقي:[^\]]+\]/g, '')
+        .replace(/\[طريقة:[^\]]+\]/g, '')
+        .replace(/\[طريقة الدفع:[^\]]+\]/g, '')
+        .replace(/\[حساب خالص\]/g, '')
+        .replace(/\[تاريخ الحجز:[^\]]+\]/g, '')
+        .trim();
+      notes = notes.replace(/^\|\s*|\s*\|$/g, '').trim();
 
       await updateDbBookingStatus(editingBooking.id, {
         paidAmount: paid,
@@ -1204,7 +1232,7 @@ export default function TreasuryPage() {
         paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
         paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
-        notes: finalNotes,
+        notes: notes,
       });
 
       setEditingBooking(null);
@@ -1582,7 +1610,7 @@ export default function TreasuryPage() {
                   {isLoading ? '...' : money(bigTreasuryBalance)}
                 </div>
                 <p className="text-xs text-slate-400 font-bold mt-1">
-                  إجمالي الوارد للخزنة الكبيرة مخصوماً منه مسحوبات الشركاء لمؤمن ومدحت
+                  إجمالي الوارد للخزنة الكبيرة مخصوماً منه مسحوبات الإدارة
                 </p>
               </div>
 
@@ -1602,20 +1630,22 @@ export default function TreasuryPage() {
                   <Plus size={15} />
                   <span>توريد كاش من الصغيرة للكبيرة</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecordsTab('withdrawals');
-                    setShowWithdrawForm(true);
-                    setTimeout(() => {
-                      document.getElementById('treasury-records-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 50);
-                  }}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                >
-                  <ArrowDownLeft size={15} />
-                  <span>سحب أرباح (مؤمن / مدحت)</span>
-                </button>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecordsTab('withdrawals');
+                      setShowWithdrawForm(true);
+                      setTimeout(() => {
+                        document.getElementById('treasury-records-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 50);
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                  >
+                    <ArrowDownLeft size={15} />
+                    <span>سحب من الإدارة</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1641,9 +1671,20 @@ export default function TreasuryPage() {
               </div>
               <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
                 <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
-                  <ArrowUpRight size={14} className="text-amber-400" /> مسحوبات مؤمن ومدحت:
+                  <ArrowUpRight size={14} className="text-amber-400" /> مسحوبات الإدارة:
                 </span>
-                <span className="text-sm font-black text-amber-400 mt-1">− {money(totalWithdrawnFromBig)}</span>
+                {isOwner ? (
+                  <div className="mt-1">
+                    <span className="text-sm font-black text-amber-400">− {money(withdrawalsBreakdown.total)}</span>
+                    <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
+                      <span className="bg-slate-900/80 text-emerald-300 px-1.5 py-0.5 rounded font-black border border-slate-700">كاش: {money(withdrawalsBreakdown.cash)}</span>
+                      <span className="bg-slate-900/80 text-rose-300 px-1.5 py-0.5 rounded font-black border border-slate-700">فودافون: {money(withdrawalsBreakdown.vodafone)}</span>
+                      <span className="bg-slate-900/80 text-purple-300 px-1.5 py-0.5 rounded font-black border border-slate-700">إنستا: {money(withdrawalsBreakdown.instapay)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs font-bold text-slate-400 mt-1">خاص بالإدارة 🔒</span>
+                )}
               </div>
             </div>
           </div>
@@ -1707,7 +1748,7 @@ export default function TreasuryPage() {
                 }`}
               >
                 <Receipt size={18} />
-                <span>سحوبات الشركاء لمؤمن ومدحت ({monthlyWithdrawals.length})</span>
+                <span>مسحوبات الإدارة ({monthlyWithdrawals.length})</span>
               </button>
             )}
           </div>
@@ -2321,10 +2362,10 @@ export default function TreasuryPage() {
                 <div>
                   <h2 className="text-xl md:text-2xl font-black text-red-700 flex items-center gap-2">
                     <ArrowDownLeft size={24} className="text-red-600" />
-                    سحب من الخزنة الكبيرة
+                    تسجيل سحب من الإدارة
                   </h2>
                   <p className="text-xs font-bold text-red-900/80 mt-1">
-                    حدد طريقة السحب (كاش، إنستا باي / بنك، فودافون كاش) ليتم خصمها من رصيد المحفظة المحددة
+                    حدد طريقة السحب (كاش، فودافون كاش، إنستا باي / بنك) والسبب ليتم قيده وحفظه للإدارة
                   </p>
                 </div>
                 <button
@@ -2365,15 +2406,12 @@ export default function TreasuryPage() {
                   </select>
                 </label>
                 <label className="text-[10px] font-black text-[#7A7061]">
-                  المسحوب لـ (المستلم)
-                  <select
-                    value={withdrawBy}
-                    onChange={e => setWithdrawBy(e.target.value)}
-                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white cursor-pointer outline-none focus:border-red-400"
-                  >
-                    <option value="مؤمن">مؤمن</option>
-                    <option value="مدحت">مدحت</option>
-                  </select>
+                  الجهة المستلمة
+                  <input
+                    readOnly
+                    value="سحب من الإدارة"
+                    className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-stone-100 text-stone-700 outline-none cursor-default"
+                  />
                 </label>
                 <label className="text-[10px] font-black text-[#7A7061] sm:col-span-2">
                   السبب / البيان
@@ -2382,7 +2420,7 @@ export default function TreasuryPage() {
                     value={withdrawReason}
                     onChange={e => setWithdrawReason(e.target.value)}
                     className="mt-2 w-full border-2 border-red-200 rounded-xl px-4 py-3 text-sm font-black bg-white outline-none focus:border-red-400"
-                    placeholder="سحبت المبلغ ليه؟ (توزيع أرباح / التزام شخصي...)"
+                    placeholder="بيان السحب (مصروفات إدارية / التزامات...)"
                   />
                 </label>
                 <label className="text-[10px] font-black text-[#7A7061]">
@@ -2399,25 +2437,53 @@ export default function TreasuryPage() {
                   disabled={isSavingWithdraw}
                   className="sm:col-span-6 bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-3 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50 h-[46px] transition-colors cursor-pointer shadow-md shadow-red-600/20"
                 >
-                  <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الخزنة الكبيرة'}
+                  <ArrowDownLeft size={16} /> {isSavingWithdraw ? 'جاري تسجيل السحب...' : 'تسجيل سحب من الإدارة'}
                 </button>
               </form>
             </div>
           )}
 
-          {/* جدول سحوبات الخزنة الكبيرة */}
-          <div className="overflow-x-auto rounded-[2.5rem] border-2 border-rose-300 bg-white shadow-lg p-6 md:p-8">
+          {/* جدول وبطاقات سحوبات الخزنة الكبيرة */}
+          <div className="rounded-[2.5rem] border-2 border-rose-300 bg-white shadow-lg p-6 md:p-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6 text-center sm:text-right">
-              <h3 className="text-xl md:text-2xl font-black text-rose-950 flex items-center justify-center gap-2">
-                <Receipt size={24} className="text-rose-600" />
-                سجل سحوبات الخزنة الكبيرة لهذا الشهر
-              </h3>
-              <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200">
-                <span className="text-xs font-bold text-[#7A7061]">إجمالي السحوبات:</span>
-                <span className="text-sm font-black text-red-600">{money(totalWithdrawnFromBig)}</span>
-                <span className="text-[11px] font-black text-red-700 bg-white px-2 py-0.5 rounded-lg border border-rose-200">
-                  {monthlyWithdrawals.length} حركة
+              <div>
+                <h3 className="text-xl md:text-2xl font-black text-rose-950 flex items-center justify-center sm:justify-start gap-2">
+                  <Receipt size={24} className="text-rose-600" />
+                  سجل مسحوبات الإدارة من الخزنة الكبيرة لهذا الشهر
+                </h3>
+                <p className="text-xs font-bold text-stone-500 mt-1">
+                  سجل خاص بحسابات مؤمن ومدحت فقط — مقسم حسب طرق السحب (كاش، فودافون كاش، إنستا باي)
+                </p>
+              </div>
+            </div>
+
+            {/* بطاقات الإحصائيات الأربعة المقسمة حسب طريقة السحب */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[11px] font-bold text-rose-800">إجمالي مسحوبات الإدارة</span>
+                <span className="text-lg font-black text-rose-700 mt-1">{money(withdrawalsBreakdown.total)}</span>
+                <span className="text-[10px] text-rose-600 font-bold mt-0.5">{monthlyWithdrawals.length} حركة</span>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                  <Banknote size={14} className="text-emerald-600" /> سحب كاش
                 </span>
+                <span className="text-lg font-black text-emerald-700 mt-1">{money(withdrawalsBreakdown.cash)}</span>
+                <span className="text-[10px] text-emerald-600 font-bold mt-0.5">من الكاش المورد</span>
+              </div>
+              <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[11px] font-bold text-red-800 flex items-center gap-1">
+                  <Smartphone size={14} className="text-red-600" /> سحب فودافون كاش
+                </span>
+                <span className="text-lg font-black text-red-700 mt-1">{money(withdrawalsBreakdown.vodafone)}</span>
+                <span className="text-[10px] text-red-600 font-bold mt-0.5">من محفظة فودافون</span>
+              </div>
+              <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[11px] font-bold text-purple-800 flex items-center gap-1">
+                  <Zap size={14} className="text-purple-600" /> سحب إنستا باي / بنك
+                </span>
+                <span className="text-lg font-black text-purple-700 mt-1">{money(withdrawalsBreakdown.instapay)}</span>
+                <span className="text-[10px] text-purple-600 font-bold mt-0.5">من الحساب البنكي</span>
               </div>
             </div>
 
@@ -2427,7 +2493,7 @@ export default function TreasuryPage() {
                   <tr>
                     <th className="p-4 text-white">المبلغ</th>
                     <th className="p-4 text-white">طريقة السحب</th>
-                    <th className="p-4 text-white">المسحوب لـ</th>
+                    <th className="p-4 text-white">الجهة المستلمة</th>
                     <th className="p-4 text-white">السبب / البيان</th>
                     <th className="p-4 text-white">التاريخ</th>
                     <th className="p-4 text-white text-center">حذف</th>
@@ -2445,8 +2511,6 @@ export default function TreasuryPage() {
 
                       const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
                       const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
-                      const actorMatch = (w.notes || '').match(/\[المستلم:\s*([^\]]+)\]/);
-                      const actor = actorMatch ? actorMatch[1] : (w.received_by || '—');
                       return (
                         <tr key={w.id} className="border-t border-rose-100 font-bold hover:bg-rose-50/40 transition-colors">
                           <td className="p-4 text-red-600 font-black">{money(Number(w.amount))}</td>
@@ -2456,7 +2520,11 @@ export default function TreasuryPage() {
                               {methodObj.label}
                             </span>
                           </td>
-                          <td className="p-4 text-[#2A2723]">{actor}</td>
+                          <td className="p-4">
+                            <span className="inline-block px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 font-black text-xs border border-rose-200">
+                              سحب من الإدارة
+                            </span>
+                          </td>
                           <td className="p-4 text-[#7A7061]">{reason}</td>
                           <td className="p-4">{w.transfer_date}</td>
                           <td className="p-4 text-center">
