@@ -401,8 +401,9 @@ export default function TreasuryPage() {
     }, 60);
   };
 
-  // فلتر جدول الحجوزات
+  // فلتر وبحث جدول الحجوزات
   const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [bookingSearchQuery, setBookingSearchQuery] = useState('');
 
   // نافذة تعديل المدفوع والمتبقي للحجز
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
@@ -531,15 +532,15 @@ export default function TreasuryPage() {
     }
   }, [adminInfo]);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const transferData = await getDbTreasuryTransfers();
       setTransfers(transferData || []);
     } catch (e) {
       console.error('Treasury transfers load error:', e);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
 
     try {
@@ -710,6 +711,7 @@ export default function TreasuryPage() {
 
       return {
         ...b,
+        bookingMonthlyNo: monthlyBookingNumberMap.get(String(b.id)) || 0,
         calculatedPaid: p,
         calculatedRemaining: r,
         isFullyPaid: r === 0,
@@ -719,6 +721,9 @@ export default function TreasuryPage() {
         instapayPaid: bInstapay,
       };
     });
+
+    // ترتيب الحجوزات تصاعدياً بحسب رقم الحجز الشهري (#1, #2, #3, ...) لضمان ثبات الترتيب
+    list.sort((a, b) => (a.bookingMonthlyNo || 0) - (b.bookingMonthlyNo || 0));
 
     return {
       totalRevenueCollected: revPaid,
@@ -733,7 +738,7 @@ export default function TreasuryPage() {
       completedBookings: list.filter(b => b.isFullyPaid),
       automatedElectronicDeposits: autoElectronic,
     };
-  }, [monthlyBookings]);
+  }, [monthlyBookings, monthlyBookingNumberMap]);
 
   // مصروفات الشهر (كلها تخصم بالكامل من الخزنة الصغيرة فقط)
   const monthlyExpenses = useMemo(() => (expenses || []).filter((expense) => {
@@ -1075,7 +1080,8 @@ export default function TreasuryPage() {
   // سداد كامل الباقي للحجز
   const markBookingAsFullyPaid = async (booking: any) => {
     if (!window.confirm(`تأكيد استلام كامل المبلغ المتبقي (${money(booking.calculatedRemaining)}) لحجز العميل "${booking.name || 'عميل'}"؟`)) return;
-    setMarkingId(booking.id);
+    const targetId = booking.id;
+    setMarkingId(targetId);
     setError('');
     try {
       const total = Number(booking.totalAmount || 0);
@@ -1088,7 +1094,18 @@ export default function TreasuryPage() {
         paymentInfo: 'خالص',
         notes: updatedNotes,
       });
-      await loadData();
+      await loadData(true); // Silent reload!
+
+      setTimeout(() => {
+        const rowEl = document.getElementById(`booking-row-${targetId}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          rowEl.classList.add('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');
+          setTimeout(() => {
+            rowEl.classList.remove('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');
+          }, 2500);
+        }
+      }, 80);
     } catch (err: any) {
       console.error('Failed to mark booking as fully paid:', err);
       setError('فشل تحديث حالة الحجز.');
@@ -1160,6 +1177,7 @@ export default function TreasuryPage() {
       ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
       : (editingBooking.paymentMethod || 'كاش');
 
+    const savedBookingId = editingBooking.id;
     setIsSavingEdit(true);
     try {
       let notes = editNotesInput.trim();
@@ -1177,7 +1195,19 @@ export default function TreasuryPage() {
       });
 
       setEditingBooking(null);
-      await loadData();
+      await loadData(true); // Silent reload so DOM isn't destroyed!
+
+      // التمرير السلس السريع والتركيز على صف الحجز المعدل مع إضاءة تمييزية
+      setTimeout(() => {
+        const rowEl = document.getElementById(`booking-row-${savedBookingId}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          rowEl.classList.add('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');
+          setTimeout(() => {
+            rowEl.classList.remove('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');
+          }, 2500);
+        }
+      }, 80);
     } catch (err: any) {
       console.error('Failed to update payment amounts:', err);
       setError('فشل حفظ المبالغ المدفوعة.');
@@ -1186,12 +1216,38 @@ export default function TreasuryPage() {
     }
   };
 
-  // قائمة الحجوزات المعروضة
+  // قائمة الحجوزات المعروضة مع دعم الفلترة السريعة والبحث برقم الحجز أو العميل أو الوحدة
   const displayedBookings = useMemo(() => {
-    if (bookingFilter === 'pending') return pendingBookings;
-    if (bookingFilter === 'completed') return completedBookings;
-    return bookingsWithBreakdown;
-  }, [bookingFilter, bookingsWithBreakdown, pendingBookings, completedBookings]);
+    let source = bookingsWithBreakdown;
+    if (bookingFilter === 'pending') source = pendingBookings;
+    else if (bookingFilter === 'completed') source = completedBookings;
+
+    const q = bookingSearchQuery.trim().toLowerCase();
+    if (!q) return source;
+
+    const cleanNum = q.replace(/^#/, '');
+
+    return source.filter((b) => {
+      // 1. البحث برقم الحجز الشهري أو الرقم المكتوب
+      if (cleanNum && (String(b.bookingMonthlyNo) === cleanNum || String(b.bookingMonthlyNo).includes(cleanNum) || String(b.bookingNumber || '').includes(cleanNum))) {
+        return true;
+      }
+      // 2. البحث باسم العميل
+      if ((b.name || '').toLowerCase().includes(q)) return true;
+      // 3. البحث برقم الهاتف
+      if ((b.phone || '').includes(q)) return true;
+      // 4. البحث باسم الوحدة / الاستوديو
+      const unitName = formatTreasuryUnitName(b.apartmentId || b.studio) || '';
+      if (unitName.toLowerCase().includes(q)) return true;
+      if (String(b.apartmentId || '').toLowerCase().includes(q)) return true;
+      if (String(b.studio || '').toLowerCase().includes(q)) return true;
+      // 5. البحث بالملاحظات أو طريقة الدفع
+      if ((b.paymentMethod || '').toLowerCase().includes(q)) return true;
+      if ((b.notes || '').toLowerCase().includes(q)) return true;
+
+      return false;
+    });
+  }, [bookingFilter, bookingsWithBreakdown, pendingBookings, completedBookings, bookingSearchQuery]);
 
   // خيارات السنوات
   const yearOptions = useMemo(() => {
@@ -2479,44 +2535,70 @@ export default function TreasuryPage() {
             كل حجز يوضح كم تم دفعه فعلياً (دخل الخزنة) وكم المتبقي على العميل (خارج الخزنة)
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-2 bg-white/90 p-2 rounded-2xl border-2 border-emerald-200 mt-2 shadow-sm">
-            <button
-              onClick={() => setBookingFilter('all')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                bookingFilter === 'all' ? 'bg-[#2A2723] text-white shadow-sm' : 'text-[#7A7061] hover:text-[#2A2723]'
-              }`}
-            >
-              الكل ({bookingsWithBreakdown.length})
-            </button>
-            <button
-              onClick={() => setBookingFilter('pending')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                bookingFilter === 'pending' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 hover:text-amber-900'
-              }`}
-            >
-              عليه متبقي ({pendingBookings.length})
-            </button>
-            <button
-              onClick={() => setBookingFilter('completed')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                bookingFilter === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 hover:text-emerald-800'
-              }`}
-            >
-              خالص ({completedBookings.length})
-            </button>
+          {/* تبويبات الفلترة والبحث السريع برقم الحجز */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white/90 p-3 rounded-2xl border-2 border-emerald-200 mt-2 shadow-sm w-full">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setBookingFilter('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  bookingFilter === 'all' ? 'bg-[#2A2723] text-white shadow-sm' : 'text-[#7A7061] hover:text-[#2A2723]'
+                }`}
+              >
+                الكل ({bookingsWithBreakdown.length})
+              </button>
+              <button
+                onClick={() => setBookingFilter('pending')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  bookingFilter === 'pending' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 hover:text-amber-900'
+                }`}
+              >
+                عليه متبقي ({pendingBookings.length})
+              </button>
+              <button
+                onClick={() => setBookingFilter('completed')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  bookingFilter === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 hover:text-emerald-800'
+                }`}
+              >
+                خالص ({completedBookings.length})
+              </button>
+            </div>
+
+            {/* مربع البحث السريع برقم الحجز أو العميل أو الوحدة */}
+            <div className="relative flex-1 min-w-[240px] max-w-md">
+              <input
+                type="text"
+                value={bookingSearchQuery}
+                onChange={(e) => setBookingSearchQuery(e.target.value)}
+                placeholder="🔍 ابحث برقم الحجز (مثال 27 أو #27)، اسم العميل، الوحدة..."
+                className="w-full bg-[#FAF7F2] border border-emerald-300 rounded-xl pr-3.5 pl-8 py-2 text-xs font-black text-[#2A2723] outline-none focus:border-emerald-600 focus:bg-white transition-all shadow-inner"
+              />
+              {bookingSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setBookingSearchQuery('')}
+                  className="absolute left-2.5 top-2 text-[#7A7061] hover:text-black font-black text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {displayedBookings.length === 0 ? (
           <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-emerald-200">
             <CheckCircle2 size={32} className="mx-auto text-emerald-600 mb-2" />
-            <p className="text-xs font-black text-[#2A2723]">لا توجد حجوزات في هذا التبويب لهذا الشهر</p>
+            <p className="text-xs font-black text-[#2A2723]">
+              {bookingSearchQuery ? `لا توجد نتائج بحث مطابقة لـ "${bookingSearchQuery}"` : 'لا توجد حجوزات في هذا التبويب لهذا الشهر'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border-2 border-emerald-400 bg-white shadow-sm">
             <table className="w-full text-right text-xs">
               <thead className="bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 text-white font-black">
                 <tr>
+                  <th className="p-4 text-center text-white w-14 whitespace-nowrap"># رقم الحجز</th>
                   <th className="p-4 text-white">العميل</th>
                   <th className="p-4 text-white">الوحدة</th>
                   <th className="p-4 text-white">الدخول - الخروج</th>
@@ -2531,7 +2613,16 @@ export default function TreasuryPage() {
               </thead>
               <tbody>
                 {displayedBookings.map((b) => (
-                  <tr key={b.id} className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-colors">
+                  <tr
+                    key={b.id}
+                    id={`booking-row-${b.id}`}
+                    className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-all duration-300"
+                  >
+                    <td className="p-4 text-center whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
+                        #{b.bookingMonthlyNo || '—'}
+                      </span>
+                    </td>
                     <td className="p-4">
                       <div className="font-black text-[#2A2723]">{b.name || 'عميل'}</div>
                       <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
@@ -2609,15 +2700,23 @@ export default function TreasuryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-lg md:max-w-xl p-6 shadow-2xl space-y-5 animate-scale-in" dir="rtl">
             <div className="flex items-center justify-between border-b border-[#EAE4D9]/60 pb-3">
-              <div>
-                <h3 className="text-base font-black text-[#2A2723]">تعديل حساب الحجز وطرق الدفع</h3>
-                <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
-                  العميل: {editingBooking.name || 'عميل'} ({formatTreasuryUnitName(editingBooking.apartmentId || editingBooking.studio)})
-                </p>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-emerald-700 text-white font-mono font-black text-sm shadow-xs">
+                  #{editingBooking.bookingMonthlyNo || monthlyBookingNumberMap.get(String(editingBooking.id)) || '—'}
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-[#2A2723]">
+                    تعديل حساب الحجز وطرق الدفع (حجز #{editingBooking.bookingMonthlyNo || monthlyBookingNumberMap.get(String(editingBooking.id)) || '—'})
+                  </h3>
+                  <p className="text-[11px] font-bold text-[#7A7061] mt-0.5">
+                    العميل: {editingBooking.name || 'عميل'} ({formatTreasuryUnitName(editingBooking.apartmentId || editingBooking.studio)})
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingBooking(null)}
-                className="text-[#7A7061] hover:text-black font-black text-xl p-1"
+                className="text-[#7A7061] hover:text-black font-black text-xl p-1 cursor-pointer"
               >
                 ✕
               </button>

@@ -2328,8 +2328,13 @@ function ReportsContent() {
               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in no-print">
                 <div className="bg-[#FDFBF7] border border-[#EAE4D9] w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
                   <div className="p-6 border-b border-[#EAE4D9]/50 flex justify-between items-center bg-white">
-                    <h2 className="text-xl font-black text-[#2A2723]">تعديل بيانات <span className="text-[#C1A68D]">الحجز</span></h2>
-                    <button onClick={() => setIsEditModalOpen(false)} className="text-2xl text-[#7A7061] hover:text-red-500">×</button>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-amber-600 text-white font-mono font-black text-sm shadow-xs">
+                        #{globalBookingNumberMap.get(String(editingBooking.id)) || editingBooking.bookingNo || editingBooking.no || '—'}
+                      </span>
+                      <h2 className="text-xl font-black text-[#2A2723]">تعديل بيانات <span className="text-[#C1A68D]">الحجز</span></h2>
+                    </div>
+                    <button onClick={() => setIsEditModalOpen(false)} className="text-2xl text-[#7A7061] hover:text-red-500 cursor-pointer">×</button>
                   </div>
 
                   <form onSubmit={handleFullUpdate} className="p-8 space-y-6 overflow-y-auto custom-scrollbar" dir="rtl">
@@ -2693,11 +2698,14 @@ function ReportsContent() {
                   <div className="flex items-start justify-between border-b border-[#EAE4D9] pb-3">
                     <div>
                       <h3 className="text-lg font-black text-[#2A2723] flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-xl bg-amber-600 text-white font-mono font-black text-sm shadow-xs">
+                          #{paymentModalRow.no || globalBookingNumberMap.get(String(paymentModalRow.id)) || '—'}
+                        </span>
                         <Wallet className="text-[#C1A68D]" size={20} />
                         طريقة وتفاصيل الدفع — {paymentModalRow.name}
                       </h3>
                       <p className="text-xs text-[#7A7061] font-bold mt-0.5">
-                        إجمالي الحساب: <strong className="text-[#2A2723] font-black">{paymentModalRow.total.toLocaleString()} ج.م</strong>
+                        حجز #{paymentModalRow.no || globalBookingNumberMap.get(String(paymentModalRow.id)) || '—'} | إجمالي الحساب: <strong className="text-[#2A2723] font-black">{paymentModalRow.total.toLocaleString()} ج.م</strong>
                         {paymentModalRow.phone && <span className="mr-2">| هاتف: {paymentModalRow.phone}</span>}
                       </p>
                     </div>
