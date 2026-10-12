@@ -73,7 +73,50 @@ export function normalizeDateString(dateStr: any, defaultYear = 2026): string {
   return str;
 }
 
+const UNIT_FULL_NAMES: Record<string, string> = {
+  'b1-s1': 'استوديو 1 (دبل)',
+  'b1-s2': 'استوديو 2 (سنجل)',
+  'b1-s3': 'استوديو 3 (سنجل)',
+  'b1-s4': 'استوديو 4 (تريبل)',
+  'b1-s5': 'استوديو 5 (دبل)',
+  'b1-s6': 'استوديو 6 (سنجل)',
+  'b1-s7': 'استوديو 7 (سنجل)',
+  'b1-s8': 'استوديو 8 (سنجل)',
+  'b1-s9': 'استوديو 9 (دبل)',
+  'b1-s10': 'استوديو 10 (دبل)',
+  'b1-s11': 'استوديو 11 (دبل)',
+  'b1-s12': 'استوديو 12 (دبل)',
+  'b2-s1': 'استوديو بريميوم 13 (دبل - سرير كبير)',
+  'b2-s2': 'استوديو بريميوم 14 (تريبل)',
+  'b2-s3': 'استوديو بريميوم 15 (تريبل)',
+  'b2-s4': 'استوديو بريميوم 16 (تريبل 2+1)',
+  'b2-s5': 'استوديو بريميوم 17 (سنجل)',
+  'b2-s6': 'استوديو بريميوم 18 (دبل)',
+  'b2-s7': 'استوديو بريميوم 19 (تريبل 2+1)',
+  'b2-s8': 'استوديو بريميوم 20 (دبل)',
+  'b2-s9': 'استوديو بريميوم 21 (تريبل 2+1)',
+  'b2-s10': 'استوديو بريميوم 22 (تريبل)',
+  'b2-s11': 'استوديو بريميوم 23 (تريبل)',
+  'b2-s12': 'استوديو بريميوم 24 (دبل - سرير كبير)',
+  'apt-1': 'شقة فاخرة 1 - زكي رستم',
+  'apt-2': 'شقة فاخرة 2 - سيتي ستارز',
+  'apt-3': 'شقة فاخرة 3 - عباس الرئيسي',
+  'p-s25': 'شقة غرفتين (25) - 3 سرير',
+  'p-s26': 'شقة غرفتين (26) - 2 سرير',
+  'p-s27': 'شقة غرفتين (27) - 2 سرير',
+  'p-s28': 'شقة غرفتين (28) - 3 سرير',
+  'p-s29': 'شقة غرفتين (29) - 3 سرير',
+  'p-s30': 'شقة غرفتين (30) - 3 سرير',
+};
+
 export function formatUnitName(rawIdOrName?: any): string {
+  if (!rawIdOrName) return '—';
+  const str = String(rawIdOrName).trim();
+  if (UNIT_FULL_NAMES[str]) return UNIT_FULL_NAMES[str];
+  return str;
+}
+
+export function formatTreasuryUnitName(rawIdOrName?: any): string {
   if (!rawIdOrName) return '—';
   const str = String(rawIdOrName).trim();
   if (str === 'apt-1' || str === 'شقة 1' || str.includes('ذكي رستم') || str.includes('زكي رستم') || str.includes('ذكي سيستم')) return 'زكي رستم';
@@ -95,9 +138,16 @@ export function formatUnitName(rawIdOrName?: any): string {
   const psMatch = str.match(/^p-s(\d+)$/i);
   if (psMatch) return `س ${psMatch[1]}`;
 
+  // If already like 'س 18' -> 'س 18'
+  const sMatch = str.match(/^س\s*(\d+)$/i);
+  if (sMatch) return `س ${sMatch[1]}`;
+
   // If old format like 'استوديو 5' -> 'س 5' or 'استوديو بريميوم 14' -> 'س 14'
   const studioMatch = str.match(/^استوديو\s*(?:بريميوم\s*)?(\d+)/i);
   if (studioMatch) return `س ${studioMatch[1]}`;
+
+  const twoRoomMatch = str.match(/^شقة\s*غرفتين\s*\((\d+)\)/i);
+  if (twoRoomMatch) return `س ${twoRoomMatch[1]}`;
 
   return str;
 }

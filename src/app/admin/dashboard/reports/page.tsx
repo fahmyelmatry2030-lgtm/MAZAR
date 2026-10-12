@@ -57,7 +57,7 @@ const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
     // 1. وسوم بين أقواس مربعة
-    .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب):[^\]]*\]/gi, '')
+    .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب|رقم(?:_الحجز)?):[^\]]*\]/gi, '')
     .replace(/\[حساب خالص\]/gi, '')
     // 2. مسؤول الحجز إذا كتب كنص صريح داخل الملاحظات
     .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
@@ -543,6 +543,23 @@ function ReportsContent() {
             }
           }
         }
+      }
+
+      if (field === 'bookingNo' || field === 'no') {
+        const numVal = parseInt(String(value).replace(/[^0-9]/g, ''), 10);
+        let updatedNotes = currentBooking.notes || '';
+        if (!isNaN(numVal) && numVal > 0) {
+          if (/\[رقم(?:_الحجز)?:\s*\d+\]/i.test(updatedNotes)) {
+            updatedNotes = updatedNotes.replace(/\[رقم(?:_الحجز)?:\s*\d+\]/gi, `[رقم_الحجز: ${numVal}]`);
+          } else {
+            updatedNotes = `${updatedNotes} [رقم_الحجز: ${numVal}]`.trim();
+          }
+        } else {
+          updatedNotes = updatedNotes.replace(/\[رقم(?:_الحجز)?:\s*\d+\]/gi, '').trim();
+        }
+        updates.notes = updatedNotes;
+        delete updates.bookingNo;
+        delete updates.no;
       }
 
       if (field === 'paymentStatus') {
@@ -1348,6 +1365,57 @@ function ReportsContent() {
     };
   });
 
+  // 1. Calculate month-wide sequential numbers across ALL units in the entire month
+  const globalBookingNumberMap = useMemo(() => {
+    if (selectedMonth === -1 || selectedYear === -1) return new Map<string, number>();
+
+    // Gather all valid approved bookings for the entire month across all units
+    const allMonth = (bookings || []).filter((b: any) => {
+      if (b.status === 'deleted' || b.status === 'cancelled' || b.status === 'rejected') return false;
+      const isApproved = b.status === 'approved' || b.status === 'مؤكد';
+      if (!isApproved) return false;
+      const partsIn = b.checkIn?.split('-');
+      if (!partsIn || partsIn.length < 2) return false;
+      const checkInYear = parseInt(partsIn[0], 10);
+      const checkInMonth = parseInt(partsIn[1], 10) - 1;
+      return checkInYear === selectedYear && checkInMonth === selectedMonth;
+    });
+
+    // Sort chronologically across the entire month
+    allMonth.sort((a: any, b: any) => {
+      const getExplicit = (item: any) => {
+        if (item.bookingNumber && !isNaN(Number(item.bookingNumber))) return Number(item.bookingNumber);
+        const m = String(item.notes || '').match(/\[رقم(?:_الحجز)?:\s*(\d+)\]/i);
+        return m ? Number(m[1]) : null;
+      };
+      const numA = getExplicit(a);
+      const numB = getExplicit(b);
+      if (numA !== null && numB !== null) return numA - numB;
+      if (numA !== null) return -1;
+      if (numB !== null) return 1;
+
+      if (a.checkIn !== b.checkIn) {
+        return (a.checkIn || '').localeCompare(b.checkIn || '');
+      }
+      const tA = a.timestamp || a.createdAt || a.bookingDate || '';
+      const tB = b.timestamp || b.createdAt || b.bookingDate || '';
+      if (tA && tB && tA !== tB) return tA.localeCompare(tB);
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+
+    const map = new Map<string, number>();
+    allMonth.forEach((b: any, index: number) => {
+      const explicitMatch = String(b.notes || '').match(/\[رقم(?:_الحجز)?:\s*(\d+)\]/i);
+      const no = b.bookingNumber && !isNaN(Number(b.bookingNumber))
+        ? Number(b.bookingNumber)
+        : explicitMatch
+        ? Number(explicitMatch[1])
+        : index + 1;
+      map.set(String(b.id), no);
+    });
+    return map;
+  }, [bookings, selectedMonth, selectedYear]);
+
   // Sort dataRows by check-in date: OLD (Oldest) at TOP, NEW (Newest) at BOTTOM
   const sortedDataRows = [...dataRows].sort((a, b) => {
     // String comparison works perfectly for YYYY-MM-DD
@@ -1358,13 +1426,16 @@ function ReportsContent() {
     return String(a.id || '').localeCompare(String(b.id || ''));
   });
 
-  // Re-assign 'no' after sorting
-  const renumberedRows = sortedDataRows.map((r, i) => ({ ...r, no: i + 1 }));
+  // Re-assign 'no' from the month-wide sequential order
+  const renumberedRows = sortedDataRows.map((r, i) => {
+    const globalNo = globalBookingNumberMap.get(String(r.id)) ?? (i + 1);
+    return { ...r, no: globalNo };
+  });
 
-  // Fill empty rows to always show 31
+  // Fill empty rows to always show 31 (empty rows have no number)
   const emptyRowsCount = Math.max(0, 31 - renumberedRows.length);
-  const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => ({
-    no: renumberedRows.length + i + 1,
+  const emptyRows = Array.from({ length: emptyRowsCount }, () => ({
+    no: '',
     id: '', date: '', name: '', nationality: '', idNumber: '', phone: '',
     checkIn: '', checkOut: '', days: 0, pricePerNight: 0, total: 0,
     commission: 0, brokerName: '', netValue: 0, clientStatus: '',
@@ -1693,7 +1764,7 @@ function ReportsContent() {
               <div>
               {!isAkoura && (
               <div>
-                <div className="text-[9px] font-black text-[#C1A68D] uppercase tracking-[0.25em] px-3 mb-2">الاستديوهات الفندقية — المبنى الأول (1-12)</div>
+                <div className="text-[9px] font-black text-[#C1A68D] uppercase tracking-[0.25em] px-3 mb-2">الاستديوهات الفندقية — مزار 1 (1-12)</div>
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {units
                     .filter(u => u && u.id && String(u.id).startsWith('b1-s'))
@@ -1715,7 +1786,7 @@ function ReportsContent() {
                       );
                     })}
                 </div>
-                <div className="text-[9px] font-black text-[#C1A68D] uppercase tracking-[0.25em] px-3 mb-2">الاستديوهات الفندقية — المبنى الثاني (13-24)</div>
+                <div className="text-[9px] font-black text-[#C1A68D] uppercase tracking-[0.25em] px-3 mb-2">الاستديوهات الفندقية — مزار 2 (13-24)</div>
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {units
                     .filter(u => u && u.id && String(u.id).startsWith('b2-s'))
@@ -2010,7 +2081,18 @@ function ReportsContent() {
                       allRows.map((row, index) => (
                         <tr key={index} className={`border-t border-[#D5CBB8]/60 transition-colors group ${!row.hasData ? 'bg-[#F0EBE2] opacity-50' : row.isCarriedOver ? 'bg-[#F5F0E6]' : index % 2 === 0 ? 'bg-[#FDFBF7] hover:bg-[#F0EBE2]' : 'bg-[#F7F3EC] hover:bg-[#EBE5D9]'}`}>
                           <td className="px-2 py-3 text-[#8B7355] font-black tracking-widest sticky right-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.06)] transition-colors" style={{ backgroundColor: !row.hasData ? '#F0EBE2' : row.isCarriedOver ? '#F5F0E6' : index % 2 === 0 ? '#FDFBF7' : '#F7F3EC' }}>
-                            {row.no.toString().padStart(2, '0')}
+                            {row.hasData && row.no ? (
+                              <EditableCell
+                                value={row.no ? row.no.toString().padStart(2, '0') : ''}
+                                bookingId={row.id}
+                                field="bookingNo"
+                                onSave={handleCellSave}
+                                className="font-black text-[#8B7355] tracking-widest text-center"
+                                readOnly={row.isCarriedOver}
+                              />
+                            ) : (
+                              <span className="text-[#D5CBB8]">—</span>
+                            )}
                           </td>
                           {/* EDITABLE: Booking Registration Date (تاريخ الحجز) */}
                           <td className="px-0 py-0 border-l border-[#D5CBB8]/40">
