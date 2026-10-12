@@ -568,6 +568,42 @@ export default function TreasuryPage() {
     return parsed ? parsed.month === month && parsed.year === year : false;
   }), [bookings, month, year]);
 
+  // خريطة رقم الحجز الشهري لكل حجز (#1, #2, ... #N)
+  const monthlyBookingNumberMap = useMemo(() => {
+    const list = [...monthlyBookings].sort((a: any, b: any) => {
+      const getExplicit = (item: any) => {
+        if (item.bookingNumber && !isNaN(Number(item.bookingNumber))) return Number(item.bookingNumber);
+        const m = String(item.notes || '').match(/\[رقم(?:_الحجز)?:\s*(\d+)\]/i);
+        return m ? Number(m[1]) : null;
+      };
+      const numA = getExplicit(a);
+      const numB = getExplicit(b);
+      if (numA !== null && numB !== null) return numA - numB;
+      if (numA !== null) return -1;
+      if (numB !== null) return 1;
+
+      if (a.checkIn !== b.checkIn) {
+        return (a.checkIn || '').localeCompare(b.checkIn || '');
+      }
+      const tA = a.timestamp || a.createdAt || a.bookingDate || '';
+      const tB = b.timestamp || b.createdAt || b.bookingDate || '';
+      if (tA && tB && tA !== tB) return tA.localeCompare(tB);
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+
+    const map = new Map<string, number>();
+    list.forEach((b: any, index: number) => {
+      const explicitMatch = String(b.notes || '').match(/\[رقم(?:_الحجز)?:\s*(\d+)\]/i);
+      const no = b.bookingNumber && !isNaN(Number(b.bookingNumber))
+        ? Number(b.bookingNumber)
+        : explicitMatch
+        ? Number(explicitMatch[1])
+        : index + 1;
+      map.set(String(b.id), no);
+    });
+    return map;
+  }, [monthlyBookings]);
+
   // احتساب المقبوض الفعلي والمتبقي وتوزيع طرق الدفع لكل حجز
   const {
     totalRevenueCollected,
@@ -1828,19 +1864,21 @@ export default function TreasuryPage() {
             <thead className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-950 text-white font-black">
               <tr>
                 <th className="p-4 text-white text-center w-12">#</th>
+                <th className="p-4 text-white whitespace-nowrap">التاريخ</th>
+                <th className="p-4 text-white text-center whitespace-nowrap">رقم الحجز</th>
+                <th className="p-4 text-white">بيان الحجز / المصدر</th>
                 <th className="p-4 text-white">المبلغ</th>
                 <th className="p-4 text-white">طريقة التحويل</th>
                 <th className="p-4 text-white">مسلم (من)</th>
                 <th className="p-4 text-white">مستلم (إلى)</th>
                 <th className="p-4 text-white">ملاحظة</th>
-                <th className="p-4 text-white">التاريخ</th>
                 <th className="p-4 text-center text-white">حالة الاعتماد</th>
                 <th className="p-4 text-center text-white">تعديل / حذف</th>
               </tr>
             </thead>
             <tbody>
               {filteredDeposits.length === 0 ? (
-                <tr><td colSpan={9} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات مسجلة في هذا التبويب</td></tr>
+                <tr><td colSpan={11} className="p-10 text-center text-[#7A7061] font-bold">لا توجد حركات مسجلة في هذا التبويب</td></tr>
               ) : (
                 filteredDeposits.map((record: any, idx: number) => {
                   const methodObj = PAYMENT_METHODS.find(m => m.id === record.methodId) || PAYMENT_METHODS[0];
@@ -1849,6 +1887,9 @@ export default function TreasuryPage() {
                   const rawTransfer = record.rawTransfer;
                   const approved = isAuto ? true : isTransferApproved(rawTransfer);
                   const approver = isAuto ? (record.booking?.bookingManager || 'تلقائي من الحجز') : getTransferApprover(rawTransfer);
+
+                  const bookingObj = record.booking;
+                  const bookingMonthlyNo = bookingObj ? monthlyBookingNumberMap.get(String(bookingObj.id)) : null;
 
                   return (
                     <tr
@@ -1859,30 +1900,10 @@ export default function TreasuryPage() {
                           : 'border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70'
                       }`}
                     >
+                      {/* 1. مسلسل حركة التوريد */}
                       <td className="p-4 text-center text-[#7A7061] font-black">{idx + 1}</td>
-                      <td className="p-4 text-[#2A2723] font-black text-sm">{money(Number(record.amount))}</td>
-                      <td className="p-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
-                          <MethodIcon size={14} />
-                          {methodObj.label}
-                        </span>
-                      </td>
-                      <td className="p-4 text-[#2A2723]">
-                        <div className="font-bold">{record.handed_by}</div>
-                        {isAuto && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-black inline-block mt-0.5">
-                            ⚡ حجز إلكتروني تلقائي
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 text-[#7A7061]">{record.received_by}</td>
-                      <td className="p-4 text-[#2A2723] max-w-xs break-words" title={record.notes}>
-                        {record.notes ? (
-                          <span className="text-[#2A2723] font-semibold">{record.notes}</span>
-                        ) : (
-                          <span className="text-[#A59D90] font-normal">—</span>
-                        )}
-                      </td>
+
+                      {/* 2. التاريخ */}
                       <td className="p-4 text-[#7A7061] whitespace-nowrap">
                         <div className="font-bold text-[#2A2723]">{record.transfer_date}</div>
                         {!isAuto && rawTransfer && (() => {
@@ -1897,6 +1918,79 @@ export default function TreasuryPage() {
                           }
                           return null;
                         })()}
+                      </td>
+
+                      {/* 3. رقم الحجز في الشهر (مثلاً #24) */}
+                      <td className="p-4 text-center whitespace-nowrap">
+                        {bookingObj ? (
+                          <span className="inline-flex items-center justify-center bg-amber-100 text-amber-950 font-black text-xs px-2.5 py-1 rounded-xl border border-amber-300 shadow-xs">
+                            #{bookingMonthlyNo || '—'}
+                          </span>
+                        ) : (() => {
+                          const match = (record.notes || '').match(/حجز\s*#?(\d+)/i);
+                          return match ? (
+                            <span className="inline-flex items-center justify-center bg-amber-100 text-amber-950 font-black text-xs px-2.5 py-1 rounded-xl border border-amber-300 shadow-xs">
+                              #{match[1]}
+                            </span>
+                          ) : (
+                            <span className="text-[#A59D90] font-bold">—</span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* 4. بيان الحجز / المصدر (الحجز ده بتاع إيه بالظبط) */}
+                      <td className="p-4">
+                        {bookingObj ? (
+                          <div className="space-y-0.5 min-w-[140px]">
+                            <div className="font-black text-[#2A2723] text-xs md:text-sm">
+                              {bookingObj.name || 'عميل'}
+                            </div>
+                            <div className="text-[11px] text-[#C1A68D] font-black flex items-center gap-1.5">
+                              <span>🏠 {formatTreasuryUnitName(bookingObj.studio || bookingObj.apartmentId)}</span>
+                              {bookingObj.checkIn && (
+                                <span className="text-[10px] text-gray-500 font-mono font-normal">({bookingObj.checkIn})</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="font-black text-emerald-800 flex items-center gap-1.5 min-w-[140px]">
+                            <Wallet size={14} className="text-emerald-600 shrink-0" />
+                            <span>توريد كاش من الخزنة الفرعية</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 5. المبلغ */}
+                      <td className="p-4 text-[#2A2723] font-black text-sm whitespace-nowrap">{money(Number(record.amount))}</td>
+
+                      {/* 6. طريقة التحويل */}
+                      <td className="p-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border ${methodObj.color}`}>
+                          <MethodIcon size={14} />
+                          {methodObj.label}
+                        </span>
+                      </td>
+
+                      {/* 7. مسلم (من) */}
+                      <td className="p-4 text-[#2A2723] whitespace-nowrap">
+                        <div className="font-bold">{record.handed_by}</div>
+                        {isAuto && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-black inline-block mt-0.5">
+                            ⚡ حجز إلكتروني تلقائي
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 8. مستلم (إلى) */}
+                      <td className="p-4 text-[#7A7061] whitespace-nowrap">{record.received_by}</td>
+
+                      {/* 9. ملاحظة */}
+                      <td className="p-4 text-[#2A2723] max-w-xs break-words" title={record.notes}>
+                        {record.notes ? (
+                          <span className="text-[#2A2723] font-semibold">{record.notes}</span>
+                        ) : (
+                          <span className="text-[#A59D90] font-normal">—</span>
+                        )}
                       </td>
 
                       {/* عمود حالة الاعتماد (Approve) */}
