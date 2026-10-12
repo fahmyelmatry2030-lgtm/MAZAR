@@ -2625,7 +2625,6 @@ export default function TreasuryPage() {
                   <th className="p-4 bg-emerald-800/80 text-emerald-100">تم دفع (بالخزنة) 🟢</th>
                   <th className="p-4 text-white">طريقة الدفع 💳</th>
                   <th className="p-4 bg-amber-800/80 text-amber-100">المتبقي (خارجها) ⏳</th>
-                  <th className="p-4 text-white">الحالة</th>
                   <th className="p-4 text-white">الملاحظات</th>
                   <th className="p-4 text-center text-white sticky left-0 bg-emerald-950 z-20 shadow-[-4px_0_8px_rgba(0,0,0,0.25)] whitespace-nowrap">إجراءات</th>
                 </tr>
@@ -2676,17 +2675,6 @@ export default function TreasuryPage() {
                         <span className="text-rose-600 font-black">متبقي {money(b.calculatedRemaining)}</span>
                       ) : (
                         <span className="text-emerald-700 font-black text-xs">خالص ✔️</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      {b.isFullyPaid ? (
-                        <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-black border border-emerald-300">
-                          خالص ✔️
-                        </span>
-                      ) : (
-                        <span className="bg-rose-100 text-rose-900 px-3 py-1 rounded-full text-xs font-black border border-rose-300">
-                          باقي فلوس ❌
-                        </span>
                       )}
                     </td>
                     <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={cleanDisplayNotes(b.notes)}>
