@@ -2673,18 +2673,18 @@ export default function TreasuryPage() {
                     </td>
                     <td className="p-4 bg-amber-50/30 font-black text-sm">
                       {b.calculatedRemaining > 0 ? (
-                        <span className="text-rose-600">{money(b.calculatedRemaining)}</span>
+                        <span className="text-rose-600 font-black">متبقي {money(b.calculatedRemaining)}</span>
                       ) : (
-                        <span className="text-emerald-600 text-xs">0 (خالص ✔️)</span>
+                        <span className="text-emerald-700 font-black text-xs">خالص ✔️</span>
                       )}
                     </td>
                     <td className="p-4">
                       {b.isFullyPaid ? (
-                        <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-black border border-emerald-200">
+                        <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-black border border-emerald-300">
                           خالص ✔️
                         </span>
                       ) : (
-                        <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-black border border-amber-200">
+                        <span className="bg-rose-100 text-rose-900 px-3 py-1 rounded-full text-xs font-black border border-rose-300">
                           باقي فلوس ❌
                         </span>
                       )}

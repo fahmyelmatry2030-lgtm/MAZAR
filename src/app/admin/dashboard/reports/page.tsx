@@ -2212,32 +2212,32 @@ function ReportsContent() {
                                 type="button"
                                 disabled={row.isCarriedOver}
                                 onClick={() => openPaymentBreakdownModal(row)}
-                                className={`w-full text-right p-1.5 md:p-2 rounded-xl transition-all cursor-pointer group flex flex-col gap-0.5 border shadow-2xs ${
+                                className={`w-full text-right p-1.5 md:p-2 rounded-xl transition-all cursor-pointer group flex flex-col gap-1 border shadow-2xs ${
                                   row.isCarriedOver
                                     ? 'bg-stone-50 border-stone-200 opacity-70 cursor-not-allowed'
                                     : row.isFullyPaid
                                       ? 'bg-emerald-50/80 hover:bg-emerald-100/90 border-emerald-300/80 text-emerald-950'
                                       : 'bg-rose-50/80 hover:bg-rose-100/90 border-rose-300/80 text-rose-950'
                                 }`}
-                                title="اضغط لعرض تفاصيل الدفعات أو إضافة دفعة جديدة"
+                                title="اضغط لعرض تفاصيل الدفعات أو سداد المتبقي"
                               >
                                 <div className="flex items-center justify-between gap-1 w-full">
-                                  <span className="font-black text-[11px] text-[#1a1714]">
-                                    دفع {row.paidAmount.toLocaleString()}
-                                  </span>
-                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                                    row.isFullyPaid
-                                      ? 'bg-emerald-200 text-emerald-950 border-emerald-300'
-                                      : 'bg-rose-200 text-rose-950 border-rose-300'
-                                  }`}>
-                                    {row.isFullyPaid ? 'الحساب خالص 🟢' : `متبقي ${row.remainingAmount.toLocaleString()} 🔴`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-[9px] font-bold text-[#7A7061] mt-0.5">
-                                  <span className="text-blue-700 truncate max-w-[100px] font-bold">
+                                  {row.isFullyPaid ? (
+                                    <span className="font-black text-xs px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-950 border border-emerald-300 flex items-center gap-1">
+                                      خالص ✔️
+                                    </span>
+                                  ) : (
+                                    <span className="font-black text-xs px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-950 border border-rose-300 flex items-center gap-1">
+                                      متبقي {row.remainingAmount.toLocaleString()} ج.م
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-blue-700 font-bold truncate max-w-[110px]">
                                     {row.paymentMethod || 'كاش'}
                                   </span>
-                                  <span className="text-[9px] text-[#A88B70] group-hover:text-[#2A2723] font-black underline flex items-center gap-0.5">
+                                </div>
+                                <div className="flex items-center justify-between text-[9px] font-bold text-[#7A7061]">
+                                  <span>مدفوع: {row.paidAmount.toLocaleString()} ج.م</span>
+                                  <span className="text-[#A88B70] group-hover:text-[#2A2723] font-black underline flex items-center gap-0.5">
                                     تفاصيل 🔍
                                   </span>
                                 </div>
