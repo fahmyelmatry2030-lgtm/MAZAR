@@ -82,11 +82,11 @@ const detectPaymentMethod = (text: string | null | undefined = ''): { id: Paymen
   if (!text) return { id: 'cash', label: 'كاش' };
   const raw = String(text).trim();
 
-  // 1) فحص وسم [طريقة: ...] بدقة
-  const tagMatch = raw.match(/\[طريقة:\s*([^\]]+)\]/);
+  // 1) فحص وسم [طريقة: ...] أو [طريقة الدفع: ...] أو [طريقة_الدفع: ...] بدقة
+  const tagMatch = raw.match(/\[(?:طريقة|طريقة الدفع|طريقة_الدفع|payment_method|method):\s*([^\]]+)\]/i);
   if (tagMatch) {
     const rawTag = tagMatch[1].trim();
-    if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(rawTag)) {
+    if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي|فيزا|visa/i.test(rawTag)) {
       return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
     }
     if (/فودافون|vodafone/i.test(rawTag)) {
@@ -95,17 +95,11 @@ const detectPaymentMethod = (text: string | null | undefined = ''): { id: Paymen
     return { id: 'cash', label: 'كاش' };
   }
 
-  // 2) تنظيف النص من وسوم النظام وكلمة "الحساب خالص" ولكن الحفاظ على محتوى الملاحظات
-  const clean = raw
-    .replace(/\[(?:طريقة|اعتماد|حساب_شهر|شهر_التقرير|تاريخ[^\]]*|مدفوع|متبقي|باقي):[^\]]*\]/gi, ' ')
-    .replace(/(?:ال)?حساب\s*(?:خالص|بالكامل)/gi, ' ')
-    .replace(/حساب\s*س\s*\d+/gi, ' ')
-    .trim();
-
-  if (/فودافون|vodafone/i.test(clean)) {
+  // 2) فحص مباشر لأي ذكر لفودافون كاش أو إنستا باي في النص الأصلي الكامل
+  if (/فودافون|vodafone/i.test(raw)) {
     return { id: 'vodafone_cash', label: 'فودافون كاش' };
   }
-  if (/إنستا|انستا|instapay|حساب بنكي|بنك|فيزا|visa/i.test(clean)) {
+  if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي|فيزا|visa/i.test(raw)) {
     return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
   }
 
@@ -835,10 +829,10 @@ export default function TreasuryPage() {
     return totalBigTreasuryInflow - totalWithdrawnFromBig;
   }, [totalBigTreasuryInflow, totalWithdrawnFromBig]);
 
-  // 2) رصيد الخزنة الفرعية = كاش الحجوزات المقبوض − ما تم تحويله كاش فقط للكبيرة (مطابق تماماً لما كتبه العميل)
+  // 2) رصيد الخزنة الفرعية = كاش الحجوزات المقبوض − المصروفات − ما تم تحويله كاش فقط للكبيرة (مطابق تماماً للورقة)
   const smallTreasuryBalance = useMemo(() => {
-    return (totalCashRevenueCollected || 0) - totalCashDepositedToBig;
-  }, [totalCashRevenueCollected, totalCashDepositedToBig]);
+    return (totalCashRevenueCollected || 0) - (totalExpenses || 0) - (totalCashDepositedToBig || 0);
+  }, [totalCashRevenueCollected, totalExpenses, totalCashDepositedToBig]);
 
   // الإجمالي الشامل لصافي أرباح الشهر المقبوضة فعلياً
   const grossTreasury = useMemo(() => {
@@ -901,7 +895,7 @@ export default function TreasuryPage() {
   const monthExpensesAmount = totalExpenses || 0;
   const totalNetExpectedProfit = totalAccountMonth - monthExpensesAmount;
   const uncollectedAmount = totalRemainingUncollected || 0;
-  const collectedNetProfit = grossTreasury || 0;
+  const collectedNetProfit = totalRevenueCollected || 0;
   const branchCashTreasury = smallTreasuryBalance;
   const bankInstapayTreasury = totalInstapayTreasury;
   const vodafoneCashTreasury = totalVodafoneTreasury;
@@ -1475,6 +1469,10 @@ export default function TreasuryPage() {
                 <span className="font-black font-mono">{isLoading ? '...' : money(totalCashRevenueCollected || 0)}</span>
               </div>
               <div className="flex justify-between items-center text-rose-700">
+                <span>💸 مصروفات (تخرج من الكاش):</span>
+                <span className="font-black font-mono">− {isLoading ? '...' : money(totalExpenses || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center text-amber-800">
                 <span>⬇️ تحول كاش للخزنة الكبيرة:</span>
                 <span className="font-black font-mono">− {isLoading ? '...' : money(totalCashDepositedToBig || 0)}</span>
               </div>
