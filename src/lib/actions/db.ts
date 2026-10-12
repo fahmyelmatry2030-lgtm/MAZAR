@@ -134,8 +134,8 @@ export async function getFreshDbBookings(nonce?: string) {
       return 'خالص';
     }
 
-    if (b.payment_status === 'باقي') return 'باقي';
-    return 'خالص';
+    if (b.payment_status === 'خالص') return 'خالص';
+    return 'باقي';
   };
 
   const parseArabicNumberString = (raw: string): number | null => {
@@ -230,8 +230,8 @@ export async function getFreshDbBookings(nonce?: string) {
       const paidTagMatch = combined.match(/\[مدفوع:\s*([\d.]+)/);
       const remainingTagMatch = combined.match(/\[متبقي:\s*([\d.]+)/) || combined.match(/\[باقي:\s*([\d.]+)/);
 
-      let calcPaid = totalAmount;
-      let calcRemaining = 0;
+      let calcPaid = 0;
+      let calcRemaining = totalAmount;
 
       if (b.paid_amount !== undefined && b.paid_amount !== null && b.paid_amount !== '') {
         calcPaid = Math.min(totalAmount, Math.max(0, Number(b.paid_amount)));
@@ -258,23 +258,13 @@ export async function getFreshDbBookings(nonce?: string) {
         } else if (textPaid !== null) {
           calcPaid = textPaid;
           calcRemaining = Math.max(0, totalAmount - textPaid);
-        } else if (detectPaymentStatus(b) === 'باقي') {
-          // استخراج أي رقم موجود بعد فحص عدم وجود خالص
-          const anyNumMatch = combined.match(/(\+?\s*\d[\d.,]*\s*(?:k|ك|ألف|الف)?)/);
-          if (anyNumMatch) {
-            const rawNum = anyNumMatch[1].replace(/^\+/, '').trim();
-            const num = parseArabicNumberString(rawNum);
-            if (num !== null && num > 0) {
-              calcRemaining = num;
-              calcPaid = Math.max(0, totalAmount - num);
-            } else {
-              calcPaid = 0;
-              calcRemaining = totalAmount;
-            }
-          } else {
-            calcPaid = 0;
-            calcRemaining = totalAmount;
-          }
+        } else if (detectPaymentStatus(b) === 'خالص') {
+          calcPaid = totalAmount;
+          calcRemaining = 0;
+        } else {
+          // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي كامل المبلغ حتى يحدد يدوياً
+          calcPaid = 0;
+          calcRemaining = totalAmount;
         }
       }
 
@@ -337,7 +327,7 @@ export async function saveDbBooking(booking: any) {
       apartment_id: newBookingWithId.apartmentId ?? null,
       studio: newBookingWithId.studio ?? null,
       status: newBookingWithId.status,
-      payment_info: newBookingWithId.paymentInfo ?? null,
+      payment_info: newBookingWithId.paymentInfo || (newBookingWithId.totalAmount ? `متبقي ${newBookingWithId.totalAmount}` : 'باقي'),
       total_amount: newBookingWithId.totalAmount ?? null,
       number_of_days: newBookingWithId.numberOfDays ?? null,
       nationality: newBookingWithId.nationality ?? null,
@@ -351,6 +341,9 @@ export async function saveDbBooking(booking: any) {
     };
 
     // Append optional columns only if they have values (they may not exist in the DB schema yet)
+    if (newBookingWithId.paidAmount !== undefined) insertData.paid_amount = newBookingWithId.paidAmount;
+    if (newBookingWithId.remainingAmount !== undefined) insertData.remaining_amount = newBookingWithId.remainingAmount;
+    if (newBookingWithId.paymentStatus) insertData.payment_status = newBookingWithId.paymentStatus;
     if (newBookingWithId.bookingManager) insertData.booking_manager = newBookingWithId.bookingManager;
     if (newBookingWithId.paymentMethod) insertData.payment_method = newBookingWithId.paymentMethod;
     if (newBookingWithId.bookingDate) {
@@ -366,7 +359,10 @@ export async function saveDbBooking(booking: any) {
       error.message?.toLowerCase().includes('schema cache') ||
       error.message?.toLowerCase().includes('booking_manager') ||
       error.message?.toLowerCase().includes('payment_method') ||
-      error.message?.toLowerCase().includes('booking_date')
+      error.message?.toLowerCase().includes('booking_date') ||
+      error.message?.toLowerCase().includes('paid_amount') ||
+      error.message?.toLowerCase().includes('remaining_amount') ||
+      error.message?.toLowerCase().includes('payment_status')
     );
 
     if (isSchemaError) {
@@ -374,6 +370,9 @@ export async function saveDbBooking(booking: any) {
       delete insertData.booking_manager;
       delete insertData.payment_method;
       delete insertData.booking_date;
+      delete insertData.paid_amount;
+      delete insertData.remaining_amount;
+      delete insertData.payment_status;
       // Do not pollute user notes with bookingManager or paymentMethod
       const retry = await supabase.from('bookings').insert(insertData);
       error = retry.error;

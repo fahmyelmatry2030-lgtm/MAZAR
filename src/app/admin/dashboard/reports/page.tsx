@@ -587,23 +587,14 @@ function ReportsContent() {
         const paid = isClean ? total : 0;
         const remaining = isClean ? 0 : total;
         updates.paymentStatus = value;
-        updates.paymentInfo = value;
+        updates.paymentInfo = isClean ? 'خالص' : `متبقي ${remaining}`;
         updates.paidAmount = paid;
         updates.remainingAmount = remaining;
-        const cleanNote = cleanNotesForDisplay(currentBooking.notes);
-        const method = currentBooking.paymentMethod || 'كاش';
-        const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${method}]${isClean ? ' [حساب خالص]' : ''}`;
-        updates.notes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
+        updates.notes = cleanNotesForDisplay(currentBooking.notes);
       }
 
       if (field === 'notes') {
-        const cleanNote = cleanNotesForDisplay(value);
-        const paid = currentBooking.paidAmount !== undefined ? currentBooking.paidAmount : (currentBooking.totalAmount || 0);
-        const remaining = currentBooking.remainingAmount !== undefined ? currentBooking.remainingAmount : 0;
-        const isClean = remaining === 0;
-        const method = currentBooking.paymentMethod || 'كاش';
-        const tagString = `[مدفوع: ${paid}] [متبقي: ${remaining}] [طريقة: ${method}]${isClean ? ' [حساب خالص]' : ''}`;
-        updates.notes = cleanNote ? `${cleanNote} | ${tagString}` : tagString;
+        updates.notes = cleanNotesForDisplay(value);
       }
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
