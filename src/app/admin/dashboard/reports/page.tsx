@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
   getFreshDbBookings,
@@ -424,6 +425,24 @@ function ReportsContent() {
   }, []);
 
   const isAkoura = adminRole === 'Akoura';
+
+  // حالة تركيب الصفحة لضمان عمل createPortal
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // قفل تمرير الصفحة أثناء فتح نوافذ التعديل
+  useEffect(() => {
+    if (isEditModalOpen || paymentModalRow) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isEditModalOpen, paymentModalRow]);
 
   const selectedUnitRef = useRef(selectedUnit);
   selectedUnitRef.current = selectedUnit;
@@ -2324,9 +2343,9 @@ function ReportsContent() {
             </div>
 
             {/* Edit Booking Modal */}
-            {isEditModalOpen && editingBooking && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in no-print">
-                <div className="bg-[#FDFBF7] border border-[#EAE4D9] w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+            {isMounted && isEditModalOpen && editingBooking && createPortal(
+              <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in no-print overflow-y-auto" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+                <div className="bg-[#FDFBF7] border border-[#EAE4D9] w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden animate-scale-in flex flex-col my-auto max-h-[92vh]">
                   <div className="p-6 border-b border-[#EAE4D9]/50 flex justify-between items-center bg-white">
                     <div className="flex items-center gap-3">
                       <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-amber-600 text-white font-mono font-black text-sm shadow-xs">
@@ -2676,7 +2695,8 @@ function ReportsContent() {
                     </div>
                   </form>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Customer Profile Modal */}
@@ -2690,9 +2710,9 @@ function ReportsContent() {
             />
 
             {/* ── مربع تفاصيل طريقة الدفع وسداد المتبقي (النافذة الصغيرة التفاعلية) ── */}
-            {paymentModalRow && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in" dir="rtl">
-                <div className="bg-white border-2 border-[#C1A68D] rounded-[2rem] p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            {isMounted && paymentModalRow && createPortal(
+              <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }} dir="rtl">
+                <div className="bg-white border-2 border-[#C1A68D] rounded-[2rem] p-6 max-w-lg w-full shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
                   
                   {/* رأس النافذة */}
                   <div className="flex items-start justify-between border-b border-[#EAE4D9] pb-3">
@@ -2849,7 +2869,8 @@ function ReportsContent() {
                     </button>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </>
         )}

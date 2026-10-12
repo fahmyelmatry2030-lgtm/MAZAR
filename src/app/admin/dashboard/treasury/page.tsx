@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getBookings } from '@/lib/data-init';
 import {
   deleteDbTreasuryTransfer,
@@ -423,6 +424,24 @@ export default function TreasuryPage() {
   const [editTransferMonth, setEditTransferMonth] = useState<number>(today.getMonth());
   const [editTransferYear, setEditTransferYear] = useState<number>(today.getFullYear());
   const [isSavingTransferEdit, setIsSavingTransferEdit] = useState(false);
+
+  // حالة تركيب الصفحة في المتصفح لضمان عمل createPortal بشكل صحيح
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // قفل تمرير الصفحة بالكامل عند فتح أي نافذة منبثقة لمنع التوهان
+  useEffect(() => {
+    if (editingBooking || editingTransfer) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [editingBooking, editingTransfer]);
 
   // مزامنة تلقائية لنموذج التحويل والسحب عند تغيير الشهر أو السنة في رأس الصفحة
   useEffect(() => {
@@ -2167,9 +2186,9 @@ export default function TreasuryPage() {
       )}
 
       {/* ── نافذة تعديل حركة التحويل (طريقة الدفع / المبلغ / الملاحظات) ── */}
-      {editingTransfer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-md p-6 shadow-2xl space-y-5 animate-scale-in" dir="rtl">
+      {isMounted && editingTransfer && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-md p-6 shadow-2xl space-y-5 animate-scale-in my-auto max-h-[92vh] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between border-b border-[#EAE4D9]/60 pb-3">
               <div>
                 <h3 className="text-base font-black text-[#2A2723]">تعديل طريقة التحويل وبيانات الحركة</h3>
@@ -2178,8 +2197,9 @@ export default function TreasuryPage() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingTransfer(null)}
-                className="text-[#7A7061] hover:text-black font-black text-xl p-1"
+                className="text-[#7A7061] hover:text-black font-black text-xl p-1 cursor-pointer"
               >
                 ✕
               </button>
@@ -2288,7 +2308,8 @@ export default function TreasuryPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
 
@@ -2608,7 +2629,7 @@ export default function TreasuryPage() {
                   <th className="p-4 bg-amber-800/80 text-amber-100">المتبقي (خارجها) ⏳</th>
                   <th className="p-4 text-white">الحالة</th>
                   <th className="p-4 text-white">الملاحظات</th>
-                  <th className="p-4 text-center text-white">إجراءات</th>
+                  <th className="p-4 text-center text-white sticky left-0 bg-emerald-950 z-20 shadow-[-4px_0_8px_rgba(0,0,0,0.25)] whitespace-nowrap">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -2619,9 +2640,19 @@ export default function TreasuryPage() {
                     className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-all duration-300"
                   >
                     <td className="p-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
-                        #{b.bookingMonthlyNo || '—'}
-                      </span>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
+                          #{b.bookingMonthlyNo || '—'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(b)}
+                          className="p-1 text-emerald-700 hover:text-emerald-950 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                          title="تعديل حساب الحجز سريعاً"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                      </div>
                     </td>
                     <td className="p-4">
                       <div className="font-black text-[#2A2723]">{b.name || 'عميل'}</div>
@@ -2663,21 +2694,21 @@ export default function TreasuryPage() {
                     <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={cleanDisplayNotes(b.notes)}>
                       {cleanDisplayNotes(b.notes) || '—'}
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center sticky left-0 bg-white/95 backdrop-blur-xs z-10 shadow-[-4px_0_8px_rgba(0,0,0,0.06)] border-r border-[#EAE4D9]/60 whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => openEditModal(b)}
-                          className="bg-[#FDFBF7] hover:bg-white text-[#7A7061] hover:text-[#2A2723] border border-[#EAE4D9] px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer"
+                          className="bg-[#FDFBF7] hover:bg-emerald-50 text-[#7A7061] hover:text-emerald-800 border border-[#EAE4D9] hover:border-emerald-300 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
                           title="تعديل المبلغ المدفوع والمتبقي"
                         >
-                          <Edit3 size={12} />
+                          <Edit3 size={12} className="text-emerald-700" />
                           تعديل المدفوع
                         </button>
                         {!b.isFullyPaid && (
                           <button
                             disabled={markingId === b.id}
                             onClick={() => markBookingAsFullyPaid(b)}
-                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer whitespace-nowrap"
                             title="سداد كامل المبلغ المتبقي بضغطة زر"
                           >
                             <CheckCircle2 size={12} />
@@ -2696,9 +2727,9 @@ export default function TreasuryPage() {
       )}
 
       {/* ── نافذة تعديل المدفوع والمتبقي للحجز ── */}
-      {editingBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-lg md:max-w-xl p-6 shadow-2xl space-y-5 animate-scale-in" dir="rtl">
+      {isMounted && editingBooking && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="bg-white border-2 border-[#EAE4D9] rounded-[2rem] w-full max-w-lg md:max-w-xl p-6 shadow-2xl space-y-5 animate-scale-in my-auto max-h-[92vh] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between border-b border-[#EAE4D9]/60 pb-3">
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-emerald-700 text-white font-mono font-black text-sm shadow-xs">
@@ -2877,7 +2908,8 @@ export default function TreasuryPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
