@@ -1932,11 +1932,11 @@ export default function TreasuryPage() {
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border-2 border-indigo-300 shadow-sm bg-white">
-          <table className="w-full text-right text-xs">
+        <div className="overflow-x-auto rounded-2xl border-2 border-indigo-300 shadow-sm bg-white custom-scrollbar-horizontal pb-2">
+          <table className="w-full min-w-[1200px] text-right text-xs border-collapse">
             <thead className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-950 text-white font-black">
               <tr>
-                <th className="p-4 text-white text-center w-12">#</th>
+                <th className="p-4 text-white text-center w-12 whitespace-nowrap">#</th>
                 <th className="p-4 text-white whitespace-nowrap">التاريخ</th>
                 <th className="p-4 text-white text-center whitespace-nowrap">رقم الحجز</th>
                 <th className="p-4 text-white">بيان الحجز / المصدر</th>
@@ -2613,19 +2613,19 @@ export default function TreasuryPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border-2 border-emerald-400 bg-white shadow-sm">
-            <table className="w-full text-right text-xs">
+          <div className="overflow-x-auto rounded-2xl border-2 border-emerald-400 bg-white shadow-sm custom-scrollbar-horizontal pb-2">
+            <table className="w-full min-w-[1250px] text-right text-xs border-collapse">
               <thead className="bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 text-white font-black">
                 <tr>
                   <th className="p-4 text-center text-white w-14 whitespace-nowrap"># رقم الحجز</th>
-                  <th className="p-4 text-white">العميل</th>
-                  <th className="p-4 text-white">الوحدة</th>
-                  <th className="p-4 text-white">الدخول - الخروج</th>
-                  <th className="p-4 text-white">إجمالي الحجز</th>
-                  <th className="p-4 bg-emerald-800/80 text-emerald-100">تم دفع (بالخزنة) 🟢</th>
-                  <th className="p-4 text-white">طريقة الدفع 💳</th>
-                  <th className="p-4 bg-amber-800/80 text-amber-100">المتبقي (خارجها) ⏳</th>
-                  <th className="p-4 text-white">الملاحظات</th>
+                  <th className="p-4 text-white whitespace-nowrap">العميل</th>
+                  <th className="p-4 text-white whitespace-nowrap">الوحدة</th>
+                  <th className="p-4 text-white whitespace-nowrap">الدخول - الخروج</th>
+                  <th className="p-4 text-white whitespace-nowrap">إجمالي الحجز</th>
+                  <th className="p-4 bg-emerald-800/80 text-emerald-100 whitespace-nowrap">تم دفع (بالخزنة) 🟢</th>
+                  <th className="p-4 text-white whitespace-nowrap">طريقة الدفع 💳</th>
+                  <th className="p-4 bg-amber-800/80 text-amber-100 whitespace-nowrap">المتبقي (خارجها) ⏳</th>
+                  <th className="p-4 text-white whitespace-nowrap">الملاحظات</th>
                   <th className="p-4 text-center text-white sticky left-0 bg-emerald-950 z-20 shadow-[-4px_0_8px_rgba(0,0,0,0.25)] whitespace-nowrap">إجراءات</th>
                 </tr>
               </thead>
