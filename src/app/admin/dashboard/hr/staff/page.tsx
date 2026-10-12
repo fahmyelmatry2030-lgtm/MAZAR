@@ -27,7 +27,7 @@ const PAYMENT_METHODS = [
   { id: 'فيزا', label: 'فيزا 💳' }
 ];
 
-const MANAGERS = ['مؤمن', 'مدحت', 'الإدارة', 'الخزنة الصغيرة', 'الخزنة الكبيرة'];
+const MANAGERS = ['مؤمن', 'مدحت', 'الإدارة'];
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState<any[]>([]);
