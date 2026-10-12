@@ -45,6 +45,7 @@ export default function StaffManagement() {
 
   // Modal for Adding New Employee
   const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState(false);
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
   const [newStaffForm, setNewStaffForm] = useState({
     name: '',
     age: '',
@@ -71,13 +72,13 @@ export default function StaffManagement() {
     notes: ''
   });
 
-  // Quick Payout/Advance Form State (استلام مرتب أو دفعة)
+  // Quick Payout/Advance Form State (تسجيل سلفة أو سحب موظف)
   const [payoutForm, setPayoutForm] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     method: 'كاش',
     handed_by: 'مؤمن',
-    notes: 'دفعة من المرتب'
+    notes: 'سلفة نقدية على الراتب'
   });
 
   // Quick Deduction/Penalty Form State (جزاء أو خصم)
@@ -349,7 +350,7 @@ export default function StaffManagement() {
     }
   };
 
-  // 4. Save Quick Salary Payout (استلام مرتب / دفعة)
+  // 4. Save Quick Salary Advance / Withdrawal (تسجيل سحب / سلفة موظف)
   const handleAddPayout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStaffId) {
@@ -381,36 +382,37 @@ export default function StaffManagement() {
         handed_by: payoutForm.handed_by,
         entry_type: 'salary',
         payment_status: 'paid',
-        notes: payoutForm.notes.trim() || 'استلام دفعة من الراتب'
+        notes: payoutForm.notes.trim() || 'سلفة نقدية على الراتب'
       };
 
       await saveDbSalary(salData);
-      showNotification('success', `تم تسجيل استلام ${amountVal.toLocaleString()} ج.م وخُصمت من الخزنة الصغيرة بنجاح ✅`);
+      showNotification('success', `تم تسجيل سلفة بمبلغ ${amountVal.toLocaleString()} ج.م للموظف "${currentStaff?.name || ''}" وخُصمت من الراتب وظهرت في المصروفات والخزنة بنجاح ✅`);
       setPayoutForm({
         amount: '',
         date: new Date().toISOString().split('T')[0],
         method: 'كاش',
         handed_by: 'مؤمن',
-        notes: 'دفعة من المرتب'
+        notes: 'سلفة نقدية على الراتب'
       });
+      setIsAdvanceModalOpen(false);
       await loadData();
     } catch (err: any) {
-      showNotification('error', 'حدث خطأ أثناء تسجيل الدفعة: ' + (err.message || ''));
+      showNotification('error', 'حدث خطأ أثناء تسجيل السلفة: ' + (err.message || ''));
     } finally {
       setIsSaving(false);
     }
   };
 
-  // 5. Delete Salary Payout
+  // 5. Delete Salary Advance / Withdrawal
   const handleDeletePayout = async (id: string, amount: number) => {
-    if (!confirm(`هل أنت متأكد من حذف هذه الدفعة (${amount.toLocaleString()} ج.م)؟ سيتم إرجاع المبلغ للخزنة الصغيرة تلقائياً.`)) return;
+    if (!confirm(`هل أنت متأكد من حذف هذه السلفة (${amount.toLocaleString()} ج.م)؟ سيتم إرجاع المبلغ للخزنة وحذفها من المصروفات تلقائياً.`)) return;
     try {
       setIsSaving(true);
       await deleteDbSalary(id);
-      showNotification('success', 'تم حذف الدفعة وإرجاع المبلغ للخزنة الصغيرة بنجاح ✅');
+      showNotification('success', 'تم حذف السلفة وإرجاع المبلغ للخزنة وحذفها من المصروفات بنجاح ✅');
       await loadData();
     } catch (err: any) {
-      showNotification('error', 'تعذر حذف الدفعة: ' + (err.message || ''));
+      showNotification('error', 'تعذر حذف السلفة: ' + (err.message || ''));
     } finally {
       setIsSaving(false);
     }
@@ -706,7 +708,16 @@ export default function StaffManagement() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdvanceModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs shadow-md shadow-emerald-600/20 transition cursor-pointer active:scale-95"
+                >
+                  <Wallet className="w-4 h-4 text-emerald-100" />
+                  <span>💵 تسجيل سلفة / سحب نقدية</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleDeleteStaff}
@@ -859,7 +870,16 @@ export default function StaffManagement() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdvanceModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-md shadow-emerald-600/20 transition cursor-pointer active:scale-95"
+                >
+                  <Wallet className="w-4 h-4 text-emerald-100" />
+                  <span>تسجيل سحب / سلفة للموظف 💵</span>
+                </button>
+
                 <button
                   type="submit"
                   disabled={isSaving}
@@ -889,8 +909,17 @@ export default function StaffManagement() {
                 </div>
               </div>
 
-              {/* Month & Year Selectors */}
-              <div className="flex items-center gap-2.5">
+              {/* Month & Year Selectors and Quick Advance Button */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsAdvanceModalOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-md shadow-emerald-600/30 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>تسجيل سحب / سلفة</span>
+                </button>
+
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
@@ -924,9 +953,9 @@ export default function StaffManagement() {
                 </p>
               </div>
 
-              {/* 2. Received Payouts */}
+              {/* 2. Received Payouts / Advances */}
               <div className="bg-emerald-950/40 p-3.5 rounded-xl border border-emerald-800/40">
-                <p className="text-[11px] text-emerald-400 font-medium mb-1">المستلم خلال الشهر ({monthlyStaffPayouts.length} دفعات)</p>
+                <p className="text-[11px] text-emerald-400 font-medium mb-1">المسحوب / السلفيات ({monthlyStaffPayouts.length} سحوبات)</p>
                 <p className="text-lg font-black text-emerald-400">
                   {totalPayoutsThisMonth.toLocaleString()} <span className="text-xs font-normal text-emerald-300">ج.م</span>
                 </p>
@@ -946,7 +975,7 @@ export default function StaffManagement() {
                   ? 'bg-amber-950/30 border-amber-700/50' 
                   : 'bg-rose-900/50 border-rose-600'
               }`}>
-                <p className="text-[11px] text-amber-300 font-medium mb-1">الصافي المتبقي له</p>
+                <p className="text-[11px] text-amber-300 font-medium mb-1">الصافي المتبقي له من الراتب</p>
                 <p className={`text-lg font-black ${netRemainingSalary >= 0 ? 'text-amber-300' : 'text-rose-300'}`}>
                   {netRemainingSalary.toLocaleString()} <span className="text-xs font-normal opacity-80">ج.م</span>
                 </p>
@@ -1090,21 +1119,21 @@ export default function StaffManagement() {
             </div>
 
             {/* ------------------------------------------------------------- */}
-            {/* BOX 2: سجل استلام المرتبات والدفعات (استلم يوم كذا من مين) */}
+            {/* BOX 2: سجل السحوبات والسلفيات (مسحوبات الموظف خلال الشهر) */}
             {/* ------------------------------------------------------------- */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                    <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
                       <Wallet className="w-5 h-5" />
                     </span>
                     <div>
-                      <h3 className="font-black text-slate-800 text-base">سجل استلام المرتبات</h3>
-                      <p className="text-[11px] text-slate-400">استلم يوم كذا مبلغ كذا من مين</p>
+                      <h3 className="font-black text-slate-800 text-base">سجل السحوبات والسلفيات</h3>
+                      <p className="text-[11px] text-slate-400">تخصم من الراتب وتظهر بالمصروفات والخزنة</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">
+                  <span className="text-xs font-bold px-2 py-1 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200">
                     {totalPayoutsThisMonth.toLocaleString()} ج.م
                   </span>
                 </div>
@@ -1113,7 +1142,7 @@ export default function StaffManagement() {
                 <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1 mb-4">
                   {monthlyStaffPayouts.length === 0 ? (
                     <div className="py-8 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      لا توجد دفعات مستلمة لهذا الشهر
+                      لا توجد سلفيات أو مسحوبات مسجلة لهذا الشهر
                     </div>
                   ) : (
                     monthlyStaffPayouts.map((sal) => {
@@ -1121,25 +1150,25 @@ export default function StaffManagement() {
                       return (
                         <div 
                           key={sal.id}
-                          className="p-3 bg-blue-50/50 border border-blue-200/80 rounded-xl text-xs space-y-1 relative group hover:bg-blue-50 transition"
+                          className="p-3 bg-emerald-50/40 border border-emerald-200/80 rounded-xl text-xs space-y-1 relative group hover:bg-emerald-50 transition"
                         >
                           <div className="flex items-center justify-between font-bold text-slate-800">
-                            <div className="flex items-center gap-1.5 text-blue-950">
-                              <span className="text-blue-700 font-black">{amount.toLocaleString()} ج.م</span>
+                            <div className="flex items-center gap-1.5 text-emerald-950">
+                              <span className="text-emerald-700 font-black">{amount.toLocaleString()} ج.م</span>
                               <span>•</span>
                               <span className="text-slate-600">يوم {sal.payment_date || sal.date}</span>
                             </div>
                             <button
                               onClick={() => handleDeletePayout(sal.id, amount)}
                               className="text-slate-400 hover:text-rose-600 p-1 transition"
-                              title="حذف الدفعة وإرجاعها للخزنة"
+                              title="حذف السلفة وحذفها من المصروفات"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
 
                           <div className="flex items-center gap-2 text-[11px] text-slate-600 pt-1">
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md">
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-bold rounded-md">
                               استلم من: {sal.handed_by || 'مؤمن'}
                             </span>
                             <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
@@ -1148,10 +1177,15 @@ export default function StaffManagement() {
                           </div>
 
                           {sal.notes && (
-                            <p className="text-[11px] text-slate-500 bg-white/70 p-1.5 rounded border border-blue-100 mt-1">
-                              ملاحظات: {sal.notes}
+                            <p className="text-[11px] text-slate-600 bg-white/80 p-1.5 rounded border border-emerald-100 mt-1">
+                              ملاحظة: {sal.notes}
                             </p>
                           )}
+
+                          <div className="pt-1 flex items-center gap-1 text-[10px] text-emerald-800 font-bold">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>مسجلة تلقائياً في المصروفات والخزنة</span>
+                          </div>
                         </div>
                       );
                     })
@@ -1159,28 +1193,28 @@ export default function StaffManagement() {
                 </div>
               </div>
 
-              {/* Quick Add Payout Form */}
+              {/* Quick Add Advance Form */}
               <form onSubmit={handleAddPayout} className="pt-3 border-t border-slate-100 space-y-2.5 bg-slate-50/70 p-3 rounded-xl">
                 <p className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                  <Plus className="w-3.5 h-3.5 text-blue-600" />
-                  <span>تسجيل استلام دفعة من المرتب</span>
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>تسجيل سحب / سلفة جديدة</span>
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">المبلغ (ج.م)</label>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">المبلغ (ج.م) *</label>
                     <input
                       type="number"
                       required
                       min="1"
-                      placeholder="مثال: 1000"
+                      placeholder="مثال: 500"
                       value={payoutForm.amount}
                       onChange={(e) => setPayoutForm({ ...payoutForm, amount: e.target.value })}
-                      className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-bold"
+                      className="w-full px-2 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg text-slate-800 font-bold"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">تاريخ الاستلام</label>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">تاريخ السحب *</label>
                     <input
                       type="date"
                       required
@@ -1206,7 +1240,7 @@ export default function StaffManagement() {
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">طريقة الدفع</label>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">طريقة الصرف</label>
                     <select
                       value={payoutForm.method}
                       onChange={(e) => setPayoutForm({ ...payoutForm, method: e.target.value })}
@@ -1221,7 +1255,7 @@ export default function StaffManagement() {
 
                 <input
                   type="text"
-                  placeholder="ملاحظة (مثال: دفعة من الراتب مع مؤمن)"
+                  placeholder="ملاحظة أو بيان (مثال: سلفة نقدية على الراتب)"
                   value={payoutForm.notes}
                   onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
                   className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800"
@@ -1230,9 +1264,9 @@ export default function StaffManagement() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold text-xs transition cursor-pointer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-bold text-xs transition cursor-pointer shadow-sm shadow-emerald-200"
                 >
-                  + تسجيل الدفعة (خصم من الخزنة)
+                  + تسجيل السلفة (خصم من الراتب وإضافة للمصروفات)
                 </button>
               </form>
             </div>
@@ -1387,6 +1421,139 @@ export default function StaffManagement() {
       ) : (
         <div className="bg-white rounded-2xl p-12 text-center text-slate-400 border border-slate-200">
           <p className="font-bold text-slate-600 mb-2">يرجى اختيار موظف من الصندوق أعلاه لعرض البروفايل الخاص به</p>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD EMPLOYEE ADVANCE / WITHDRAWAL (تسجيل سلفة / سحب نقدية) */}
+      {/* ========================================================================= */}
+      {isAdvanceModalOpen && currentStaff && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">تسجيل سحب / سلفة للموظف</h3>
+                  <p className="text-xs text-slate-500 font-bold">{currentStaff.name} ({currentStaff.position || 'موظف'})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdvanceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Financial Quick Badge */}
+            <div className="grid grid-cols-3 gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-200/80 text-center text-xs">
+              <div>
+                <span className="text-slate-500 block text-[10px] font-bold">الراتب الأساسي</span>
+                <span className="font-black text-slate-800">{baseSalary.toLocaleString()} ج.م</span>
+              </div>
+              <div>
+                <span className="text-rose-500 block text-[10px] font-bold">مسحوبات الشهر</span>
+                <span className="font-black text-rose-600">{totalPayoutsThisMonth.toLocaleString()} ج.م</span>
+              </div>
+              <div>
+                <span className="text-emerald-700 block text-[10px] font-bold">المتبقي له</span>
+                <span className="font-black text-emerald-700">{netRemainingSalary.toLocaleString()} ج.م</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddPayout} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">مبلغ السحب / السلفة (ج.م) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  autoFocus
+                  placeholder="مثال: 500"
+                  value={payoutForm.amount}
+                  onChange={(e) => setPayoutForm({ ...payoutForm, amount: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-base bg-slate-50 border border-emerald-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-black text-emerald-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">تاريخ السحب *</label>
+                  <input
+                    type="date"
+                    required
+                    value={payoutForm.date}
+                    onChange={(e) => setPayoutForm({ ...payoutForm, date: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">طريقة الصرف</label>
+                  <select
+                    value={payoutForm.method}
+                    onChange={(e) => setPayoutForm({ ...payoutForm, method: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                  >
+                    {PAYMENT_METHODS.map(m => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">صُرف بواسطة (استلم من)</label>
+                <select
+                  value={payoutForm.handed_by}
+                  onChange={(e) => setPayoutForm({ ...payoutForm, handed_by: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                >
+                  {MANAGERS.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">البيان / ملاحظة السلفة</label>
+                <input
+                  type="text"
+                  placeholder="مثال: سلفة نقدية على الراتب / مصاريف علاج"
+                  value={payoutForm.notes}
+                  onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-xl text-[11px] text-emerald-900 leading-relaxed font-medium">
+                💡 <strong>ملاحظة تلقائية:</strong> سيتم تسجيل هذا المبلغ فوراً في <strong>سجل سلفيات الموظف</strong> ويُخصم من راتبه لهذا الشهر، كما سيظهر تلقائياً في <strong>جدول المصروفات والخزنة الفرعية</strong>.
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAdvanceModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md shadow-emerald-200 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{isSaving ? 'جاري الحفظ...' : 'حفظ السلفة في المصروفات والخزنة'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

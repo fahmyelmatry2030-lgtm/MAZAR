@@ -1073,8 +1073,8 @@ export async function saveDbSalary(salary: any) {
     if (retryError) throw retryError;
   }
 
-  // Auto-deduct salary payouts from small treasury (only for actual salary payouts, not deductions)
-  if (entryType === 'salary' && amountVal > 0) {
+  // Auto-deduct salary/advance payouts from treasury (only for payouts/advances, not deductions)
+  if ((entryType === 'salary' || entryType === 'advance' || entryType === 'سلفة' || !entryType) && amountVal > 0) {
     try {
       const staffList = await getDbStaff();
       const staffMember = staffList.find((s: any) => s.id === salary.staff_id);
@@ -1082,7 +1082,7 @@ export async function saveDbSalary(salary: any) {
       const cleanNote = (salary.notes || '')
         .replace(/\[(طريقة|نوع|مسلم_من):\s*[^\]]+\]/g, '')
         .trim();
-      const expenseDesc = `صرف للموظف: ${staffName} - ${cleanNote || 'دفعة راتب'} [قيد:${salaryId}] [طريقة:${paymentMethod}] [مسلم:${handedBy}]`;
+      const expenseDesc = `سلفة / سحب موظف: ${staffName} - ${cleanNote || 'سلفة نقدية على الراتب'} [قيد:${salaryId}] [طريقة:${paymentMethod}] [مسلم:${handedBy}]`;
 
       const { data: existingExpenses } = await supabase
         .from('expenses')
@@ -1095,10 +1095,10 @@ export async function saveDbSalary(salary: any) {
         amount: amountVal,
         date: paymentDate.split('T')[0],
         description: expenseDesc,
-        from_entity: 'الخزنة الصغيرة',
+        from_entity: paymentMethod === 'كاش' ? 'الخزنة الفرعية' : (paymentMethod || 'الخزنة الفرعية'),
         to_entity: staffName,
         ordered_by: handedBy || 'إدارة الموظفين',
-        notes: `طريقة الصرف: ${paymentMethod}`
+        branch: 'عام'
       };
 
       if (existingExpenses && existingExpenses.length > 0) {
@@ -1107,7 +1107,7 @@ export async function saveDbSalary(salary: any) {
         await saveDbExpense(expenseData);
       }
     } catch (err) {
-      console.error('Failed to auto-deduct salary from small treasury:', err);
+      console.error('Failed to auto-deduct salary/advance from treasury:', err);
     }
   }
 
@@ -1115,6 +1115,7 @@ export async function saveDbSalary(salary: any) {
   revalidatePath('/admin/dashboard/hr/salaries');
   revalidatePath('/admin/dashboard/treasury');
   revalidatePath('/admin/dashboard/finance');
+  revalidatePath('/admin/dashboard/reports');
   return { ...payload, id: salaryId, amount: amountVal, payment_method: paymentMethod };
 }
 
@@ -1137,6 +1138,7 @@ export async function deleteDbSalary(id: string) {
   revalidatePath('/admin/dashboard/hr/salaries');
   revalidatePath('/admin/dashboard/treasury');
   revalidatePath('/admin/dashboard/finance');
+  revalidatePath('/admin/dashboard/reports');
 }
 
 // --- HR: VACATIONS ---
