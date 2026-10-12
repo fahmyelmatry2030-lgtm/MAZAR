@@ -371,8 +371,8 @@ export default function TreasuryPage() {
     if (boxId === 'expenses') {
       setRecordsTab('expenses');
     } else if (boxId === 'cash') {
-      setTransferFilter('cash');
-      setRecordsTab('deposits');
+      // الخزنة الفرعية تعرض إجمالي الفلوس فقط في الكارت بدون فتح أي جدول بالأسفل
+      return;
     } else if (boxId === 'instapay') {
       setTransferFilter('instapay');
       setRecordsTab('deposits');
@@ -1341,34 +1341,38 @@ export default function TreasuryPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
           {/* 1. خزنة فرعية (كاش فقط) 🟢 */}
-          <button
-            type="button"
-            onClick={() => handleSelectBox('cash')}
-            className={`p-5 rounded-2xl border-2 text-right transition-all cursor-pointer relative flex flex-col justify-between ${
-              activeBox === 'cash'
-                ? 'bg-emerald-700 text-white border-emerald-800 shadow-2xl ring-4 ring-emerald-400/50 scale-[1.02]'
-                : 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-300 text-emerald-950 shadow-sm'
-            }`}
+          <div
+            className="p-5 rounded-2xl border-2 border-emerald-300 bg-emerald-50 text-emerald-950 shadow-sm text-right flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="font-black text-sm md:text-base flex items-center gap-1.5">
-                  <Wallet size={18} /> خزنة فرعية (كاش فقط)
+                <span className="font-black text-sm md:text-base flex items-center gap-1.5 text-emerald-950">
+                  <Wallet size={18} className="text-emerald-700" /> خزنة فرعية (درج الكاش)
                 </span>
-                <span className={`text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border ${
-                  activeBox === 'cash' ? 'bg-white text-emerald-800 border-white' : 'bg-emerald-200 text-emerald-900 border-emerald-300'
-                }`}>
+                <span className="text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border bg-emerald-200 text-emerald-900 border-emerald-300">
                   كاش نقدي 🟢
                 </span>
               </div>
-              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(branchCashTreasury)}</div>
+              <div className="text-2xl md:text-3xl font-black text-emerald-900 my-2">
+                {isLoading ? '...' : money(branchCashTreasury)}
+              </div>
             </div>
-            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
-              activeBox === 'cash' ? 'border-white/20 text-emerald-100' : 'border-emerald-200 text-emerald-800'
-            }`}>
-              رصيد الكاش بالدرج (كاش الحجوزات المقبوض − المحول كاش للخزنة الكبيرة)
+
+            <div className="pt-2 border-t border-emerald-200 mt-2 space-y-1.5 text-[11px] font-bold text-emerald-900">
+              <div className="flex justify-between items-center">
+                <span className="opacity-80">💵 كاش مقبوض من الحجوزات:</span>
+                <span className="font-black font-mono">{isLoading ? '...' : money(totalCashRevenueCollected || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center text-rose-700">
+                <span>⬇️ تحول كاش للخزنة الكبيرة:</span>
+                <span className="font-black font-mono">− {isLoading ? '...' : money(totalCashDepositedToBig || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1.5 border-t border-emerald-300/80 font-black text-emerald-950 text-xs">
+                <span>المتبقي في الخزنة الفرعية:</span>
+                <span className="font-mono">{isLoading ? '...' : money(branchCashTreasury)}</span>
+              </div>
             </div>
-          </button>
+          </div>
 
           {/* 2. حوالات بنكية / إنستا باي 🔵 */}
           <button
