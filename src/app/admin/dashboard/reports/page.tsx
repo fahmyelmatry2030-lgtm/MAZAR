@@ -53,27 +53,17 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): P
   return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
 };
 
-// دالة تنظيف الملاحظات من أي وسوم تلقائية أو بيانات دفع لإبقاء عمود الملاحظات نظيفاً وخاصاً بالمستخدم فقط
+// دالة إزالة الوسوم النظامية القديمة فقط بين الأقواس المربعة [..] مع الحفاظ الكامل على نص المستخدم كما كتبه
 const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
-    // 1. وسوم بين أقواس مربعة
+    // وسوم بين أقواس مربعة فقط
     .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب|رقم(?:_الحجز)?):[^\]]*\]/gi, '')
     .replace(/\[حساب خالص\]/gi, '')
-    // 2. مسؤول الحجز إذا كتب كنص صريح داخل الملاحظات
-    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
-    // 3. نصوص الدفع والمتبقي الصريحة
-    .replace(/(?:الحساب\s*خالص|حساب\s*خالص|خالص\s*بالكامل|تم\s*الدفع|تم\s*السداد)/gi, '')
-    .replace(/(?:متبقي|باقي|باقى)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
-    .replace(/(?:مدفوع|دفع)\s*[:=\-]?\s*\d+(?:\.\d+)?/gi, '')
-    .replace(/(?:طريقة\s*الدفع|طريقة\s*التحويل)\s*[:=\-]?\s*[^|\n\r,]+/gi, '')
-    .replace(/خصم\s*بقيمة\s*\d+/gi, '')
-    // 4. تنظيف الفواصل والرموز المتبقية
     .replace(/\|\s*\|/g, '|')
     .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
     .trim();
 
-  // إذا كانت النتيجة فارغة أو علامات ترقيم فقط
   if (/^[\s|+,.\-—]+$/.test(cleaned)) return '';
   return cleaned;
 };
@@ -590,11 +580,11 @@ function ReportsContent() {
         updates.paymentInfo = isClean ? 'خالص' : `متبقي ${remaining}`;
         updates.paidAmount = paid;
         updates.remainingAmount = remaining;
-        updates.notes = cleanNotesForDisplay(currentBooking.notes);
+        updates.notes = currentBooking.notes || '';
       }
 
       if (field === 'notes') {
-        updates.notes = cleanNotesForDisplay(value);
+        updates.notes = value !== undefined && value !== null ? String(value).trim() : '';
       }
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
@@ -714,7 +704,7 @@ function ReportsContent() {
         ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
         : (paymentModalRow.paymentMethod || 'كاش');
 
-      const finalNotes = cleanNotesForDisplay(modalCustomNotes);
+      const finalNotes = modalCustomNotes !== undefined && modalCustomNotes !== null ? String(modalCustomNotes).trim() : (paymentModalRow.notes || '');
 
       const paymentInfoVal = isClean
         ? 'خالص'
