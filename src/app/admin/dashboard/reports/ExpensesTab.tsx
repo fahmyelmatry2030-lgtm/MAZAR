@@ -164,20 +164,18 @@ export default function ExpensesTab() {
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
-  // Mo2men, Medhat, Mazar and Owners/Admins
+  // الاعتماد متاح حصرياً لمؤمن ومدحت فقط فقط
   const isOwner = useMemo(() => {
     const raw = typeof window !== 'undefined' ? (sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo')) : null;
     const info = raw ? JSON.parse(raw) : {};
     const u = (info?.username || currentUsername || '').toLowerCase().trim();
     const n = (info?.name || currentUserName || '').toLowerCase().trim();
-    const r = (info?.role || adminRole || '').toLowerCase().trim();
 
     const isMo2men = u === 'mo2men' || n.includes('مؤمن') || n.includes('مأمون');
     const isMedhat = u === 'medhat' || n.includes('مدحت');
-    const isSuper = u === 'mazar' || r === 'owner' || r === 'super admin' || r === 'admin' || !r;
 
-    return isMo2men || isMedhat || isSuper;
-  }, [currentUsername, currentUserName, adminRole]);
+    return isMo2men || isMedhat;
+  }, [currentUsername, currentUserName]);
 
   const approverDisplayName = useMemo(() => {
     const raw = typeof window !== 'undefined' ? (sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo')) : null;

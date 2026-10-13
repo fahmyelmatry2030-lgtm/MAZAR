@@ -470,17 +470,15 @@ export default function TreasuryPage() {
     setAdminInfo(info);
   }, []);
 
-  // السحب والاعتماد للخزنة الكبيرة يتاح حصرياً لمؤمن ومدحت فقط (وحساب المدير العام mazar / Owner)
+  // السحب والاعتماد للخزنة الكبيرة يتاح حصرياً لمؤمن ومدحت فقط فقط
   const isOwner = useMemo(() => {
     const username = (adminInfo?.username || '').toLowerCase().trim();
     const name = (adminInfo?.name || '').toLowerCase().trim();
-    const role = (adminInfo?.role || '').toLowerCase().trim();
 
     const isMo2men = username === 'mo2men' || name.includes('مؤمن') || name.includes('مأمون');
     const isMedhat = username === 'medhat' || name.includes('مدحت');
-    const isSuper = username === 'mazar' || role === 'owner' || role === 'super admin';
 
-    return isMo2men || isMedhat || isSuper;
+    return isMo2men || isMedhat;
   }, [adminInfo]);
 
   const approverDisplayName = useMemo(() => {
