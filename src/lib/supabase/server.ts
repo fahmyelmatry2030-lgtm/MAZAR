@@ -2,7 +2,11 @@ import 'server-only';
 
 import { createClient } from '@supabase/supabase-js';
 
+let cachedClient: any = null;
+
 export function getSupabaseServerClient() {
+  if (cachedClient) return cachedClient;
+
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -11,8 +15,10 @@ export function getSupabaseServerClient() {
     return null;
   }
 
-  return createClient(url, serviceRoleKey, {
+  cachedClient = createClient(url, serviceRoleKey, {
     auth: { persistSession: false },
   });
+
+  return cachedClient;
 }
 

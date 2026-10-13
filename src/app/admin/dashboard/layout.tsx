@@ -75,6 +75,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [adminRole, setAdminRole] = useState('Super Admin');
   const [adminName, setAdminName] = useState('مدير النظام');
 
+  // 1. Route authorization check (runs when pathname changes)
   useEffect(() => {
     const auth = sessionStorage.getItem('isAdmin');
     const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
@@ -83,7 +84,10 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
     if (!auth && pathname !== '/admin/login') {
       router.push('/admin/login');
-    } else if (auth) {
+      return;
+    }
+
+    if (auth) {
       const isBookingsAdmin = info?.role === 'مدير الحجوزات';
       const isUnitsAdmin = info?.role === 'مدير الوحدات';
       const isAkoura = info?.role === 'Akoura' || info?.role === 'Aura';
@@ -136,49 +140,51 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       }
 
       setIsAuthorized(true);
-      loadData();
-
-      // REAL-TIME NOTIFICATIONS
-      const supabase = getSupabaseBrowserClient();
-      let channel: any;
-
-      if (supabase) {
-        channel = supabase
-          .channel('realtime_bookings')
-          .on(
-            'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'bookings' },
-            (payload: any) => {
-              console.log('New booking received!', payload);
-              loadData(); // Refresh all stats
-
-              // Play sound or show browser notification if possible
-              try {
-                const audio = new Audio('/notification-sound.mp3');
-                audio.play().catch(() => { });
-              } catch (e) { }
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'bookings' },
-            (payload: any) => {
-              console.log('Booking updated!', payload);
-              loadData();
-            }
-          )
-          .subscribe();
-      } else {
-        // Fallback to polling if Supabase is offline
-        const interval = setInterval(loadData, 30000);
-        return () => clearInterval(interval);
-      }
-
-      return () => {
-        if (channel) channel.unsubscribe();
-      };
     }
-  }, [pathname, router, loadData]);
+  }, [pathname, router]);
+
+  // 2. Real-time channel and initial notification load (runs once on authorization)
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    loadData();
+
+    const supabase = getSupabaseBrowserClient();
+    let channel: any;
+
+    if (supabase) {
+      channel = supabase
+        .channel('realtime_bookings')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'bookings' },
+          (payload: any) => {
+            console.log('New booking received!', payload);
+            loadData();
+            try {
+              const audio = new Audio('/notification-sound.mp3');
+              audio.play().catch(() => {});
+            } catch (e) {}
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'bookings' },
+          (payload: any) => {
+            console.log('Booking updated!', payload);
+            loadData();
+          }
+        )
+        .subscribe();
+    } else {
+      const interval = setInterval(loadData, 30000);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
+  }, [isAuthorized, loadData]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {

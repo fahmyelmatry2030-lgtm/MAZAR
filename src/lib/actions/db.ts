@@ -81,38 +81,62 @@ export async function sendSecurityTelegramAlert(username: string, details: strin
   }
 }
 
+// --- IN-MEMORY CACHES & PROMISE COALESCING (PERFORMANCE BOOST) ---
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+let cachedBookings: CacheEntry<any[]> | null = null;
+let inFlightBookingsPromise: Promise<any[]> | null = null;
+const BOOKINGS_CACHE_TTL_MS = 6000; // 6 seconds
+let lastCleanupTime = 0;
+
+export async function invalidateBookingsCache() {
+  cachedBookings = null;
+}
+
 // --- BOOKINGS ---
 
-export async function getFreshDbBookings(nonce?: string) {
-  if (nonce) console.log(`[SYNC] Fetching fresh bookings with nonce: ${nonce}`);
-  const supabase = getSupabaseServerClient();
-  if (!supabase) return [];
-
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .not('id', 'is', null) // Bypasses exact-match caches
-    .order('timestamp', { ascending: false });
-
-  if (error) {
-    console.error('Error reading bookings:', error);
-    return [];
+export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): Promise<any[]> {
+  const now = Date.now();
+  if (!forceFresh && cachedBookings && (now - cachedBookings.timestamp < BOOKINGS_CACHE_TTL_MS)) {
+    return cachedBookings.data;
   }
 
-  // --- AUTO-CLEANUP: Delete expired pending requests ---
-  // If a booking is still 'pending' and its check-in day has arrived, delete it.
-  const today = new Date().toISOString().split('T')[0];
-  const pendingStatuses = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
-  
-  const expiredIds = data
-    .filter((b: any) => pendingStatuses.includes(b.status) && normalizeDateString(b.check_in) < today)
-    .map((b: any) => b.id);
-
-  if (expiredIds.length > 0) {
-    console.log(`[CLEANUP] Automatically deleting ${expiredIds.length} expired pending requests:`, expiredIds);
-    // Hard delete from DB
-    await supabase.from('bookings').delete().in('id', expiredIds);
+  if (inFlightBookingsPromise) {
+    return await inFlightBookingsPromise;
   }
+
+  inFlightBookingsPromise = (async () => {
+    try {
+      const supabase = getSupabaseServerClient();
+      if (!supabase) return cachedBookings?.data || [];
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (error) {
+        console.error('Error reading bookings:', error);
+        return cachedBookings?.data || [];
+      }
+
+      // --- AUTO-CLEANUP: Expired pending requests (non-blocking) ---
+      const today = new Date().toISOString().split('T')[0];
+      const pendingStatuses = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
+      
+      const expiredIds = (data || [])
+        .filter((b: any) => pendingStatuses.includes(b.status) && normalizeDateString(b.check_in) < today)
+        .map((b: any) => b.id);
+
+      if (expiredIds.length > 0 && Date.now() - lastCleanupTime > 3600000) {
+        lastCleanupTime = Date.now();
+        supabase.from('bookings').delete().in('id', expiredIds).then(() => {
+          cachedBookings = null;
+        }).catch((err: any) => console.error('[CLEANUP] error:', err));
+      }
 
   const detectPaymentStatus = (b: any) => {
     const noteStr = String(b.notes || '').trim().toLowerCase();
@@ -216,7 +240,7 @@ export async function getFreshDbBookings(nonce?: string) {
     return normalizeDateString(b.check_in);
   };
 
-  return data
+  const mapped = (data || [])
     .filter((b: any) => !expiredIds.includes(b.id))
     .map((b: any) => {
       const totalAmount = Number(b.total_amount || 0);
@@ -310,6 +334,15 @@ export async function getFreshDbBookings(nonce?: string) {
         timestamp: b.timestamp,
       };
     });
+
+      cachedBookings = { data: mapped, timestamp: Date.now() };
+      return mapped;
+    } finally {
+      inFlightBookingsPromise = null;
+    }
+  })();
+
+  return await inFlightBookingsPromise;
 }
 
 export async function saveDbBooking(booking: any) {
@@ -401,7 +434,8 @@ export async function saveDbBooking(booking: any) {
     }
 
     revalidatePath('/admin/dashboard/reports');
-    const freshData = await getFreshDbBookings(Date.now().toString());
+    invalidateBookingsCache();
+    const freshData = await getFreshDbBookings(Date.now().toString(), true);
     return { success: true, data: freshData };
   } catch (error: any) {
     console.error('Error saving booking:', error);
@@ -507,10 +541,11 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   console.log(`✅ Successfully updated ${affected} row(s) for ID: ${id}`);
   
   // Revalidate to clear any server-side response cache
+  invalidateBookingsCache();
   revalidatePath('/admin/dashboard/reports');
   
   // Return the fresh data directly
-  return await getFreshDbBookings(Date.now().toString());
+  return await getFreshDbBookings(Date.now().toString(), true);
 }
 
 export async function deleteDbBooking(id: string) {
@@ -533,10 +568,11 @@ export async function deleteDbBooking(id: string) {
   console.log(`✅ Successfully deleted booking ID: ${id}`);
   
   // Revalidate to clear server-side cache
+  invalidateBookingsCache();
   revalidatePath('/admin/dashboard/reports');
   
   // Return the fresh data
-  return await getFreshDbBookings(Date.now().toString());
+  return await getFreshDbBookings(Date.now().toString(), true);
 }
 
 export async function deleteAllPendingDbBookings() {
@@ -555,8 +591,9 @@ export async function deleteAllPendingDbBookings() {
     console.log('✅ Successfully deleted all pending/dummy bookings from DB');
   }
 
+  invalidateBookingsCache();
   revalidatePath('/admin/dashboard');
-  return await getFreshDbBookings(Date.now().toString());
+  return await getFreshDbBookings(Date.now().toString(), true);
 }
 
 export async function deleteDbBookingsByPhone(phone: string) {
@@ -574,38 +611,67 @@ export async function deleteDbBookingsByPhone(phone: string) {
   }
 
   console.log(`✅ Successfully deleted all bookings for phone: ${phone}`);
+  invalidateBookingsCache();
   revalidatePath('/admin/dashboard/customers');
   revalidatePath('/admin/dashboard/reports');
-  return await getFreshDbBookings(Date.now().toString());
+  return await getFreshDbBookings(Date.now().toString(), true);
 }
 
 // --- UNITS ---
 
-export async function getDbUnits() {
-  const supabase = getSupabaseServerClient();
-  if (!supabase) return [];
+let cachedUnits: CacheEntry<any[]> | null = null;
+let inFlightUnitsPromise: Promise<any[]> | null = null;
+const UNITS_CACHE_TTL_MS = 30000; // 30 seconds
 
-  const { data, error } = await supabase.from('units').select('*').order('id', { ascending: true });
-  if (error) {
-    console.error('Error reading units:', error);
-    return [];
+export async function invalidateUnitsCache() {
+  cachedUnits = null;
+}
+
+export async function getDbUnits(forceFresh?: boolean) {
+  const now = Date.now();
+  if (!forceFresh && cachedUnits && (now - cachedUnits.timestamp < UNITS_CACHE_TTL_MS)) {
+    return cachedUnits.data;
   }
 
-  return (data || []).map((u: any) => ({
-    id: u.id,
-    branch: u.branch,
-    type: u.type,
-    title: u.title,
-    status: u.status,
-    housekeeping: u.housekeeping,
-    nextBooking: u.next_booking,
-    description: u.description,
-    images: u.images,
-    video: u.video,
-    features: u.features,
-    originalPrice: u.original_price,
-    price: u.price,
-  }));
+  if (inFlightUnitsPromise) {
+    return await inFlightUnitsPromise;
+  }
+
+  inFlightUnitsPromise = (async () => {
+    try {
+      const supabase = getSupabaseServerClient();
+      if (!supabase) return cachedUnits?.data || [];
+
+      const { data, error } = await supabase.from('units').select('*').order('id', { ascending: true });
+      if (error) {
+        console.error('Error reading units:', error);
+        return cachedUnits?.data || [];
+      }
+
+      const mapped = (data || []).map((u: any) => ({
+        id: u.id,
+        branch: u.branch,
+        type: u.type,
+        title: u.title,
+        status: u.status,
+        housekeeping: u.housekeeping,
+        nextBooking: u.next_booking,
+        description: u.description,
+        images: u.images,
+        video: u.video,
+        features: u.features,
+        originalPrice: u.original_price,
+        price: u.price,
+      }));
+
+      cachedUnits = { data: mapped, timestamp: Date.now() };
+      return mapped;
+    } finally {
+      inFlightUnitsPromise = null;
+    }
+  })();
+
+  return await inFlightUnitsPromise;
 }
 
 export async function updateDbUnitDetails(id: string, updates: any) {
@@ -639,7 +705,8 @@ export async function updateDbUnitDetails(id: string, updates: any) {
     throw error;
   }
 
-  return await getDbUnits();
+  invalidateUnitsCache();
+  return await getDbUnits(true);
 }
 
 // --- ADMIN ---
@@ -711,16 +778,30 @@ export async function verifyAdminAuth(username: string, pass: string) {
   }
 }
 
-export async function getDbAdmins() {
+let cachedAdmins: CacheEntry<any[]> | null = null;
+const ADMINS_CACHE_TTL_MS = 60000; // 60 seconds
+
+export async function invalidateAdminsCache() {
+  cachedAdmins = null;
+}
+
+export async function getDbAdmins(forceFresh?: boolean) {
+  const now = Date.now();
+  if (!forceFresh && cachedAdmins && (now - cachedAdmins.timestamp < ADMINS_CACHE_TTL_MS)) {
+    return cachedAdmins.data;
+  }
+
   const supabase = getSupabaseServerClient();
-  if (!supabase) return [];
+  if (!supabase) return cachedAdmins?.data || [];
 
   const { data, error } = await supabase.from('admins').select('*').order('role', { ascending: false });
   if (error) {
     console.error('Error getting admins:', error);
-    return [];
+    return cachedAdmins?.data || [];
   }
-  return data || [];
+  const result = data || [];
+  cachedAdmins = { data: result, timestamp: Date.now() };
+  return result;
 }
 
 export async function addDbAdmin(admin: any) {
@@ -734,6 +815,7 @@ export async function addDbAdmin(admin: any) {
     const newAdmin = { ...admin, id: `admin-${Date.now()}` };
     const { error } = await supabase.from('admins').insert(newAdmin);
     if (error) throw error;
+    invalidateAdminsCache();
     return { success: true, admin: newAdmin };
   } catch (error) {
     console.error('Error adding admin:', error);
@@ -748,6 +830,7 @@ export async function updateDbAdmin(id: string, updates: any) {
 
     const { error } = await supabase.from('admins').update(updates).eq('id', id);
     if (error) throw error;
+    invalidateAdminsCache();
     return { success: true };
   } catch (error) {
     console.error('Error updating admin:', error);
@@ -762,6 +845,7 @@ export async function deleteDbAdmin(id: string) {
 
     const { error } = await supabase.from('admins').delete().eq('id', id);
     if (error) throw error;
+    invalidateAdminsCache();
     return { success: true };
   } catch (error) {
     console.error('Error deleting admin:', error);
@@ -1217,21 +1301,40 @@ export async function deleteDbVacation(id: string) {
 
 // --- EXPENSES ---
 
-export async function getDbExpenses() {
-  const supabase = getSupabaseServerClient();
-  if (!supabase) throw new Error('Supabase configuration missing on server');
+let cachedExpenses: CacheEntry<any[]> | null = null;
+let inFlightExpensesPromise: Promise<any[]> | null = null;
+const EXPENSES_CACHE_TTL_MS = 6000; // 6 seconds
 
-  const { data, error } = await supabase
-    .from('expenses')
-    .select('*')
-    .order('date', { ascending: false });
+export async function invalidateExpensesCache() {
+  cachedExpenses = null;
+}
 
-  if (error) {
-    console.error('Error fetching expenses:', error);
-    throw error;
+export async function getDbExpenses(forceFresh?: boolean) {
+  const now = Date.now();
+  if (!forceFresh && cachedExpenses && (now - cachedExpenses.timestamp < EXPENSES_CACHE_TTL_MS)) {
+    return cachedExpenses.data;
   }
 
-  return (data || []).map((exp: any) => {
+  if (inFlightExpensesPromise) {
+    return await inFlightExpensesPromise;
+  }
+
+  inFlightExpensesPromise = (async () => {
+    try {
+      const supabase = getSupabaseServerClient();
+      if (!supabase) return cachedExpenses?.data || [];
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching expenses:', error);
+        return cachedExpenses?.data || [];
+      }
+
+      const mapped = (data || []).map((exp: any) => {
     let cleanDesc = exp.description || '';
     let extractedInvoice = exp.invoice_number || '';
     let extractedFrom = exp.from_entity || '';
@@ -1320,6 +1423,15 @@ export async function getDbExpenses() {
       approved_by: extractedApprovedBy,
     };
   });
+
+      cachedExpenses = { data: mapped, timestamp: Date.now() };
+      return mapped;
+    } finally {
+      inFlightExpensesPromise = null;
+    }
+  })();
+
+  return await inFlightExpensesPromise;
 }
 
 export async function saveDbExpense(expense: any) {
@@ -1391,6 +1503,7 @@ export async function saveDbExpense(expense: any) {
     }
   }
 
+  invalidateExpensesCache();
   revalidatePath('/admin/dashboard/reports');
   revalidatePath('/admin/dashboard/finance');
   return expense;
@@ -1406,6 +1519,7 @@ export async function deleteDbExpense(id: string) {
     throw error;
   }
   
+  invalidateExpensesCache();
   revalidatePath('/admin/dashboard/reports');
   revalidatePath('/admin/dashboard/finance');
 }
@@ -1491,6 +1605,7 @@ export async function updateDbExpense(id: string, updates: any) {
       throw new Error(updateError.message || 'فشل تحديث المصروف');
     }
 
+    invalidateExpensesCache();
     revalidatePath('/admin/dashboard/reports');
     revalidatePath('/admin/dashboard/finance');
     revalidatePath('/admin/dashboard/treasury');
@@ -1515,25 +1630,44 @@ function isTableMissingError(error: any) {
   );
 }
 
-export async function getDbTreasuryTransfers() {
-  const supabase = getSupabaseServerClient();
-  if (!supabase) throw new Error('Supabase configuration missing on server');
+let cachedTransfers: CacheEntry<any[]> | null = null;
+let inFlightTransfersPromise: Promise<any[]> | null = null;
+const TRANSFERS_CACHE_TTL_MS = 6000; // 6 seconds
 
-  const { data, error } = await supabase
-    .from('treasury_transfers')
-    .select('*')
-    .order('transfer_date', { ascending: false })
-    .order('created_at', { ascending: false });
+export async function invalidateTransfersCache() {
+  cachedTransfers = null;
+}
 
-  if (error) {
-    if (isTableMissingError(error)) {
-      console.warn('⚠️ Treasury table is not yet present in Supabase. Returning empty transfer list.');
-      return [];
-    }
-    throw error;
+export async function getDbTreasuryTransfers(forceFresh?: boolean) {
+  const now = Date.now();
+  if (!forceFresh && cachedTransfers && (now - cachedTransfers.timestamp < TRANSFERS_CACHE_TTL_MS)) {
+    return cachedTransfers.data;
   }
 
-  return (data || []).map((t: any) => {
+  if (inFlightTransfersPromise) {
+    return await inFlightTransfersPromise;
+  }
+
+  inFlightTransfersPromise = (async () => {
+    try {
+      const supabase = getSupabaseServerClient();
+      if (!supabase) return cachedTransfers?.data || [];
+
+      const { data, error } = await supabase
+        .from('treasury_transfers')
+        .select('*')
+        .order('transfer_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (isTableMissingError(error)) {
+          console.warn('⚠️ Treasury table is not yet present in Supabase. Returning empty transfer list.');
+          return [];
+        }
+        return cachedTransfers?.data || [];
+      }
+
+      const mapped = (data || []).map((t: any) => {
     let notes = t.notes || '';
     let handedBy = t.handed_by || '';
     let receivedBy = t.received_by || '';
@@ -1704,6 +1838,15 @@ export async function getDbTreasuryTransfers() {
       approved_by: approvedBy,
     };
   });
+
+      cachedTransfers = { data: mapped, timestamp: Date.now() };
+      return mapped;
+    } finally {
+      inFlightTransfersPromise = null;
+    }
+  })();
+
+  return await inFlightTransfersPromise;
 }
 
 export async function saveDbTreasuryTransfer(transfer: any) {
@@ -1787,6 +1930,7 @@ export async function saveDbTreasuryTransfer(transfer: any) {
     throw new Error(error.message || 'فشل حفظ حركة التحويل');
   }
 
+  invalidateTransfersCache();
   revalidatePath('/admin/dashboard/treasury');
   return data;
 }
@@ -1802,6 +1946,7 @@ export async function deleteDbTreasuryTransfer(id: string) {
     }
     throw error;
   }
+  invalidateTransfersCache();
   revalidatePath('/admin/dashboard/treasury');
 }
 
@@ -1906,6 +2051,7 @@ export async function updateDbTreasuryTransfer(id: string, updates: any) {
     console.error('Error updating treasury transfer:', error);
     throw error;
   }
+  invalidateTransfersCache();
   revalidatePath('/admin/dashboard/treasury');
   return data;
 }
