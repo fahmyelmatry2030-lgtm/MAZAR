@@ -1226,23 +1226,27 @@ export default function TreasuryPage() {
         .trim();
       notes = notes.replace(/^\|\s*|\s*\|$/g, '').trim();
 
+      const paymentInfoVal = isClean
+        ? 'خالص'
+        : (paid > 0 ? `مدفوع: ${paid} | متبقي: ${remaining}` : `متبقي: ${remaining}`);
+
       await updateDbBookingStatus(editingBooking.id, {
         paidAmount: paid,
         remainingAmount: remaining,
         paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
-        paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
+        paymentInfo: paymentInfoVal,
         notes: notes,
       });
 
       setEditingBooking(null);
       await loadData(true); // Silent reload so DOM isn't destroyed!
 
-      // التمرير السلس السريع والتركيز على صف الحجز المعدل مع إضاءة تمييزية
+      // البقاء في نفس المكان مع إضاءة تمييزية هادئة دون قفز الشاشة
       setTimeout(() => {
         const rowEl = document.getElementById(`booking-row-${savedBookingId}`);
         if (rowEl) {
-          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           rowEl.classList.add('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');
           setTimeout(() => {
             rowEl.classList.remove('ring-4', 'ring-emerald-400', 'bg-emerald-100/70');

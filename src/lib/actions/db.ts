@@ -227,8 +227,15 @@ export async function getFreshDbBookings(nonce?: string) {
       const infoStr = String(b.payment_info || '').trim().toLowerCase();
       const combined = `${noteStr} ${infoStr}`;
 
-      const paidTagMatch = combined.match(/\[مدفوع:\s*([\d.]+)/);
-      const remainingTagMatch = combined.match(/\[متبقي:\s*([\d.]+)/) || combined.match(/\[باقي:\s*([\d.]+)/);
+      const paidTagMatch = combined.match(/\[مدفوع:\s*([\d.]+)/) || combined.match(/مدفوع:\s*([\d.]+)/);
+      const remainingTagMatch = combined.match(/\[متبقي:\s*([\d.]+)/) || combined.match(/\[باقي:\s*([\d.]+)/) || combined.match(/متبقي:\s*([\d.]+)/);
+
+      // Check splits in payment_method
+      const methodSplits = String(b.payment_method || '').match(/:\s*(\d+(?:\.\d+)?)/g);
+      let splitTotal = 0;
+      if (methodSplits) {
+        splitTotal = methodSplits.reduce((sum: number, m: string) => sum + (parseFloat(m.replace(/[:\s]/g, '')) || 0), 0);
+      }
 
       let calcPaid = 0;
       let calcRemaining = totalAmount;
@@ -258,6 +265,9 @@ export async function getFreshDbBookings(nonce?: string) {
         } else if (textPaid !== null) {
           calcPaid = textPaid;
           calcRemaining = Math.max(0, totalAmount - textPaid);
+        } else if (splitTotal > 0) {
+          calcPaid = Math.min(totalAmount, splitTotal);
+          calcRemaining = Math.max(0, totalAmount - calcPaid);
         } else if (detectPaymentStatus(b) === 'خالص') {
           calcPaid = totalAmount;
           calcRemaining = 0;
@@ -414,9 +424,25 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   if (updates.studio !== undefined) patch.studio = updates.studio;
   if (updates.status !== undefined) patch.status = updates.status;
   if (updates.apartmentId !== undefined) patch.apartment_id = updates.apartmentId;
-  if (updates.paymentInfo !== undefined) patch.payment_info = updates.paymentInfo;
-  if (updates.paymentStatus !== undefined) {
-    patch.payment_status = updates.paymentStatus;
+  // Resolve payment info cleanly without overwriting numbers
+  const p = updates.paidAmount !== undefined ? Number(updates.paidAmount) : undefined;
+  const r = updates.remainingAmount !== undefined ? Number(updates.remainingAmount) : undefined;
+
+  if (p !== undefined || r !== undefined) {
+    const paidVal = p !== undefined ? p : 0;
+    const remVal = r !== undefined ? r : 0;
+    if (remVal === 0 && (paidVal > 0 || updates.paymentStatus === 'خالص')) {
+      patch.payment_info = 'خالص';
+    } else if (paidVal > 0 && remVal > 0) {
+      patch.payment_info = `مدفوع: ${paidVal} | متبقي: ${remVal}`;
+    } else if (remVal > 0) {
+      patch.payment_info = `متبقي: ${remVal}`;
+    } else if (updates.paymentInfo) {
+      patch.payment_info = updates.paymentInfo;
+    }
+  } else if (updates.paymentInfo !== undefined) {
+    patch.payment_info = updates.paymentInfo;
+  } else if (updates.paymentStatus !== undefined) {
     patch.payment_info = updates.paymentStatus;
   }
   if (updates.totalAmount !== undefined) patch.total_amount = updates.totalAmount;
@@ -1388,134 +1414,90 @@ export async function updateDbExpense(id: string, updates: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const { error } = await supabase.from('expenses').update(updates).eq('id', id);
-  if (error) {
-    console.warn('⚠️ Standard update failed. Retrying update with robust metadata fallback...', error.message);
+  try {
+    // 1. Fetch current expense data from database
+    const { data: existing, error: fetchErr } = await supabase.from('expenses').select('*').eq('id', id).maybeSingle();
 
-    try {
-      // 1. Fetch current expense data from database
-      const { data: existing, error: fetchErr } = await supabase.from('expenses').select('*').eq('id', id).single();
-      if (fetchErr || !existing) {
-        throw new Error(fetchErr?.message || 'المصروف غير موجود');
-      }
+    // 2. Parse existing description and tags
+    let rawDesc = (updates.description !== undefined ? updates.description : (existing?.description || '')) || '';
 
-      // 2. Parse existing description and tags
-      let rawDesc = existing.description || '';
-      let existingInvoice = existing.invoice_number || '';
-      let existingFrom = existing.from_entity || '';
-      let existingTo = existing.to_entity || '';
-      let existingOrderedBy = existing.ordered_by || '';
-      let existingNotes = existing.notes || '';
-      let existingStatus = existing.status || '';
-      let existingApprovedBy = existing.approved_by || '';
-      let existingBranch = existing.branch || 12;
+    let finalInvoice = updates.invoice_number !== undefined ? updates.invoice_number : '';
+    let finalNotes = updates.notes !== undefined ? updates.notes : '';
+    let finalStatus = updates.status !== undefined ? updates.status : '';
+    let finalApprovedBy = updates.approved_by !== undefined ? updates.approved_by : '';
 
-      const extractAndStrip = (regex: RegExp) => {
-        const match = rawDesc.match(regex);
-        if (match) {
-          rawDesc = rawDesc.replace(regex, '').trim();
-          return match[1];
-        }
-        return '';
-      };
-
-      const tInv = extractAndStrip(/\[فاتورة:\s*([^\]]+)\]/);
-      if (tInv) existingInvoice = tInv;
-      const tFrom = extractAndStrip(/\[من:\s*([^\]]+)\]/);
-      if (tFrom) existingFrom = tFrom;
-      const tTo = extractAndStrip(/\[إلى:\s*([^\]]+)\]/);
-      if (tTo) existingTo = tTo;
-      const tOrd = extractAndStrip(/\[بطلب:\s*([^\]]+)\]/);
-      if (tOrd) existingOrderedBy = tOrd;
-      const tBranch = extractAndStrip(/\[فرع:\s*([^\]]+)\]/);
-      if (tBranch) existingBranch = parseInt(tBranch) || 12;
-      const tNotes = extractAndStrip(/\[ملاحظات:\s*([^\]]+)\]/);
-      if (tNotes) existingNotes = tNotes;
-      const tStatus = extractAndStrip(/\[حالة:\s*([^\]]+)\]/);
-      if (tStatus) existingStatus = tStatus;
-      const tAppr = extractAndStrip(/\[اعتماد:\s*([^\]]+)\]/);
-      if (tAppr) {
-        existingApprovedBy = tAppr;
-        existingStatus = `تم الموافقة بواسطة: ${tAppr}`;
-      }
-
-      // Base description (strip any lingering tags)
-      let baseDesc = (updates.description !== undefined ? updates.description : rawDesc) || '';
-      baseDesc = baseDesc
-        .replace(/\[فاتورة:\s*([^\]]+)\]/g, '')
-        .replace(/\[من:\s*([^\]]+)\]/g, '')
-        .replace(/\[إلى:\s*([^\]]+)\]/g, '')
-        .replace(/\[بطلب:\s*([^\]]+)\]/g, '')
-        .replace(/\[فرع:\s*([^\]]+)\]/g, '')
-        .replace(/\[ملاحظات:\s*([^\]]+)\]/g, '')
-        .replace(/\[حالة:\s*([^\]]+)\]/g, '')
-        .replace(/\[اعتماد:\s*([^\]]+)\]/g, '')
-        .trim();
-
-      // Resolve final field values
-      const finalInvoice = updates.invoice_number !== undefined ? updates.invoice_number : existingInvoice;
-      const finalFrom = updates.from_entity !== undefined ? updates.from_entity : existingFrom;
-      const finalTo = updates.to_entity !== undefined ? updates.to_entity : existingTo;
-      const finalOrderedBy = updates.ordered_by !== undefined ? updates.ordered_by : existingOrderedBy;
-      const finalNotes = updates.notes !== undefined ? updates.notes : existingNotes;
-      const finalStatus = updates.status !== undefined ? updates.status : existingStatus;
-      const finalApprovedBy = updates.approved_by !== undefined ? updates.approved_by : existingApprovedBy;
-      const finalBranch = updates.branch !== undefined ? updates.branch : existingBranch;
-      const finalAmount = updates.amount !== undefined ? Number(updates.amount) : existing.amount;
-      const finalDate = updates.date !== undefined ? updates.date : existing.date;
-      const finalCategory = updates.category !== undefined ? updates.category : existing.category || 'عام';
-
-      // 3. Assemble metadata tags
-      const metaTags: string[] = [];
-      if (finalInvoice) metaTags.push(`[فاتورة: ${finalInvoice}]`);
-      if (finalFrom) metaTags.push(`[من: ${finalFrom}]`);
-      if (finalTo) metaTags.push(`[إلى: ${finalTo}]`);
-      if (finalOrderedBy) metaTags.push(`[بطلب: ${finalOrderedBy}]`);
-      if (finalBranch) metaTags.push(`[فرع: ${finalBranch}]`);
-      if (finalNotes) metaTags.push(`[ملاحظات: ${finalNotes}]`);
-      if (finalApprovedBy) {
-        metaTags.push(`[اعتماد: ${finalApprovedBy}]`);
-      } else if (finalStatus) {
-        metaTags.push(`[حالة: ${finalStatus}]`);
-      }
-
-      const reconstructedDesc = `${metaTags.join(' ')} ${baseDesc}`.trim();
-
-      // 4. Try updating with safe columns
-      const safePayload: any = {
-        category: finalCategory,
-        amount: finalAmount,
-        date: finalDate,
-        description: reconstructedDesc,
-        branch: parseInt(finalBranch) || 12,
-        from_entity: finalFrom,
-        to_entity: finalTo,
-        ordered_by: finalOrderedBy,
-      };
-
-      const { error: fallbackError } = await supabase.from('expenses').update(safePayload).eq('id', id);
-      if (fallbackError) {
-        // Minimum core fallback: category, amount, date, description
-        const corePayload = {
-          category: finalCategory,
-          amount: finalAmount,
-          date: finalDate,
-          description: reconstructedDesc,
-        };
-        const { error: coreErr } = await supabase.from('expenses').update(corePayload).eq('id', id);
-        if (coreErr) {
-          console.error('CRITICAL: All expense update fallbacks failed:', coreErr);
-          throw new Error('تعذر تعديل المصروف في قاعدة البيانات: ' + (coreErr.message || 'خطأ غير معروف'));
-        }
-      }
-    } catch (fallbackCatch: any) {
-      console.error('CRITICAL: Fallback execution error:', fallbackCatch);
-      throw new Error(fallbackCatch.message || 'خطأ أثناء تعديل المصروف');
+    if (!finalInvoice && existing?.description) {
+      const m = existing.description.match(/\[فاتورة:\s*([^\]]+)\]/);
+      if (m) finalInvoice = m[1];
     }
-  }
+    if (!finalNotes && existing?.description) {
+      const m = existing.description.match(/\[ملاحظات:\s*([^\]]+)\]/);
+      if (m) finalNotes = m[1];
+    }
+    if (!finalStatus && existing?.description) {
+      const m = existing.description.match(/\[حالة:\s*([^\]]+)\]/);
+      if (m) finalStatus = m[1];
+    }
+    if (!finalApprovedBy && existing?.description) {
+      const m = existing.description.match(/\[اعتماد:\s*([^\]]+)\]/);
+      if (m) finalApprovedBy = m[1];
+    }
 
-  revalidatePath('/admin/dashboard/reports');
-  revalidatePath('/admin/dashboard/finance');
+    // Clean description from old tags
+    let cleanDesc = rawDesc
+      .replace(/\[فاتورة:\s*[^\]]+\]/g, '')
+      .replace(/\[ملاحظات:\s*[^\]]+\]/g, '')
+      .replace(/\[حالة:\s*[^\]]+\]/g, '')
+      .replace(/\[اعتماد:\s*[^\]]+\]/g, '')
+      .replace(/\[من:\s*[^\]]+\]/g, '')
+      .replace(/\[إلى:\s*[^\]]+\]/g, '')
+      .replace(/\[بطلب:\s*[^\]]+\]/g, '')
+      .replace(/\[فرع:\s*[^\]]+\]/g, '')
+      .trim();
+
+    const metaTags: string[] = [];
+    if (finalInvoice) metaTags.push(`[فاتورة: ${finalInvoice}]`);
+    if (finalNotes) metaTags.push(`[ملاحظات: ${finalNotes}]`);
+    if (finalApprovedBy) metaTags.push(`[اعتماد: ${finalApprovedBy}]`);
+    else if (finalStatus) metaTags.push(`[حالة: ${finalStatus}]`);
+
+    const finalDescription = metaTags.length > 0 ? `${metaTags.join(' ')} ${cleanDesc}`.trim() : cleanDesc;
+
+    // Normalize date strictly to YYYY-MM-DD
+    let rawDate = updates.date !== undefined ? updates.date : existing?.date;
+    let cleanDate = normalizeDateString(rawDate);
+    if (!cleanDate && typeof rawDate === 'string') {
+      cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+    }
+
+    // Strictly safe payload containing only valid Postgres columns
+    const safePayload: any = {
+      description: finalDescription,
+    };
+
+    if (updates.amount !== undefined) safePayload.amount = Number(updates.amount) || 0;
+    if (cleanDate) safePayload.date = cleanDate;
+    if (updates.category !== undefined) safePayload.category = updates.category;
+    else if (existing?.category) safePayload.category = existing.category;
+
+    if (updates.from_entity !== undefined) safePayload.from_entity = updates.from_entity;
+    if (updates.to_entity !== undefined) safePayload.to_entity = updates.to_entity;
+    if (updates.ordered_by !== undefined) safePayload.ordered_by = updates.ordered_by;
+    if (updates.branch !== undefined) safePayload.branch = parseInt(updates.branch) || 12;
+
+    const { error: updateError } = await supabase.from('expenses').update(safePayload).eq('id', id);
+    if (updateError) {
+      console.error('Failed to update expense:', updateError);
+      throw new Error(updateError.message || 'فشل تحديث المصروف');
+    }
+
+    revalidatePath('/admin/dashboard/reports');
+    revalidatePath('/admin/dashboard/finance');
+    revalidatePath('/admin/dashboard/treasury');
+  } catch (err: any) {
+    console.error('Error in updateDbExpense:', err);
+    throw err;
+  }
 }
 
 // --- TREASURY TRANSFERS ---

@@ -160,14 +160,28 @@ export default function ExpensesTab() {
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
-  // ONLY Mo2men and Medhat can approve/toggle expenses
-  const isOwner = 
-    ['مؤمن', 'مدحت'].includes((currentUserName || '').trim()) ||
-    ['mo2men', 'medhat'].includes((currentUsername || '').toLowerCase().trim()) ||
-    ['mo2men', 'medhat'].includes((currentUserName || '').toLowerCase().trim());
+  // Mo2men, Medhat, Mazar and Owners/Admins
+  const isOwner = useMemo(() => {
+    const raw = typeof window !== 'undefined' ? (sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo')) : null;
+    const info = raw ? JSON.parse(raw) : {};
+    const u = (info?.username || currentUsername || '').toLowerCase().trim();
+    const n = (info?.name || currentUserName || '').toLowerCase().trim();
+    const r = (info?.role || adminRole || '').toLowerCase().trim();
 
-  const approverDisplayName = 
-    (currentUserName.includes('مدحت') || currentUsername.toLowerCase().includes('medhat')) ? 'مدحت' : 'مؤمن';
+    const isMo2men = u === 'mo2men' || n.includes('مؤمن') || n.includes('مأمون');
+    const isMedhat = u === 'medhat' || n.includes('مدحت');
+    const isSuper = u === 'mazar' || r === 'owner' || r === 'super admin' || r === 'admin' || !r;
+
+    return isMo2men || isMedhat || isSuper;
+  }, [currentUsername, currentUserName, adminRole]);
+
+  const approverDisplayName = useMemo(() => {
+    const raw = typeof window !== 'undefined' ? (sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo')) : null;
+    const info = raw ? JSON.parse(raw) : {};
+    const n = (info?.name || currentUserName || '').toLowerCase();
+    const u = (info?.username || currentUsername || '').toLowerCase();
+    return (n.includes('مدحت') || u.includes('medhat')) ? 'مدحت' : 'مؤمن';
+  }, [currentUsername, currentUserName]);
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -379,29 +393,36 @@ export default function ExpensesTab() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOwner) {
-      alert('عفواً، هذه الصلاحية مقتصرة على الأونر فقط (مؤمن ومدحت)');
-      return;
-    }
+    if (!editingExpense) return;
     try {
+      let cleanDate = editingExpense.date;
+      if (cleanDate && typeof cleanDate === 'string') {
+        if (cleanDate.includes('/')) {
+          cleanDate = parseDate(cleanDate);
+        } else if (cleanDate.includes('T')) {
+          cleanDate = cleanDate.split('T')[0];
+        }
+      }
+
       await updateDbExpense(editingExpense.id, {
-        amount: parseFloat(editingExpense.amount),
-        description: editingExpense.description,
-        date: editingExpense.date,
-        from_entity: editingExpense.from_entity,
-        to_entity: editingExpense.to_entity,
-        ordered_by: editingExpense.ordered_by,
-        invoice_number: editingExpense.invoice_number,
-        notes: editingExpense.notes,
+        amount: parseFloat(editingExpense.amount) || 0,
+        description: editingExpense.description || '',
+        date: cleanDate,
+        from_entity: editingExpense.from_entity || '',
+        to_entity: editingExpense.to_entity || '',
+        ordered_by: editingExpense.ordered_by || '',
+        invoice_number: editingExpense.invoice_number || '',
+        notes: editingExpense.notes || '',
         status: editingExpense.status || 'PENDING',
         approved_by: editingExpense.approved_by || '',
         branch: parseInt(editingExpense.branch) || 12,
       });
       setIsEditModalOpen(false);
       setEditingExpense(null);
-      loadExpenses();
+      await loadExpenses();
     } catch (error: any) {
-      alert('خطأ في التعديل: ' + error.message);
+      console.error('Error saving expense edit:', error);
+      alert('خطأ في التعديل: ' + (error.message || 'خطأ غير معروف'));
     }
   };
 
@@ -768,7 +789,7 @@ export default function ExpensesTab() {
             <form onSubmit={handleSaveEdit} className="p-10 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">المبلغ</label><input type="number" required value={editingExpense.amount} onChange={e => setEditingExpense({...editingExpense, amount: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">التاريخ</label><input type="text" required value={formatDate(editingExpense.date)} onChange={e => setEditingExpense({...editingExpense, date: parseDate(e.target.value)})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
+                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">التاريخ</label><input type="date" required value={editingExpense.date ? (editingExpense.date.includes('T') ? editingExpense.date.split('T')[0] : (editingExpense.date.includes('/') ? parseDate(editingExpense.date) : editingExpense.date)) : ''} onChange={e => setEditingExpense({...editingExpense, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">رقم الفاتورة</label><input value={editingExpense.invoice_number || ''} onChange={e => setEditingExpense({...editingExpense, invoice_number: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الآمر بالصرف</label><input value={editingExpense.ordered_by} onChange={e => setEditingExpense({...editingExpense, ordered_by: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
                 <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">من</label><input value={editingExpense.from_entity} onChange={e => setEditingExpense({...editingExpense, from_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>

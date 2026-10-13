@@ -716,12 +716,16 @@ function ReportsContent() {
 
       const finalNotes = cleanNotesForDisplay(modalCustomNotes);
 
+      const paymentInfoVal = isClean
+        ? 'خالص'
+        : (totalPaid > 0 ? `مدفوع: ${totalPaid} | متبقي: ${remaining}` : `متبقي: ${remaining}`);
+
       const updates = {
         paidAmount: totalPaid,
         remainingAmount: remaining,
         paymentMethod: formattedPaymentMethod,
         paymentStatus: isClean ? 'خالص' : 'باقي',
-        paymentInfo: isClean ? 'خالص' : `متبقي ${remaining}`,
+        paymentInfo: paymentInfoVal,
         notes: finalNotes,
       };
 
@@ -846,7 +850,9 @@ function ReportsContent() {
         paidAmount: finalPaid,
         remainingAmount: finalRemaining,
         paymentStatus: finalStatus,
-        paymentInfo: finalStatus,
+        paymentInfo: finalStatus === 'خالص'
+          ? 'خالص'
+          : (finalPaid > 0 ? `مدفوع: ${finalPaid} | متبقي: ${finalRemaining}` : `متبقي: ${finalRemaining}`),
         notes: finalNotes,
       };
 
