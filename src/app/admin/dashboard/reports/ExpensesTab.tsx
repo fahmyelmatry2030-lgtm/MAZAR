@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { saveDbExpense, deleteDbExpense, getDbExpenses, updateDbExpense } from '@/lib/actions/db';
 import { Pencil, Trash2, CheckCircle2, Clock } from 'lucide-react';
 
@@ -76,7 +77,9 @@ export default function ExpensesTab() {
     approved_by: '',
   });
 
+  const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
+    setIsMounted(true);
     setNewExpense(prev => ({
       ...prev,
       date: getDefaultDate()
@@ -778,28 +781,121 @@ export default function ExpensesTab() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {isEditModalOpen && editingExpense && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-3xl border border-white/10 overflow-hidden animate-in zoom-in duration-300">
-            <div className="bg-mazar-coffee p-8 flex justify-between items-center text-white">
-              <div><h3 className="text-2xl font-black uppercase tracking-tight">تعديل سجل المصروف</h3><p className="text-[10px] font-black text-mazar-gold uppercase tracking-[0.2em] mt-1">تعديل البيانات المالية المسجلة</p></div>
-              <button onClick={() => setIsEditModalOpen(false)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all">✕</button>
+      {/* Edit Modal (Portal + Scrollable + Sticky Save Button on Mobile) */}
+      {isMounted && isEditModalOpen && editingExpense && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          dir="rtl"
+        >
+          <div className="bg-white w-full max-w-4xl rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-[#EAE4D9] my-auto max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
+            {/* رأس النافذة */}
+            <div className="bg-mazar-coffee p-5 sm:p-6 flex justify-between items-center text-white shrink-0 border-b border-white/10">
+              <div>
+                <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight">تعديل سجل المصروف</h3>
+                <p className="text-[10px] font-black text-mazar-gold uppercase tracking-[0.2em] mt-0.5">تعديل البيانات المالية المسجلة</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white font-black text-sm transition-all cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-            <form onSubmit={handleSaveEdit} className="p-10 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">المبلغ</label><input type="number" required value={editingExpense.amount} onChange={e => setEditingExpense({...editingExpense, amount: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">التاريخ</label><input type="date" required value={editingExpense.date ? (editingExpense.date.includes('T') ? editingExpense.date.split('T')[0] : (editingExpense.date.includes('/') ? parseDate(editingExpense.date) : editingExpense.date)) : ''} onChange={e => setEditingExpense({...editingExpense, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">رقم الفاتورة</label><input value={editingExpense.invoice_number || ''} onChange={e => setEditingExpense({...editingExpense, invoice_number: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الآمر بالصرف</label><input value={editingExpense.ordered_by} onChange={e => setEditingExpense({...editingExpense, ordered_by: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">من</label><input value={editingExpense.from_entity} onChange={e => setEditingExpense({...editingExpense, from_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">إلى</label><input value={editingExpense.to_entity} onChange={e => setEditingExpense({...editingExpense, to_entity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">الفرع / القسم</label><select disabled={isAkoura} value={editingExpense.branch} onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all"><option value="12">مزار 1 و 2</option><option value="3">مزار 3</option><option value="4">شقة زكي رستم</option><option value="5">شقة سيتي</option><option value="6">شقة عباس الرئيسي</option></select></div>
-                <div className="space-y-2"><label className="text-[9px] font-black text-mazar-coffee uppercase tracking-widest opacity-60">السبب / البيان</label><input required value={editingExpense.description} onChange={e => setEditingExpense({...editingExpense, description: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
+
+            {/* محتوى النموذج القابل للسكرول بسلاسة على أي شاشة موبايل */}
+            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-5 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">المبلغ *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editingExpense.amount}
+                    onChange={e => setEditingExpense({...editingExpense, amount: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">التاريخ *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingExpense.date ? (editingExpense.date.includes('T') ? editingExpense.date.split('T')[0] : (editingExpense.date.includes('/') ? parseDate(editingExpense.date) : editingExpense.date)) : ''}
+                    onChange={e => setEditingExpense({...editingExpense, date: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">رقم الفاتورة</label>
+                  <input
+                    value={editingExpense.invoice_number || ''}
+                    onChange={e => setEditingExpense({...editingExpense, invoice_number: e.target.value})}
+                    placeholder="INV-001"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">الآمر بالصرف</label>
+                  <input
+                    value={editingExpense.ordered_by || ''}
+                    onChange={e => setEditingExpense({...editingExpense, ordered_by: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">من</label>
+                  <input
+                    value={editingExpense.from_entity || ''}
+                    onChange={e => setEditingExpense({...editingExpense, from_entity: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">إلى</label>
+                  <input
+                    value={editingExpense.to_entity || ''}
+                    onChange={e => setEditingExpense({...editingExpense, to_entity: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">الفرع / القسم</label>
+                  <select
+                    disabled={isAkoura}
+                    value={editingExpense.branch || '12'}
+                    onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  >
+                    <option value="12">مزار 1 و 2</option>
+                    <option value="3">مزار 3</option>
+                    <option value="4">شقة زكي رستم</option>
+                    <option value="5">شقة سيتي</option>
+                    <option value="6">شقة عباس الرئيسي</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">السبب / البيان *</label>
+                  <input
+                    required
+                    value={editingExpense.description || ''}
+                    onChange={e => setEditingExpense({...editingExpense, description: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
 
                 {/* حالة الاعتماد */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-green-700 uppercase tracking-widest opacity-80">حالة الاعتماد (مؤمن ومدحت فقط)</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-green-700 uppercase tracking-widest opacity-90">حالة الاعتماد (مؤمن ومدحت فقط)</label>
                   <select
                     disabled={!isOwner}
                     value={
@@ -818,7 +914,7 @@ export default function ExpensesTab() {
                         setEditingExpense({ ...editingExpense, status: val, approved_by: approver });
                       }
                     }}
-                    className="w-full bg-green-50 border border-green-200 rounded-2xl px-6 py-4 text-sm font-bold text-green-900 outline-none focus:border-green-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold text-green-900 outline-none focus:border-green-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="PENDING">⏳ غير معتمد (قيد الانتظار)</option>
                     <option value="تم الموافقة بواسطة: مؤمن">✅ تم الموافقة بواسطة: مؤمن</option>
@@ -826,15 +922,36 @@ export default function ExpensesTab() {
                   </select>
                 </div>
 
-                <div className="space-y-2"><label className="text-[9px] font-black text-amber-700 uppercase tracking-widest opacity-70">ملاحظات</label><input value={editingExpense.notes || ''} onChange={e => setEditingExpense({...editingExpense, notes: e.target.value})} className="w-full bg-gray-50 border border-amber-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all" /></div>
+                <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest opacity-80">ملاحظات</label>
+                  <input
+                    value={editingExpense.notes || ''}
+                    onChange={e => setEditingExpense({...editingExpense, notes: e.target.value})}
+                    className="w-full bg-gray-50 border border-amber-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                  />
+                </div>
               </div>
-              <div className="flex gap-4 pt-4">
-                <button type="submit" className="flex-1 bg-mazar-coffee text-white font-black py-5 rounded-2xl hover:bg-mazar-gold hover:text-mazar-coffee transition-all shadow-xl active:scale-95 uppercase tracking-widest text-[11px]">حفظ التعديلات</button>
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-10 bg-gray-100 text-gray-500 font-black py-5 rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest text-[11px]">إلغاء</button>
+
+              {/* أزرار الحفظ والإلغاء مثبتة بوضوح في الأسفل ومتاحة دائماً */}
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-100 sticky bottom-0 bg-white/95 backdrop-blur-xs pb-1">
+                <button
+                  type="submit"
+                  className="flex-1 bg-mazar-coffee hover:bg-black text-white font-black py-3.5 sm:py-4 rounded-xl transition-all shadow-lg active:scale-95 text-xs sm:text-sm cursor-pointer"
+                >
+                  💾 حفظ التعديلات
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-6 sm:px-8 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-3.5 sm:py-4 rounded-xl transition-all text-xs sm:text-sm cursor-pointer"
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
