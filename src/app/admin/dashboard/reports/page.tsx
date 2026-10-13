@@ -2061,7 +2061,7 @@ function ReportsContent() {
                 <table className="w-full min-w-[1500px] text-center border-collapse" dir="rtl">
                   <thead className="sticky top-0 z-30">
                     <tr className="bg-gradient-to-l from-[#1a1714] via-[#2A2723] to-[#1a1714] text-[#E8DFD0] text-[9px] uppercase tracking-widest font-black">
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap sticky right-0 bg-[#2A2723] z-20 shadow-[2px_0_5px_rgba(0,0,0,0.3)]">No</th>
+                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">No</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">التاريخ</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الاسم</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الجنسية</th>
@@ -2079,7 +2079,7 @@ function ReportsContent() {
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">طريقة الدفع</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">ملاحظات</th>
                       <th className="px-3 py-4 no-print whitespace-nowrap border-l border-[#3a3730]">الإجراءات</th>
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap sticky left-0 bg-[#2A2723] z-20 shadow-[-2px_0_5px_rgba(0,0,0,0.3)]">الحالة</th>
+                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الحالة</th>
                     </tr>
                   </thead>
                   <tbody className="text-[10px] font-semibold">
@@ -2096,7 +2096,7 @@ function ReportsContent() {
                     ) : (
                       allRows.map((row, index) => (
                         <tr key={index} className={`border-t border-[#D5CBB8]/60 transition-colors group ${!row.hasData ? 'bg-[#F0EBE2] opacity-50' : row.isCarriedOver ? 'bg-[#F5F0E6]' : index % 2 === 0 ? 'bg-[#FDFBF7] hover:bg-[#F0EBE2]' : 'bg-[#F7F3EC] hover:bg-[#EBE5D9]'}`}>
-                          <td className="px-2 py-3 text-[#8B7355] font-black tracking-widest sticky right-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.06)] transition-colors" style={{ backgroundColor: !row.hasData ? '#F0EBE2' : row.isCarriedOver ? '#F5F0E6' : index % 2 === 0 ? '#FDFBF7' : '#F7F3EC' }}>
+                          <td className="px-2 py-3 text-[#8B7355] font-black tracking-widest transition-colors">
                             {row.hasData && row.no ? (
                               <EditableCell
                                 value={row.no ? row.no.toString().padStart(2, '0') : ''}
@@ -2283,7 +2283,7 @@ function ReportsContent() {
                           </td>
 
                           {/* EDITABLE: Client Status */}
-                          <td className="px-1 py-3 border-l border-[#D5CBB8]/40 sticky left-0 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.06)] transition-colors" style={{ backgroundColor: !row.hasData ? '#F0EBE2' : row.isCarriedOver ? '#F5F0E6' : index % 2 === 0 ? '#FDFBF7' : '#F7F3EC' }}>
+                          <td className="px-1 py-3 border-l border-[#D5CBB8]/40 transition-colors">
                             {row.hasData ? (
                               row.isCarriedOver ? (
                                 <span className={`font-black text-[10px] px-2.5 py-1.5 rounded-lg text-center block ${row.clientStatus === 'انتظار' ? 'text-gray-600 bg-gray-200/80 border border-gray-300/50' : row.clientStatus === 'متواجد' ? 'text-emerald-800 bg-emerald-200/80 border border-emerald-300/50' : 'text-red-800 bg-red-200/80 border border-red-300/50'}`}>{row.clientStatus}</span>

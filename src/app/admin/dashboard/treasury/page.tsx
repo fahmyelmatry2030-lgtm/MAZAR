@@ -399,6 +399,7 @@ export default function TreasuryPage() {
   // فلتر وبحث جدول الحجوزات
   const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
+  const [mobileBookingLayout, setMobileBookingLayout] = useState<'cards' | 'table'>('cards');
 
   // نافذة تعديل المدفوع والمتبقي للحجز
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
@@ -2685,101 +2686,227 @@ export default function TreasuryPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border-2 border-emerald-400 bg-white shadow-sm custom-scrollbar-horizontal pb-2">
-            <table className="w-full min-w-[1250px] text-right text-xs border-collapse">
-              <thead className="bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 text-white font-black">
-                <tr>
-                  <th className="p-4 text-center text-white w-14 whitespace-nowrap"># رقم الحجز</th>
-                  <th className="p-4 text-white whitespace-nowrap">العميل</th>
-                  <th className="p-4 text-white whitespace-nowrap">الوحدة</th>
-                  <th className="p-4 text-white whitespace-nowrap">الدخول - الخروج</th>
-                  <th className="p-4 text-white whitespace-nowrap">إجمالي الحجز</th>
-                  <th className="p-4 bg-emerald-800/80 text-emerald-100 whitespace-nowrap">تم دفع (بالخزنة) 🟢</th>
-                  <th className="p-4 text-white whitespace-nowrap">طريقة الدفع 💳</th>
-                  <th className="p-4 bg-amber-800/80 text-amber-100 whitespace-nowrap">المتبقي (خارجها) ⏳</th>
-                  <th className="p-4 text-white whitespace-nowrap">الملاحظات</th>
-                  <th className="p-4 text-center text-white sticky left-0 bg-emerald-950 z-20 shadow-[-4px_0_8px_rgba(0,0,0,0.25)] whitespace-nowrap">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayedBookings.map((b) => (
-                  <tr
-                    key={b.id}
-                    id={`booking-row-${b.id}`}
-                    className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-all duration-300"
-                  >
-                    <td className="p-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
-                          #{b.bookingMonthlyNo || '—'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(b)}
-                          className="p-1 text-emerald-700 hover:text-emerald-950 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
-                          title="تعديل حساب الحجز سريعاً"
-                        >
-                          <Edit3 size={13} />
-                        </button>
+          <>
+            {/* أزرار التبديل للموبايل: بطاقات مريحة أو جدول */}
+            <div className="flex md:hidden items-center justify-between bg-stone-100/80 px-3 py-2 rounded-xl mb-3 border border-stone-200/60">
+              <span className="text-[11px] font-black text-[#7A7061]">طريقة العرض على الموبايل:</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileBookingLayout('cards')}
+                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    mobileBookingLayout === 'cards'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-white text-[#7A7061] hover:bg-stone-50 border border-stone-200'
+                  }`}
+                >
+                  📱 كروت
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileBookingLayout('table')}
+                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    mobileBookingLayout === 'table'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-white text-[#7A7061] hover:bg-stone-50 border border-stone-200'
+                  }`}
+                >
+                  📊 جدول
+                </button>
+              </div>
+            </div>
+
+            {/* عرض البطاقات للموبايل (بدون أي سكرول أفقي نهائياً) */}
+            <div className={`${mobileBookingLayout === 'cards' ? 'block' : 'hidden'} md:hidden space-y-3`}>
+              {displayedBookings.map((b) => (
+                <div
+                  key={b.id}
+                  id={`booking-card-${b.id}`}
+                  className="bg-white border-2 border-emerald-200/90 rounded-2xl p-4 shadow-sm space-y-3 font-bold"
+                >
+                  {/* رأس البطاقة: رقم الحجز + الوحدة + العميل */}
+                  <div className="flex items-center justify-between border-b border-[#EAE4D9]/60 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
+                        #{b.bookingMonthlyNo || '—'}
+                      </span>
+                      <div>
+                        <div className="font-black text-sm text-[#2A2723]">{b.name || 'عميل'}</div>
+                        <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-black text-[#2A2723]">{b.name || 'عميل'}</div>
-                      <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
-                    </td>
-                    <td className="p-4 text-[#C1A68D] font-black">{formatTreasuryUnitName(b.apartmentId || b.studio)}</td>
-                    <td className="p-4 text-[#7A7061] text-[11px]">{b.checkIn} ⬅️ {b.checkOut}</td>
-                    <td className="p-4 font-black text-[#2A2723]">{money(Number(b.totalAmount) || 0)}</td>
-                    <td className="p-4 bg-emerald-50/30 font-black text-emerald-700 text-sm">
-                      {money(b.calculatedPaid)}
-                    </td>
-                    <td className="p-4">
-                      {b.paymentMethod ? (
-                        <span className="inline-block text-[11px] font-black bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-1 rounded-xl max-w-xs break-words shadow-sm">
-                          {b.paymentMethod}
-                        </span>
-                      ) : (
-                        <span className="text-[#A59D90] font-normal text-xs">—</span>
+                    </div>
+                    <span className="text-xs font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                      {formatTreasuryUnitName(b.apartmentId || b.studio)}
+                    </span>
+                  </div>
+
+                  {/* التفاصيل المالية والتواريخ */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#EAE4D9]/60">
+                      <span className="text-[10px] text-[#7A7061] block font-bold mb-0.5">الدخول ⬅️ الخروج:</span>
+                      <span className="font-bold text-[#2A2723] text-[11px] block">{b.checkIn} ⬅️ {b.checkOut}</span>
+                    </div>
+                    <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#EAE4D9]/60">
+                      <span className="text-[10px] text-[#7A7061] block font-bold mb-0.5">إجمالي الحجز:</span>
+                      <span className="font-black text-[#2A2723] text-sm block">{money(Number(b.totalAmount) || 0)}</span>
+                    </div>
+                  </div>
+
+                  {/* حالة الدفع والمدفوع والمتبقي */}
+                  <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/80">
+                    <div>
+                      <span className="text-[10px] text-emerald-800 font-bold block mb-0.5">تم دفع (بالخزنة) 🟢:</span>
+                      <span className="font-black text-emerald-700 text-sm">{money(b.calculatedPaid)}</span>
+                      {b.paymentMethod && (
+                        <div className="mt-1">
+                          <span className="inline-block text-[10px] font-black bg-blue-50 text-blue-900 border border-blue-200 px-2 py-0.5 rounded-lg shadow-2xs">
+                            💳 {b.paymentMethod}
+                          </span>
+                        </div>
                       )}
-                    </td>
-                    <td className="p-4 bg-amber-50/30 font-black text-sm">
+                    </div>
+                    <div className="text-left">
+                      <span className="text-[10px] text-amber-800 font-bold block mb-0.5">المتبقي (خارجها) ⏳:</span>
                       {b.calculatedRemaining > 0 ? (
-                        <span className="text-rose-600 font-black">متبقي {money(b.calculatedRemaining)}</span>
+                        <span className="text-rose-600 font-black text-sm block">متبقي {money(b.calculatedRemaining)}</span>
                       ) : (
-                        <span className="text-emerald-700 font-black text-xs">خالص ✔️</span>
+                        <span className="text-emerald-700 font-black text-xs block">خالص ✔️</span>
                       )}
-                    </td>
-                    <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={cleanDisplayNotes(b.notes)}>
-                      {cleanDisplayNotes(b.notes) || '—'}
-                    </td>
-                    <td className="p-4 text-center sticky left-0 bg-white/95 backdrop-blur-xs z-10 shadow-[-4px_0_8px_rgba(0,0,0,0.06)] border-r border-[#EAE4D9]/60 whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => openEditModal(b)}
-                          className="bg-[#FDFBF7] hover:bg-emerald-50 text-[#7A7061] hover:text-emerald-800 border border-[#EAE4D9] hover:border-emerald-300 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
-                          title="تعديل المبلغ المدفوع والمتبقي"
-                        >
-                          <Edit3 size={12} className="text-emerald-700" />
-                          تعديل المدفوع
-                        </button>
-                        {!b.isFullyPaid && (
-                          <button
-                            disabled={markingId === b.id}
-                            onClick={() => markBookingAsFullyPaid(b)}
-                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer whitespace-nowrap"
-                            title="سداد كامل المبلغ المتبقي بضغطة زر"
-                          >
-                            <CheckCircle2 size={12} />
-                            {markingId === b.id ? '...' : 'سداد الباقي'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    </div>
+                  </div>
+
+                  {cleanDisplayNotes(b.notes) && (
+                    <div className="text-[11px] text-[#7A7061] bg-stone-50 p-2.5 rounded-xl border border-stone-200/80">
+                      <span className="font-black text-[#2A2723]">ملاحظات: </span>
+                      {cleanDisplayNotes(b.notes)}
+                    </div>
+                  )}
+
+                  {/* الأزرار والإجراءات */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-[#EAE4D9]/50">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(b)}
+                      className="flex-1 bg-[#FDFBF7] hover:bg-emerald-50 text-[#2A2723] hover:text-emerald-900 border border-[#EAE4D9] hover:border-emerald-300 py-2.5 rounded-xl font-black text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
+                    >
+                      <Edit3 size={13} className="text-emerald-700" />
+                      تعديل المدفوع
+                    </button>
+                    {!b.isFullyPaid && (
+                      <button
+                        type="button"
+                        disabled={markingId === b.id}
+                        onClick={() => markBookingAsFullyPaid(b)}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-2.5 rounded-xl font-black text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                      >
+                        <CheckCircle2 size={13} />
+                        {markingId === b.id ? '...' : 'سداد الباقي'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* عرض الجدول المعتاد (للشاشات الأكبر أو باختيار المستخدم) - بدون تداخل ولا sticky */}
+            <div className={`${mobileBookingLayout === 'table' ? 'block' : 'hidden'} md:block overflow-x-auto rounded-2xl border-2 border-emerald-400 bg-white shadow-sm custom-scrollbar-horizontal pb-2`}>
+              <table className="w-full min-w-[1250px] text-right text-xs border-collapse">
+                <thead className="bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 text-white font-black">
+                  <tr>
+                    <th className="p-4 text-center text-white w-14 whitespace-nowrap"># رقم الحجز</th>
+                    <th className="p-4 text-white whitespace-nowrap">العميل</th>
+                    <th className="p-4 text-white whitespace-nowrap">الوحدة</th>
+                    <th className="p-4 text-white whitespace-nowrap">الدخول - الخروج</th>
+                    <th className="p-4 text-white whitespace-nowrap">إجمالي الحجز</th>
+                    <th className="p-4 bg-emerald-800/80 text-emerald-100 whitespace-nowrap">تم دفع (بالخزنة) 🟢</th>
+                    <th className="p-4 text-white whitespace-nowrap">طريقة الدفع 💳</th>
+                    <th className="p-4 bg-amber-800/80 text-amber-100 whitespace-nowrap">المتبقي (خارجها) ⏳</th>
+                    <th className="p-4 text-white whitespace-nowrap">الملاحظات</th>
+                    <th className="p-4 text-center text-white whitespace-nowrap">إجراءات</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {displayedBookings.map((b) => (
+                    <tr
+                      key={b.id}
+                      id={`booking-row-${b.id}`}
+                      className="border-t border-[#EAE4D9]/60 font-bold hover:bg-[#FDFBF7] transition-all duration-300"
+                    >
+                      <td className="p-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className="inline-flex items-center justify-center min-w-[34px] px-2 py-1 rounded-xl bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs font-mono shadow-xs">
+                            #{b.bookingMonthlyNo || '—'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(b)}
+                            className="p-1 text-emerald-700 hover:text-emerald-950 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                            title="تعديل حساب الحجز سريعاً"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-black text-[#2A2723]">{b.name || 'عميل'}</div>
+                        <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
+                      </td>
+                      <td className="p-4 text-[#C1A68D] font-black">{formatTreasuryUnitName(b.apartmentId || b.studio)}</td>
+                      <td className="p-4 text-[#7A7061] text-[11px]">{b.checkIn} ⬅️ {b.checkOut}</td>
+                      <td className="p-4 font-black text-[#2A2723]">{money(Number(b.totalAmount) || 0)}</td>
+                      <td className="p-4 bg-emerald-50/30 font-black text-emerald-700 text-sm">
+                        {money(b.calculatedPaid)}
+                      </td>
+                      <td className="p-4">
+                        {b.paymentMethod ? (
+                          <span className="inline-block text-[11px] font-black bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-1 rounded-xl max-w-xs break-words shadow-sm">
+                            {b.paymentMethod}
+                          </span>
+                        ) : (
+                          <span className="text-[#A59D90] font-normal text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="p-4 bg-amber-50/30 font-black text-sm">
+                        {b.calculatedRemaining > 0 ? (
+                          <span className="text-rose-600 font-black">متبقي {money(b.calculatedRemaining)}</span>
+                        ) : (
+                          <span className="text-emerald-700 font-black text-xs">خالص ✔️</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-[10px] text-[#7A7061] max-w-xs truncate" title={cleanDisplayNotes(b.notes)}>
+                        {cleanDisplayNotes(b.notes) || '—'}
+                      </td>
+                      <td className="p-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(b)}
+                            className="bg-[#FDFBF7] hover:bg-emerald-50 text-[#7A7061] hover:text-emerald-800 border border-[#EAE4D9] hover:border-emerald-300 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+                            title="تعديل المبلغ المدفوع والمتبقي"
+                          >
+                            <Edit3 size={12} className="text-emerald-700" />
+                            تعديل المدفوع
+                          </button>
+                          {!b.isFullyPaid && (
+                            <button
+                              type="button"
+                              disabled={markingId === b.id}
+                              onClick={() => markBookingAsFullyPaid(b)}
+                              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer whitespace-nowrap"
+                              title="سداد كامل المبلغ المتبقي بضغطة زر"
+                            >
+                              <CheckCircle2 size={12} />
+                              {markingId === b.id ? '...' : 'سداد الباقي'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
       )}
