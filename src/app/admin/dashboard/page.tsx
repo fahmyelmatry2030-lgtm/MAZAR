@@ -21,12 +21,6 @@ export default function DashboardOverview() {
   const [overviewZoom, setOverviewZoom] = useState<number>(100);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setOverviewZoom(75); // Initial auto zoom out on mobile screens for full table visibility
-    }
-  }, []);
-
-  useEffect(() => {
     audioRef.current = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
   }, []);
 
@@ -1563,13 +1557,9 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
 
           return (
             <div
-              className="overflow-x-auto custom-scrollbar-horizontal pb-4 transition-all duration-300 origin-top-right"
+              className="overflow-x-auto custom-scrollbar-horizontal pb-4 transition-all duration-300"
               style={{
-                fontSize: `${overviewZoom}%`,
-                zoom: overviewZoom / 100,
-                transform: `scale(${overviewZoom / 100})`,
-                transformOrigin: 'right top',
-                width: overviewZoom < 100 ? `${(100 / overviewZoom) * 100}%` : '100%',
+                zoom: overviewZoom !== 100 ? overviewZoom / 100 : undefined,
               }}
             >
               <table className="w-full min-w-[650px] md:min-w-[1100px] border-collapse text-right">

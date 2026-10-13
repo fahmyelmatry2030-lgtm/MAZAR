@@ -561,23 +561,23 @@ export default function StaffManagement() {
       )}
 
       {/* Page Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-indigo-900/50">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-indigo-900/50">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black flex items-center gap-3">
-            <User className="w-8 h-8 text-amber-400" />
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black flex items-center gap-3">
+            <User className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400" />
             <span>بروفايل الموظفين وإدارة الفريق</span>
           </h1>
-          <p className="text-slate-300 text-sm mt-1">
+          <p className="text-slate-300 text-xs sm:text-sm mt-1">
             ملف كامل لكل موظف: البيانات الشخصية، بنود الإجازات، سجل استلام المرتبات، وسجل الجزاءات والخصومات
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => setIsAddStaffModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-900/40 transition-all active:scale-95 cursor-pointer text-sm"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-900/40 transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
           >
-            <UserPlus className="w-5 h-5" />
+            <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>+ إضافة موظف جديد</span>
           </button>
           <button
@@ -594,12 +594,12 @@ export default function StaffManagement() {
       {/* ========================================================================= */}
       {/* SECTION 1: ALL STAFF CONTAINER (مربع واحد كبير يجمع جميع الموظفين) */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-8 bg-indigo-600 rounded-full" />
+            <div className="w-2.5 sm:w-3 h-7 sm:h-8 bg-indigo-600 rounded-full" />
             <div>
-              <h2 className="text-lg font-black text-slate-800">فريق العمل والموظفين ({staff.length})</h2>
+              <h2 className="text-base sm:text-lg font-black text-slate-800">فريق العمل والموظفين ({staff.length})</h2>
               <p className="text-xs text-slate-500">اختر موظفاً من الصندوق لعرض البروفايل الخاص به بالكامل والتحكم فيه</p>
             </div>
           </div>
@@ -635,43 +635,43 @@ export default function StaffManagement() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3.5">
             {filteredStaffList.map((emp) => {
               const isSelected = emp.id === selectedStaffId;
               return (
                 <button
                   key={emp.id}
                   onClick={() => setSelectedStaffId(emp.id)}
-                  className={`text-right p-4 rounded-xl border transition-all text-sm relative group cursor-pointer flex flex-col justify-between ${
+                  className={`text-right p-2.5 sm:p-4 rounded-xl border transition-all text-sm relative group cursor-pointer flex flex-col justify-between ${
                     isSelected
                       ? 'bg-indigo-50/80 border-indigo-600 shadow-md ring-2 ring-indigo-500/30'
                       : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50/70 hover:shadow-sm'
                   }`}
                 >
                   {isSelected && (
-                    <span className="absolute top-2.5 left-2.5 w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
+                    <span className="absolute top-2 left-2 w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
                   )}
                   <div>
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${
+                    <div className="flex items-center gap-2 sm:gap-2.5 mb-2">
+                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-black text-xs sm:text-sm shrink-0 ${
                         isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-indigo-100 group-hover:text-indigo-700'
                       }`}>
                         {emp.name?.slice(0, 2) || 'مو'}
                       </div>
                       <div className="overflow-hidden">
-                        <h3 className={`font-bold truncate ${isSelected ? 'text-indigo-950' : 'text-slate-800'}`}>
+                        <h3 className={`font-bold text-xs sm:text-sm truncate ${isSelected ? 'text-indigo-950' : 'text-slate-800'}`}>
                           {emp.name}
                         </h3>
-                        <p className="text-xs text-slate-400 truncate">{emp.position || 'موظف'}</p>
+                        <p className="text-[11px] sm:text-xs text-slate-400 truncate">{emp.position || 'موظف'}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100/80 mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                  <div className="pt-2 border-t border-slate-100/80 mt-1 sm:mt-2 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500">
                     <span className="font-bold text-emerald-700">
                       {(Number(emp.base_salary) || 0).toLocaleString()} ج.م
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[9px] sm:text-[10px] text-slate-400">
                       {emp.hiring_date ? new Date(emp.hiring_date).getFullYear() : ''}
                     </span>
                   </div>
@@ -689,7 +689,7 @@ export default function StaffManagement() {
         <div className="space-y-6">
           
           {/* Main Profile Info Card */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-slate-100 mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-md shadow-indigo-200">

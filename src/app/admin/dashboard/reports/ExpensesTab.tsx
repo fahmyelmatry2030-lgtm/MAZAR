@@ -88,6 +88,7 @@ export default function ExpensesTab() {
 
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [mobileExpenseLayout, setMobileExpenseLayout] = useState<'cards' | 'table'>('cards');
 
   const formatDate = (dateStr: string) => {
     if (!dateStr || !dateStr.includes('-')) return dateStr;
@@ -550,17 +551,17 @@ export default function ExpensesTab() {
       </div>
 
       {/* Add Form */}
-      <div className="glass-card animate-in slide-in-from-bottom duration-500 border-mazar-gold/40 p-10 shadow-3xl">
-        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
-          <div className="w-12 h-12 rounded-2xl bg-mazar-coffee text-white flex items-center justify-center font-black shadow-lg">01</div>
+      <div className="glass-card animate-in slide-in-from-bottom duration-500 border-mazar-gold/40 p-4 sm:p-6 md:p-10 shadow-3xl">
+        <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-10 pb-4 sm:pb-6 border-b border-gray-100">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-mazar-coffee text-white flex items-center justify-center font-black shadow-lg text-sm sm:text-base">01</div>
           <div>
-             <h3 className="text-2xl font-black text-mazar-coffee uppercase">تسجيل مصروف جديد</h3>
+             <h3 className="text-xl sm:text-2xl font-black text-mazar-coffee uppercase">تسجيل مصروف جديد</h3>
              <p className="text-[10px] font-black text-mazar-gray uppercase tracking-widest mt-1">ينزل المصروف بحالة "قيد الانتظار" لحين اعتماد الأونر له</p>
           </div>
         </div>
 
-        <form onSubmit={handleAddExpense} className="space-y-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-10">
+        <form onSubmit={handleAddExpense} className="space-y-6 sm:space-y-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 lg:gap-x-10 gap-y-6 lg:gap-y-10">
             <div className="space-y-3 group">
               <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-40 group-focus-within:opacity-100 transition-opacity">المبلغ (ج.م)</label>
               <input type="number" required placeholder="0.00" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} className="w-full bg-transparent border-b-2 border-gray-100 px-0 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all placeholder:text-gray-300" />
@@ -639,16 +640,180 @@ export default function ExpensesTab() {
       </div>
 
       {/* Records Section */}
-      <div className="space-y-8">
-        <div className="flex justify-between items-end px-4 border-b border-gray-100 pb-4">
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-2 border-b border-gray-100 pb-4">
           <div>
-            <h3 className="text-2xl font-black text-mazar-coffee uppercase leading-none">سجلات القيود المالية للمصروفات</h3>
-            <p className="text-[9px] font-black text-mazar-gray uppercase tracking-widest mt-2">عرض {filteredExpenses.length} عملية (المصروفات غير المعتمدة تظهر بلون خفيف ولا تدخل في المجموع إلا بعد الموافقة)</p>
+            <h3 className="text-xl sm:text-2xl font-black text-mazar-coffee uppercase leading-none">سجلات القيود المالية للمصروفات</h3>
+            <p className="text-[10px] font-black text-mazar-gray uppercase tracking-widest mt-1.5">
+              عرض {filteredExpenses.length} عملية (المصروفات غير المعتمدة تظهر بلون خفيف ولا تدخل في المجموع إلا بعد الموافقة)
+            </p>
+          </div>
+
+          {/* أزرار التبديل للموبايل: كروت مريحة أو جدول */}
+          <div className="flex md:hidden items-center gap-1 self-end sm:self-auto bg-stone-100 px-2.5 py-1 rounded-xl border border-stone-200">
+            <span className="text-[10px] font-black text-[#7A7061] ml-1">العرض:</span>
+            <button
+              type="button"
+              onClick={() => setMobileExpenseLayout('cards')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                mobileExpenseLayout === 'cards'
+                  ? 'bg-mazar-coffee text-white shadow-xs'
+                  : 'bg-white text-[#7A7061] border border-stone-200'
+              }`}
+            >
+              📱 كروت
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileExpenseLayout('table')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                mobileExpenseLayout === 'table'
+                  ? 'bg-mazar-coffee text-white shadow-xs'
+                  : 'bg-white text-[#7A7061] border border-stone-200'
+              }`}
+            >
+              📊 جدول
+            </button>
           </div>
         </div>
+
+        {/* عرض الكروت للموبايل (بدون أي سكرول أفقي نهائياً) */}
+        <div className={`${mobileExpenseLayout === 'cards' ? 'block' : 'hidden'} md:hidden space-y-3`}>
+          {loading ? (
+            <div className="p-10 text-center"><div className="inline-block w-8 h-8 border-4 border-mazar-gold border-t-transparent rounded-full animate-spin"></div></div>
+          ) : filteredExpenses.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 font-bold text-xs">
+              لا توجد سجلات مصروفات لهذا الشهر
+            </div>
+          ) : (
+            filteredExpenses.map((exp, i) => {
+              const approved = isExpenseApproved(exp);
+              return (
+                <div
+                  key={exp.id}
+                  className={`p-4 rounded-2xl border-2 transition-all space-y-3 font-bold ${
+                    approved
+                      ? 'bg-white border-gray-200/90 shadow-xs'
+                      : 'bg-amber-50/60 border-amber-300/80 shadow-xs'
+                  }`}
+                >
+                  {/* Card Header: # + Date + Branch + Amount */}
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700 font-black text-xs font-mono">
+                        #{i + 1}
+                      </span>
+                      <span className="text-xs font-bold text-gray-600 font-mono">
+                        📅 {formatDate(exp.date)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200">
+                        {getBranchLabel(exp.branch)}
+                      </span>
+                      <span className={`text-base font-black ${approved ? 'text-rose-600' : 'text-amber-700'}`}>
+                        {exp.amount?.toLocaleString()} <small className="text-[10px] font-bold">ج.م</small>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Reason / Description */}
+                  <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#EAE4D9]/60">
+                    <span className="text-[10px] text-gray-500 font-bold block mb-0.5">السبب / البيان:</span>
+                    <span className="text-sm font-black text-[#2A2723] block">{exp.description || '—'}</span>
+                  </div>
+
+                  {/* Details Grid: Invoice, From, To, Ordered By */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-gray-50 p-2 rounded-xl border border-gray-200/60">
+                      <span className="text-[9px] text-gray-400 block font-bold">رقم الفاتورة:</span>
+                      <span className="font-bold text-gray-700 font-mono text-[11px] block">{exp.invoice_number || '—'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-xl border border-gray-200/60">
+                      <span className="text-[9px] text-gray-400 block font-bold">الآمر بالصرف:</span>
+                      <span className="font-bold text-gray-700 text-[11px] block">{exp.ordered_by || '—'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-xl border border-gray-200/60">
+                      <span className="text-[9px] text-gray-400 block font-bold">من:</span>
+                      <span className="font-bold text-gray-700 text-[11px] block">{exp.from_entity || '—'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-xl border border-gray-200/60">
+                      <span className="text-[9px] text-gray-400 block font-bold">إلى:</span>
+                      <span className="font-bold text-gray-700 text-[11px] block">{exp.to_entity || '—'}</span>
+                    </div>
+                  </div>
+
+                  {/* Notes if any */}
+                  {exp.notes && (
+                    <div className="text-[11px] text-amber-900 bg-amber-50/70 p-2 rounded-xl border border-amber-200/60">
+                      <span className="font-black">ملاحظات:</span> {exp.notes}
+                    </div>
+                  )}
+
+                  {/* Actions: Approval button + Edit + Delete */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                    <div className="flex-1">
+                      {isOwner ? (
+                        <button
+                          type="button"
+                          disabled={togglingId === exp.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleApproval(exp);
+                          }}
+                          className={`w-full py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer border ${
+                            approved
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                              : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300'
+                          }`}
+                        >
+                          {togglingId === exp.id ? (
+                            '...'
+                          ) : approved ? (
+                            <span>✓ معتمد ({exp.approved_by || approverDisplayName})</span>
+                          ) : (
+                            <span>⏳ اضغط للاعتماد</span>
+                          )}
+                        </button>
+                      ) : (
+                        <div className={`py-1.5 px-3 rounded-xl text-center text-xs font-black border ${
+                          approved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {approved ? 'معتمد ✅' : 'غير معتمد ⏳'}
+                        </div>
+                      )}
+                    </div>
+
+                    {isOwner && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(exp)}
+                          className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-all cursor-pointer"
+                          title="تعديل المصروف"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(exp.id)}
+                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer"
+                          title="حذف المصروف"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
         
-        <div className="glass-card overflow-hidden border-[#EAE4D9]/60 shadow-2xl rounded-[1.5rem]">
-          <div className="overflow-x-auto">
+        {/* عرض الجدول المعتاد (للديسكتوب أو لمن يختاره في الموبايل) */}
+        <div className={`${mobileExpenseLayout === 'table' ? 'block' : 'hidden'} md:block glass-card overflow-hidden border-[#EAE4D9]/60 shadow-2xl rounded-[1.5rem]`}>
+          <div className="overflow-x-auto custom-scrollbar-horizontal pb-2">
             <table className="w-full text-center border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-[#2A2723] text-white text-xs font-black uppercase tracking-widest">

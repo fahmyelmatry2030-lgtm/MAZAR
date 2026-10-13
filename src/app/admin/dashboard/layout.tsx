@@ -323,11 +323,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       {/* Main Content Area (Takes 100% Full Width by default) */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="h-20 bg-white/60 backdrop-blur-xl border-b border-[#EAE4D9]/50 flex items-center justify-between px-6 md:px-8 gap-6 z-30 sticky top-0">
+        <header className="h-16 sm:h-20 bg-white/70 backdrop-blur-xl border-b border-[#EAE4D9]/50 flex items-center justify-between px-3 sm:px-6 md:px-8 gap-2 sm:gap-4 z-30 sticky top-0">
           {/* Hamburger Menu ☰ Toggle Button */}
           <button
             onClick={() => setIsNavOpen(!isNavOpen)}
-            className="p-2.5 md:p-3 bg-white hover:bg-[#FDFBF7] text-[#2A2723] border border-[#EAE4D9] rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+            className="p-2 sm:p-2.5 md:p-3 bg-white hover:bg-[#FDFBF7] text-[#2A2723] border border-[#EAE4D9] rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
             title={isNavOpen ? 'إغلاق القائمة' : 'فتح القائمة الرئيسية'}
           >
             <span className="text-xl font-bold leading-none">☰</span>
@@ -436,7 +436,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         </header>
 
         {/* Dynamic Content */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 custom-scrollbar">
           {children}
         </main>
       </div>

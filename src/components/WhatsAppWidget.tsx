@@ -1,13 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '@/lib/LanguageContext';
 
 export default function WhatsAppWidget() {
+  const pathname = usePathname();
   const { t, isRTL } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Do not render on admin or employee pages
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/employee')) {
+    return null;
+  }
   
   // Use the phone number from translations or a default one
   const phoneNumber = '201108109969'; 

@@ -400,6 +400,9 @@ export default function TreasuryPage() {
   const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
   const [mobileBookingLayout, setMobileBookingLayout] = useState<'cards' | 'table'>('cards');
+  const [mobileDepositsLayout, setMobileDepositsLayout] = useState<'cards' | 'table'>('cards');
+  const [mobileWithdrawalsLayout, setMobileWithdrawalsLayout] = useState<'cards' | 'table'>('cards');
+  const [mobileExpensesLayout, setMobileExpensesLayout] = useState<'cards' | 'table'>('cards');
 
   // نافذة تعديل المدفوع والمتبقي للحجز
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
@@ -1978,7 +1981,224 @@ export default function TreasuryPage() {
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border-2 border-indigo-300 shadow-sm bg-white custom-scrollbar-horizontal pb-2">
+        {/* أزرار التبديل للموبايل: بطاقات مريحة أو جدول */}
+        <div className="flex md:hidden items-center justify-between bg-white/90 px-3.5 py-2.5 rounded-2xl mb-3 border-2 border-indigo-200">
+          <span className="text-[11px] font-black text-indigo-950">طريقة العرض على الموبايل:</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setMobileDepositsLayout('cards')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                mobileDepositsLayout === 'cards'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : 'bg-white text-indigo-900 hover:bg-indigo-50 border border-indigo-200'
+              }`}
+            >
+              📱 كروت
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileDepositsLayout('table')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                mobileDepositsLayout === 'table'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : 'bg-white text-indigo-900 hover:bg-indigo-50 border border-indigo-200'
+              }`}
+            >
+              📊 جدول
+            </button>
+          </div>
+        </div>
+
+        {/* عرض البطاقات للموبايل */}
+        <div className={`${mobileDepositsLayout === 'cards' ? 'block' : 'hidden'} md:hidden space-y-3 mb-4`}>
+          {filteredDeposits.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-indigo-200 text-[#7A7061] font-bold text-xs">
+              لا توجد حركات مسجلة في هذا التبويب
+            </div>
+          ) : (
+            filteredDeposits.map((record: any, idx: number) => {
+              const methodObj = PAYMENT_METHODS.find(m => m.id === record.methodId) || PAYMENT_METHODS[0];
+              const MethodIcon = methodObj.icon;
+              const isAuto = record.isAutomatic;
+              const rawTransfer = record.rawTransfer;
+              const approved = isAuto ? true : isTransferApproved(rawTransfer);
+              const approver = isAuto ? (record.booking?.bookingManager || 'تلقائي من الحجز') : getTransferApprover(rawTransfer);
+              const bookingObj = record.booking;
+              const bookingMonthlyNo = bookingObj ? monthlyBookingNumberMap.get(String(bookingObj.id)) : null;
+
+              return (
+                <div
+                  key={record.id || idx}
+                  className={`rounded-2xl border-2 p-4 shadow-sm space-y-3 font-bold transition-all ${
+                    approved ? 'border-indigo-200 bg-white' : 'border-amber-300 bg-amber-50/50'
+                  }`}
+                >
+                  {/* رأس البطاقة: التاريخ + رقم الحجز + المسلسل */}
+                  <div className="flex items-center justify-between border-b border-indigo-100/70 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-indigo-950 bg-indigo-100 px-2.5 py-0.5 rounded-lg border border-indigo-200 font-mono">
+                        #{idx + 1}
+                      </span>
+                      <span className="text-xs font-bold text-[#7A7061]">{record.transfer_date}</span>
+                    </div>
+                    {bookingObj ? (
+                      <span className="inline-flex items-center justify-center bg-amber-100 text-amber-950 font-black text-xs px-2.5 py-1 rounded-xl border border-amber-300 shadow-xs">
+                        حجز #{bookingMonthlyNo || '—'}
+                      </span>
+                    ) : (() => {
+                      const match = (record.notes || '').match(/حجز\s*#?(\d+)/i);
+                      return match ? (
+                        <span className="inline-flex items-center justify-center bg-amber-100 text-amber-950 font-black text-xs px-2.5 py-1 rounded-xl border border-amber-300 shadow-xs">
+                          حجز #{match[1]}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-lg border border-emerald-200">
+                          توريد نقدية 💵
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  {/* البيان / المصدر + المبلغ */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      {bookingObj ? (
+                        <>
+                          <div className="font-black text-[#2A2723] text-sm">{bookingObj.name || 'عميل'}</div>
+                          <div className="text-[11px] text-[#C1A68D] font-black flex items-center gap-1">
+                            <span>🏠 {formatTreasuryUnitName(bookingObj.studio || bookingObj.apartmentId)}</span>
+                            {bookingObj.checkIn && (
+                              <span className="text-[10px] text-gray-500 font-mono font-normal">({bookingObj.checkIn})</span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="font-black text-emerald-800 flex items-center gap-1.5 text-xs">
+                          <Wallet size={14} className="text-emerald-600 shrink-0" />
+                          <span>توريد كاش من الخزنة الفرعية</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-left shrink-0">
+                      <div className="text-base font-black text-indigo-950">{money(Number(record.amount))}</div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black border mt-1 ${methodObj.color}`}>
+                        <MethodIcon size={12} />
+                        {methodObj.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* أطراف المعاملة */}
+                  <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#EAE4D9]/60 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-[#7A7061] block">مسلم (من):</span>
+                      <span className="font-bold text-[#2A2723]">{record.handed_by}</span>
+                    </div>
+                    <span className="text-stone-400 font-bold">⬅️</span>
+                    <div>
+                      <span className="text-[10px] text-[#7A7061] block">مستلم (إلى):</span>
+                      <span className="font-bold text-[#7A7061]">{record.received_by}</span>
+                    </div>
+                  </div>
+
+                  {/* الملاحظات */}
+                  {record.notes && (
+                    <div className="text-[11px] text-[#2A2723] bg-white p-2 rounded-xl border border-stone-200">
+                      <span className="text-[10px] text-[#7A7061] font-bold block mb-0.5">ملاحظات:</span>
+                      {record.notes}
+                    </div>
+                  )}
+
+                  {/* حالة الاعتماد والإجراءات */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-indigo-100/70">
+                    <div>
+                      {isAuto ? (
+                        <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-xl border border-emerald-200 font-black text-[11px]">
+                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                          <span>معتمد بالحجز ✅</span>
+                        </div>
+                      ) : isOwner ? (
+                        <button
+                          type="button"
+                          disabled={togglingTransferId === rawTransfer?.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (rawTransfer) handleToggleTransferApproval(rawTransfer);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-all border active:scale-95 cursor-pointer ${
+                            approved
+                              ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300'
+                          }`}
+                        >
+                          {togglingTransferId === rawTransfer?.id ? (
+                            <span className="text-[10px]">جاري التحديث...</span>
+                          ) : approved ? (
+                            <span>✓ معتمد ({approver || approverDisplayName})</span>
+                          ) : (
+                            <span>⏳ اضغط للاعتماد</span>
+                          )}
+                        </button>
+                      ) : (
+                        approved ? (
+                          <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-xl border border-emerald-200 font-black text-[11px]">
+                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                            <span>معتمد ✅</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2.5 py-1 rounded-xl border border-amber-200 font-black text-[11px]">
+                            <Clock size={13} className="text-amber-600 shrink-0" />
+                            <span>قيد الوصول ⏳</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {isAuto ? (
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(record.booking)}
+                          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-xl font-black text-xs inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                        >
+                          <Edit3 size={12} />
+                          <span>تعديل الحافظة</span>
+                        </button>
+                      ) : approved ? (
+                        <span className="text-[10px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-xl border border-gray-200 font-black">
+                          🔒 مغلق
+                        </span>
+                      ) : isOwner && rawTransfer ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openTransferEditModal(rawTransfer)}
+                            className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <Edit3 size={12} />
+                            تعديل
+                          </button>
+                          <button
+                            onClick={() => removeTransfer(rawTransfer.id)}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 font-bold bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200">
+                          عرض فقط 🔒
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className={`${mobileDepositsLayout === 'table' ? 'block' : 'hidden'} md:block overflow-x-auto rounded-2xl border-2 border-indigo-300 shadow-sm bg-white custom-scrollbar-horizontal pb-2`}>
           <table className="w-full min-w-[1200px] text-right text-xs border-collapse">
             <thead className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-950 text-white font-black">
               <tr>
@@ -2492,7 +2712,99 @@ export default function TreasuryPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border-2 border-rose-300 bg-white shadow-sm">
+            {/* أزرار التبديل للموبايل: بطاقات مريحة أو جدول */}
+            <div className="flex md:hidden items-center justify-between bg-rose-100/70 px-3.5 py-2.5 rounded-2xl mb-3 border-2 border-rose-200">
+              <span className="text-[11px] font-black text-rose-950">طريقة العرض على الموبايل:</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMobileWithdrawalsLayout('cards')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    mobileWithdrawalsLayout === 'cards'
+                      ? 'bg-rose-700 text-white shadow-xs'
+                      : 'bg-white text-rose-900 hover:bg-rose-50 border border-rose-200'
+                  }`}
+                >
+                  📱 كروت
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileWithdrawalsLayout('table')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    mobileWithdrawalsLayout === 'table'
+                      ? 'bg-rose-700 text-white shadow-xs'
+                      : 'bg-white text-rose-900 hover:bg-rose-50 border border-rose-200'
+                  }`}
+                >
+                  📊 جدول
+                </button>
+              </div>
+            </div>
+
+            {/* عرض البطاقات للموبايل */}
+            <div className={`${mobileWithdrawalsLayout === 'cards' ? 'block' : 'hidden'} md:hidden space-y-3 mb-4`}>
+              {monthlyWithdrawals.length === 0 ? (
+                <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-rose-200 text-[#7A7061] font-bold text-xs">
+                  لا يوجد أي سحب من الخزنة الكبيرة في هذا الشهر
+                </div>
+              ) : (
+                monthlyWithdrawals.map(w => {
+                  const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
+                  const method = detectPaymentMethod(fullText);
+                  const methodObj = PAYMENT_METHODS.find(m => m.id === method.id) || PAYMENT_METHODS[0];
+                  const MethodIcon = methodObj.icon;
+
+                  const reasonMatch = (w.notes || '').match(/\[سبب:\s*([^\]]+)\]/);
+                  const reason = reasonMatch ? reasonMatch[1] : (w.notes?.replace(/\[[^\]]+\]/g, '').trim() || '—');
+
+                  return (
+                    <div
+                      key={w.id}
+                      className="rounded-2xl border-2 border-rose-200 bg-white p-4 shadow-sm space-y-3 font-bold"
+                    >
+                      <div className="flex items-center justify-between border-b border-rose-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-black text-red-600">{money(Number(w.amount))}</span>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black border ${methodObj.color}`}>
+                          <MethodIcon size={13} />
+                          {methodObj.label}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] text-[#7A7061]">الجهة:</span>
+                          <span className="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-900 font-black text-xs">
+                            سحب من الإدارة
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] text-[#7A7061]">التاريخ:</span>
+                          <span className="font-mono text-stone-700">{w.transfer_date}</span>
+                        </div>
+                        <div className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-100 text-xs text-stone-800">
+                          <span className="text-[10px] text-rose-700 font-black block mb-0.5">السبب / البيان:</span>
+                          {reason}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end pt-2 border-t border-rose-100">
+                        <button
+                          onClick={() => removeTransfer(w.id)}
+                          className="flex items-center gap-1.5 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                          <span>حذف السحب</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className={`${mobileWithdrawalsLayout === 'table' ? 'block' : 'hidden'} md:block overflow-x-auto rounded-2xl border-2 border-rose-300 bg-white shadow-sm`}>
               <table className="w-full text-right text-xs">
                 <thead className="bg-gradient-to-r from-red-950 via-rose-900 to-red-950 text-white font-black">
                   <tr>
@@ -2573,7 +2885,75 @@ export default function TreasuryPage() {
             </a>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-rose-200 shadow-sm">
+          {/* أزرار التبديل للموبايل للمصروفات */}
+          <div className="flex md:hidden items-center justify-between bg-stone-100/80 px-3.5 py-2.5 rounded-2xl mb-3 border border-stone-200">
+            <span className="text-[11px] font-black text-stone-700">طريقة العرض على الموبايل:</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMobileExpensesLayout('cards')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  mobileExpensesLayout === 'cards'
+                    ? 'bg-rose-800 text-white shadow-xs'
+                    : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200'
+                }`}
+              >
+                📱 كروت
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileExpensesLayout('table')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  mobileExpensesLayout === 'table'
+                    ? 'bg-rose-800 text-white shadow-xs'
+                    : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200'
+                }`}
+              >
+                📊 جدول
+              </button>
+            </div>
+          </div>
+
+          {/* بطاقات الموبايل لمصروفات الخزنة */}
+          <div className={`${mobileExpensesLayout === 'cards' ? 'block' : 'hidden'} md:hidden space-y-3 mb-4`}>
+            {monthlyExpenses.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-rose-200 text-[#7A7061] font-bold text-xs">
+                لا توجد مصروفات مسجلة لهذا الشهر
+              </div>
+            ) : (
+              monthlyExpenses.map((exp: any, idx: number) => {
+                const branchLabel = exp.branch === '12' ? 'مزار 1 و 2' : exp.branch === '3' ? 'مزار 3' : exp.branch === '4' ? 'زكي رستم' : exp.branch === '5' ? 'سيتي ستارز' : exp.branch === '6' ? 'عباس الرئيسي' : 'عام';
+                return (
+                  <div key={exp.id || idx} className="rounded-2xl border-2 border-rose-200 bg-white p-4 shadow-sm space-y-2.5 font-bold">
+                    <div className="flex items-center justify-between border-b border-rose-100 pb-2">
+                      <span className="text-base font-black text-rose-700">{money(Number(exp.amount) || 0)}</span>
+                      <span className="text-[10px] font-black bg-stone-100 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200">
+                        {branchLabel}
+                      </span>
+                    </div>
+                    <div className="text-xs text-stone-900 font-black">{exp.description || '—'}</div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-rose-50/40 p-2.5 rounded-xl border border-rose-100 text-stone-700">
+                      <div>
+                        <span className="text-[10px] text-stone-500 block">التاريخ:</span>
+                        <span className="font-mono">{exp.date || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-stone-500 block">الآمر بالصرف:</span>
+                        <span>{exp.ordered_by || '—'}</span>
+                      </div>
+                    </div>
+                    {(exp.from_entity || exp.to_entity) && (
+                      <div className="text-[10px] text-stone-500 bg-stone-50 p-2 rounded-xl border border-stone-200">
+                        من: <strong className="text-stone-700">{exp.from_entity || 'الخزنة'}</strong> ⬅️ إلى: <strong className="text-stone-700">{exp.to_entity || '—'}</strong>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className={`${mobileExpensesLayout === 'table' ? 'block' : 'hidden'} md:block overflow-x-auto rounded-2xl border border-rose-200 shadow-sm`}>
             <table className="w-full text-right text-xs">
               <thead className="bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 text-white font-black">
                 <tr>
