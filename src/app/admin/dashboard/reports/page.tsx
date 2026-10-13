@@ -573,14 +573,30 @@ function ReportsContent() {
 
       if (field === 'paymentStatus') {
         const isClean = value === 'خالص';
-        const total = Number(currentBooking.totalAmount || 0);
-        const paid = isClean ? total : 0;
-        const remaining = isClean ? 0 : total;
+        const target = Math.max(0, Number(currentBooking.totalAmount || 0) - Number(currentBooking.commission || 0));
+        const paid = isClean ? target : 0;
+        const remaining = isClean ? 0 : target;
         updates.paymentStatus = value;
         updates.paymentInfo = isClean ? 'خالص' : `متبقي ${remaining}`;
         updates.paidAmount = paid;
         updates.remainingAmount = remaining;
         updates.notes = currentBooking.notes || '';
+      }
+
+      if (field === 'commission' || field === 'totalAmount') {
+        const newComm = field === 'commission' ? Number(value || 0) : Number(currentBooking.commission || 0);
+        const newTotal = field === 'totalAmount' ? Number(value || 0) : Number(currentBooking.totalAmount || 0);
+        const target = Math.max(0, newTotal - newComm);
+        const paid = Number(currentBooking.paidAmount || 0);
+        const newRemaining = Math.max(0, target - paid);
+        updates.remainingAmount = newRemaining;
+        if (newRemaining === 0 && target > 0) {
+          updates.paymentStatus = 'خالص';
+          updates.paymentInfo = 'خالص';
+        } else {
+          updates.paymentStatus = 'باقي';
+          updates.paymentInfo = paid > 0 ? `مدفوع: ${paid} | متبقي: ${newRemaining}` : `متبقي: ${newRemaining}`;
+        }
       }
 
       if (field === 'notes') {
@@ -671,8 +687,8 @@ function ReportsContent() {
 
   const handlePayFullRemainingInModal = () => {
     const currentTotal = modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const bookingTotal = Number(paymentModalRow?.total || 0);
-    const remaining = Math.max(0, bookingTotal - currentTotal);
+    const bookingTarget = Number(paymentModalRow?.netValue !== undefined ? paymentModalRow.netValue : paymentModalRow?.total || 0);
+    const remaining = Math.max(0, bookingTarget - currentTotal);
     if (remaining > 0) {
       setModalSplits(prev => [
         ...prev,
@@ -686,8 +702,8 @@ function ReportsContent() {
   }, [modalSplits]);
 
   const modalCurrentRemaining = useMemo(() => {
-    const bookingTotal = Number(paymentModalRow?.total || 0);
-    return Math.max(0, bookingTotal - modalCurrentPaid);
+    const bookingTarget = Number(paymentModalRow?.netValue !== undefined ? paymentModalRow.netValue : paymentModalRow?.total || 0);
+    return Math.max(0, bookingTarget - modalCurrentPaid);
   }, [paymentModalRow, modalCurrentPaid]);
 
   const handleSavePaymentModal = async () => {
@@ -695,9 +711,9 @@ function ReportsContent() {
     setIsSavingPaymentModal(true);
     try {
       const validSplits = modalSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
-      const bookingTotal = Number(paymentModalRow.total || 0);
+      const bookingTarget = Number(paymentModalRow.netValue !== undefined ? paymentModalRow.netValue : paymentModalRow.total || 0);
       const totalPaid = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-      const remaining = Math.max(0, bookingTotal - totalPaid);
+      const remaining = Math.max(0, bookingTarget - totalPaid);
       const isClean = remaining === 0;
 
       const formattedPaymentMethod = validSplits.length > 0
@@ -1292,6 +1308,7 @@ function ReportsContent() {
     const bookingRegisteredDate = booking.bookingDate || (booking.createdAt ? booking.createdAt.split('T')[0] : '') || (booking.timestamp ? booking.timestamp.split('T')[0] : '') || booking.checkIn;
 
     const bookingTotal = Number(total) || 0;
+    const targetAmount = Math.max(0, bookingTotal - commission);
     let paidAmount: number = booking.paidAmount !== undefined && booking.paidAmount !== null && !isNaN(Number(booking.paidAmount))
       ? Number(booking.paidAmount)
       : -1;
@@ -1299,29 +1316,32 @@ function ReportsContent() {
       ? Number(booking.remainingAmount)
       : -1;
 
-    // استخراج المدفوع والمتبقي إذا لم يكونا محددين مباشرة في الحقول
-    if (paidAmount < 0 || remainingAmount < 0) {
+    // استخراج المدفوع والمتبقي بدقة مع خصم العمولة من المبلغ المستحق
+    if (paidAmount < 0 || remainingAmount < 0 || (commission > 0 && remainingAmount > targetAmount)) {
       const combinedNotes = `${booking.notes || ''} ${booking.paymentInfo || ''}`.toLowerCase();
       const remMatch = combinedNotes.match(/\[متبقي:\s*(\d+)\]/i) || combinedNotes.match(/\[باقي:\s*(\d+)\]/i) || combinedNotes.match(/(?:متبقي|باقي|باقى)\s*:?\s*(\d+)/i);
       const paidMatch = combinedNotes.match(/\[مدفوع:\s*(\d+)\]/i) || combinedNotes.match(/(?:دفع|مدفوع)\s*:?\s*(\d+)/i);
 
       if (remMatch && remMatch[1]) {
-        remainingAmount = Number(remMatch[1]);
-        paidAmount = paidMatch && paidMatch[1] ? Number(paidMatch[1]) : Math.max(0, bookingTotal - remainingAmount);
+        remainingAmount = Math.min(targetAmount, Number(remMatch[1]));
+        paidAmount = paidMatch && paidMatch[1] ? Number(paidMatch[1]) : Math.max(0, targetAmount - remainingAmount);
       } else if (paidMatch && paidMatch[1]) {
         paidAmount = Number(paidMatch[1]);
-        remainingAmount = Math.max(0, bookingTotal - paidAmount);
+        remainingAmount = Math.max(0, targetAmount - paidAmount);
       } else {
         const isClean = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'].some(kw => combinedNotes.includes(kw)) || booking.paymentStatus === 'خالص';
         if (isClean) {
-          paidAmount = bookingTotal;
+          paidAmount = targetAmount;
           remainingAmount = 0;
         } else {
-          // الأساسي أن العميل لم يدفع شيئاً (المدفوع 0 والمتبقي كامل الإجمالي)
+          // الأساسي أن العميل لم يدفع شيئاً (المدفوع 0 والمتبقي الصافي بعد خصم العمولة)
           paidAmount = 0;
-          remainingAmount = bookingTotal;
+          remainingAmount = targetAmount;
         }
       }
+    } else {
+      // التأكد من أن المتبقي يخصم العمولة دائماً
+      remainingAmount = Math.max(0, targetAmount - Math.max(0, paidAmount));
     }
 
     const isFullyPaid = remainingAmount === 0;

@@ -646,6 +646,7 @@ export default function TreasuryPage() {
       const total = Number(b.totalAmount || 0);
       const bComm = Number(b.commission || 0);
       comm += bComm;
+      const netTarget = Math.max(0, total - bComm);
 
       let p = b.paidAmount !== undefined ? Number(b.paidAmount) : undefined;
       let r = b.remainingAmount !== undefined ? Number(b.remainingAmount) : undefined;
@@ -654,15 +655,17 @@ export default function TreasuryPage() {
         const combined = `${b.notes || ''} ${b.paymentInfo || ''}`.toLowerCase();
         const rem = extractRemainingFromText(combined);
         if (rem !== null) {
-          r = rem;
-          p = Math.max(0, total - rem);
+          r = Math.min(netTarget, rem);
+          p = Math.max(0, netTarget - r);
         } else if (b.paymentStatus === 'خالص') {
-          p = total;
+          p = netTarget;
           r = 0;
         } else {
           p = 0;
-          r = total;
+          r = netTarget;
         }
+      } else {
+        r = Math.max(0, netTarget - (p || 0));
       }
 
       revPaid += p;
@@ -1121,7 +1124,7 @@ export default function TreasuryPage() {
     setMarkingId(targetId);
     setError('');
     try {
-      const total = Number(booking.totalAmount || 0);
+      const total = Math.max(0, Number(booking.totalAmount || 0) - Number(booking.commission || 0));
       const cleanNotes = (booking.notes || '').replace(/\[مدفوع:[^\]]+\]/g, '').replace(/\[متبقي:[^\]]+\]/g, '').replace(/\[حساب خالص\]/g, '').trim();
 
       await updateDbBookingStatus(booking.id, {
@@ -1161,8 +1164,8 @@ export default function TreasuryPage() {
 
   const handleAddEditSplit = () => {
     const currentTotal = editSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const bookingTotal = Number(editingBooking?.totalAmount || 0);
-    const remaining = Math.max(0, bookingTotal - currentTotal);
+    const bookingTarget = Math.max(0, Number(editingBooking?.totalAmount || 0) - Number(editingBooking?.commission || 0));
+    const remaining = Math.max(0, bookingTarget - currentTotal);
     setEditSplits(prev => [
       ...prev,
       { method: 'فيزا', amount: remaining > 0 ? remaining : '' }
@@ -1187,8 +1190,8 @@ export default function TreasuryPage() {
 
   const handleFillRemainingEditSplit = () => {
     const currentTotal = editSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const bookingTotal = Number(editingBooking?.totalAmount || 0);
-    const remaining = Math.max(0, bookingTotal - currentTotal);
+    const bookingTarget = Math.max(0, Number(editingBooking?.totalAmount || 0) - Number(editingBooking?.commission || 0));
+    const remaining = Math.max(0, bookingTarget - currentTotal);
     if (remaining > 0) {
       setEditSplits(prev => [
         ...prev,
@@ -1201,7 +1204,7 @@ export default function TreasuryPage() {
   const handleSavePaymentBreakdown = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBooking) return;
-    const total = Number(editingBooking.totalAmount || 0);
+    const total = Math.max(0, Number(editingBooking.totalAmount || 0) - Number(editingBooking.commission || 0));
 
     const validSplits = editSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
     const totalSplits = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
