@@ -220,11 +220,9 @@ export async function getFreshDbBookings(nonce?: string) {
     .filter((b: any) => !expiredIds.includes(b.id))
     .map((b: any) => {
       const totalAmount = Number(b.total_amount || 0);
-      const commission = Number(b.commission || 0);
-      const netTarget = Math.max(0, totalAmount - commission);
       const days = Number(b.number_of_days || 0);
 
-      // احتساب المدفوع والمتبقي بدقة لكل حجز (مع خصم العمولة من المتبقي)
+      // احتساب المدفوع والمتبقي بدقة لكل حجز
       const noteStr = String(b.notes || '').trim().toLowerCase();
       const infoStr = String(b.payment_info || '').trim().toLowerCase();
       const combined = `${noteStr} ${infoStr}`;
@@ -240,43 +238,43 @@ export async function getFreshDbBookings(nonce?: string) {
       }
 
       let calcPaid = 0;
-      let calcRemaining = netTarget;
+      let calcRemaining = totalAmount;
 
       if (b.paid_amount !== undefined && b.paid_amount !== null && b.paid_amount !== '') {
-        calcPaid = Math.min(netTarget, Math.max(0, Number(b.paid_amount)));
-        calcRemaining = Math.max(0, netTarget - calcPaid);
+        calcPaid = Math.min(totalAmount, Math.max(0, Number(b.paid_amount)));
+        calcRemaining = Math.max(0, totalAmount - calcPaid);
       } else if (paidTagMatch && remainingTagMatch) {
         calcPaid = Number(paidTagMatch[1]) || 0;
-        calcRemaining = Math.min(netTarget, Number(remainingTagMatch[1]) || 0);
+        calcRemaining = Number(remainingTagMatch[1]) || 0;
       } else if (paidTagMatch) {
-        calcPaid = Math.min(netTarget, Number(paidTagMatch[1]) || 0);
-        calcRemaining = Math.max(0, netTarget - calcPaid);
+        calcPaid = Math.min(totalAmount, Number(paidTagMatch[1]) || 0);
+        calcRemaining = Math.max(0, totalAmount - calcPaid);
       } else if (remainingTagMatch) {
-        calcRemaining = Math.min(netTarget, Number(remainingTagMatch[1]) || 0);
-        calcPaid = Math.max(0, netTarget - calcRemaining);
+        calcRemaining = Math.min(totalAmount, Number(remainingTagMatch[1]) || 0);
+        calcPaid = Math.max(0, totalAmount - calcRemaining);
       } else {
         const textRemaining = extractRemainingFromText(combined);
         const textPaid = extractPaidFromText(combined);
 
         if (textPaid !== null && textRemaining !== null) {
-          calcPaid = Math.min(netTarget, textPaid);
-          calcRemaining = Math.min(netTarget, textRemaining);
+          calcPaid = textPaid;
+          calcRemaining = textRemaining;
         } else if (textRemaining !== null) {
-          calcRemaining = Math.min(netTarget, textRemaining);
-          calcPaid = Math.max(0, netTarget - textRemaining);
+          calcRemaining = textRemaining;
+          calcPaid = Math.max(0, totalAmount - textRemaining);
         } else if (textPaid !== null) {
-          calcPaid = Math.min(netTarget, textPaid);
-          calcRemaining = Math.max(0, netTarget - textPaid);
+          calcPaid = textPaid;
+          calcRemaining = Math.max(0, totalAmount - textPaid);
         } else if (splitTotal > 0) {
-          calcPaid = Math.min(netTarget, splitTotal);
-          calcRemaining = Math.max(0, netTarget - calcPaid);
+          calcPaid = Math.min(totalAmount, splitTotal);
+          calcRemaining = Math.max(0, totalAmount - calcPaid);
         } else if (detectPaymentStatus(b) === 'خالص') {
-          calcPaid = netTarget;
+          calcPaid = totalAmount;
           calcRemaining = 0;
         } else {
-          // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي الصافي بعد خصم العمولة
+          // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي كامل المبلغ حتى يحدد يدوياً
           calcPaid = 0;
-          calcRemaining = netTarget;
+          calcRemaining = totalAmount;
         }
       }
 
