@@ -18,15 +18,19 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://mazarstudio.com'),
   title: {
     default: "مزار | استوديوهات فندقية فاخرة في مدينة نصر",
     template: "%s | مزار"
   },
   description: "اكتشف أرقى الاستوديوهات الفندقية في مزار، مدينة نصر. دخول ذكي، تصميم معاصر، وخدمة ريسيبشن 24 ساعة. احجز إقامتك الفاخرة الآن.",
-  keywords: ["مزار", "حجز فنادق مدينة نصر", "استوديو فندقي القاهرة", "إقامة فاخرة", "Mazar Booking", "Nasr City Hotels"],
+  keywords: ["مزار", "حجز فنادق مدينة نصر", "استوديو فندقي القاهرة", "إقامة فاخرة", "Mazar Booking", "Mazar Studio", "Nasr City Hotels"],
   authors: [{ name: "Mazar Team" }],
   creator: "Mazar",
   publisher: "Mazar",
+  alternates: {
+    canonical: 'https://mazarstudio.com',
+  },
   formatDetection: {
     email: false,
     address: true,
@@ -35,16 +39,16 @@ export const metadata: Metadata = {
   openGraph: {
     title: "مزار | استوديوهات فندقية فاخرة في مدينة نصر",
     description: "تجربة إقامة استثنائية تجمع بين الخصوصية والفخامة في قلب القاهرة.",
-    url: 'https://mazar-booking.com',
-    siteName: 'Mazar',
+    url: 'https://mazarstudio.com',
+    siteName: 'Mazar Studio',
     locale: 'ar_EG',
     type: 'website',
     images: [
       {
-        url: '/images/logo-en.jpg', // Placeholder for OG image
+        url: '/images/logo-en.jpg',
         width: 1200,
         height: 630,
-        alt: 'Mazar Booking Logo',
+        alt: 'Mazar Studio Logo',
       },
     ],
   },
@@ -107,8 +111,8 @@ export default async function RootLayout({
     '@type': 'LodgingBusiness',
     name: 'مزار - Mazar',
     description: 'أرقى الاستوديوهات الفندقية في مدينة نصر، القاهرة.',
-    url: 'https://mazar-booking.com',
-    logo: 'https://mazar-booking.com/images/logo-en.jpg',
+    url: 'https://mazarstudio.com',
+    logo: 'https://mazarstudio.com/images/logo-en.jpg',
     address: {
       '@type': 'PostalAddress',
       addressLocality: 'Nasr City',

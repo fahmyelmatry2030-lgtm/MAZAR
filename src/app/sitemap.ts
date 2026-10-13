@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://mazar-booking.com'; 
+  const baseUrl = 'https://mazarstudio.com'; 
   const lastModified = new Date();
 
   // Define main public routes
@@ -9,9 +9,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '',
     '/mazar/about',
     '/mazar/book',
-    '/mazar/units',
+    '/mazar/units/studios',
     '/mazar/rules',
     '/mazar/how-to-book',
+    '/social',
   ];
 
   return routes.map((route) => ({
