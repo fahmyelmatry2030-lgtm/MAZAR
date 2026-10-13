@@ -210,7 +210,7 @@ export default function ExpensesTab() {
   const loadExpenses = async () => {
     setLoading(true);
     try {
-      const data = await getDbExpenses();
+      const data = await getDbExpenses(true);
       let cleanData = data || [];
       if (typeof window !== 'undefined') {
         const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
@@ -368,7 +368,7 @@ export default function ExpensesTab() {
         notes: exp.notes,
       });
       // Refresh to ensure exact DB sync
-      const freshData = await getDbExpenses();
+      const freshData = await getDbExpenses(true);
       if (freshData) {
         let clean = freshData;
         if (typeof window !== 'undefined') {

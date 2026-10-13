@@ -1535,26 +1535,39 @@ export async function updateDbExpense(id: string, updates: any) {
     // 2. Parse existing description and tags
     let rawDesc = (updates.description !== undefined ? updates.description : (existing?.description || '')) || '';
 
-    let finalInvoice = updates.invoice_number !== undefined ? updates.invoice_number : '';
-    let finalNotes = updates.notes !== undefined ? updates.notes : '';
-    let finalStatus = updates.status !== undefined ? updates.status : '';
-    let finalApprovedBy = updates.approved_by !== undefined ? updates.approved_by : '';
+    let finalInvoice = updates.invoice_number !== undefined ? updates.invoice_number : undefined;
+    let finalNotes = updates.notes !== undefined ? updates.notes : undefined;
+    let finalStatus = updates.status !== undefined ? updates.status : undefined;
+    let finalApprovedBy = updates.approved_by !== undefined ? updates.approved_by : undefined;
 
-    if (!finalInvoice && existing?.description) {
+    // Only fallback to existing tags if the property was NOT provided in updates
+    if (finalInvoice === undefined && existing?.description) {
       const m = existing.description.match(/\[فاتورة:\s*([^\]]+)\]/);
       if (m) finalInvoice = m[1];
     }
-    if (!finalNotes && existing?.description) {
+    if (finalNotes === undefined && existing?.description) {
       const m = existing.description.match(/\[ملاحظات:\s*([^\]]+)\]/);
       if (m) finalNotes = m[1];
     }
-    if (!finalStatus && existing?.description) {
-      const m = existing.description.match(/\[حالة:\s*([^\]]+)\]/);
-      if (m) finalStatus = m[1];
+
+    // Approval logic:
+    if (finalApprovedBy === undefined) {
+      if (finalStatus !== undefined) {
+        if (finalStatus.includes('تم الموافقة') || finalStatus === 'APPROVED') {
+          const m = finalStatus.match(/بواسطة:\s*([^\]]+)/);
+          finalApprovedBy = m ? m[1].trim() : 'مؤمن';
+        } else {
+          finalApprovedBy = '';
+        }
+      } else if (existing?.description) {
+        const m = existing.description.match(/\[اعتماد:\s*([^\]]+)\]/);
+        if (m) finalApprovedBy = m[1].trim();
+      }
     }
-    if (!finalApprovedBy && existing?.description) {
-      const m = existing.description.match(/\[اعتماد:\s*([^\]]+)\]/);
-      if (m) finalApprovedBy = m[1];
+
+    if (finalStatus === undefined && existing?.description) {
+      const m = existing.description.match(/\[حالة:\s*([^\]]+)\]/);
+      if (m) finalStatus = m[1].trim();
     }
 
     // Clean description from old tags
@@ -1570,10 +1583,15 @@ export async function updateDbExpense(id: string, updates: any) {
       .trim();
 
     const metaTags: string[] = [];
-    if (finalInvoice) metaTags.push(`[فاتورة: ${finalInvoice}]`);
-    if (finalNotes) metaTags.push(`[ملاحظات: ${finalNotes}]`);
-    if (finalApprovedBy) metaTags.push(`[اعتماد: ${finalApprovedBy}]`);
-    else if (finalStatus) metaTags.push(`[حالة: ${finalStatus}]`);
+    if (finalInvoice && String(finalInvoice).trim()) metaTags.push(`[فاتورة: ${String(finalInvoice).trim()}]`);
+    if (finalNotes && String(finalNotes).trim()) metaTags.push(`[ملاحظات: ${String(finalNotes).trim()}]`);
+    
+    // Only add [اعتماد] if finalApprovedBy is NOT empty!
+    if (finalApprovedBy && String(finalApprovedBy).trim()) {
+      metaTags.push(`[اعتماد: ${String(finalApprovedBy).trim()}]`);
+    } else if (finalStatus && finalStatus !== 'PENDING' && !finalStatus.includes('تم الموافقة')) {
+      metaTags.push(`[حالة: ${String(finalStatus).trim()}]`);
+    }
 
     const finalDescription = metaTags.length > 0 ? `${metaTags.join(' ')} ${cleanDesc}`.trim() : cleanDesc;
 
