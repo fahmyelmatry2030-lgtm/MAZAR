@@ -826,7 +826,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       </div>
 
       {/* ── WEBSITE INCOMING BOOKING REQUESTS SECTION (قسم طلبات الحجز القادمة من الويب سايت) ── */}
-      <div className="bg-gradient-to-br from-[#1F1C18] to-[#2A241F] p-6 md:p-8 rounded-[2.5rem] shadow-2xl border border-amber-500/30 text-white relative overflow-hidden space-y-6">
+      <div id="website-requests-section" className="bg-gradient-to-br from-[#1F1C18] to-[#2A241F] p-6 md:p-8 rounded-[2.5rem] shadow-2xl border border-amber-500/30 text-white relative overflow-hidden space-y-6">
         <div
           onClick={() => setIsPendingRequestsExpanded(!isPendingRequestsExpanded)}
           className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5 cursor-pointer group/accordion"
@@ -913,14 +913,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-400 hover:text-emerald-300 hover:underline bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30 transition-all shadow-xs cursor-pointer"
+                          className="inline-flex items-center gap-2 text-sm sm:text-base font-black text-emerald-300 hover:text-white bg-emerald-950/70 hover:bg-emerald-800/90 px-3.5 py-1.5 rounded-xl border-2 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all cursor-pointer group/wa mt-1"
                           title="اضغط للمراسلة واتساب مباشرة"
                         >
-                          <span>💬</span>
-                          <span dir="ltr" className="font-mono tracking-wider">{req.phone}</span>
+                          <span className="text-base group-hover/wa:scale-125 transition-transform">💬</span>
+                          <span dir="ltr" className="font-mono tracking-widest text-emerald-200 group-hover/wa:text-white font-black">{req.phone}</span>
                         </a>
                       ) : (
-                        <p className="text-[10px] text-blue-300/80 font-bold">
+                        <p className="text-xs text-blue-300/80 font-bold mt-1">
                           📞 بدون رقم
                         </p>
                       )}
@@ -1044,18 +1044,73 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
     )}
   </div>
 
-      {/* ── REALTIME TOAST ── */}
+      {/* ── REALTIME TOAST / ALERT POPUP (إشعار الحجز الجديد الضخم والواضح) ── */}
       {newBookingToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-[#2A2723] border-2 border-green-400 p-5 rounded-2xl shadow-2xl animate-fade-in w-80">
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[99999] bg-gradient-to-br from-[#1F1C18] via-[#2A241F] to-[#0B132B] border-4 border-amber-400 p-6 md:p-8 rounded-[2.5rem] shadow-[0_0_50px_rgba(245,158,11,0.5)] animate-bounce-short max-w-lg w-[92vw] text-white">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-green-400/20 text-green-400 rounded-full flex items-center justify-center text-xl shrink-0 animate-pulse">🔔</div>
-            <div>
-              <h4 className="font-black text-white mb-1">طلب حجز جديد!</h4>
-              <p className="text-xs text-gray-300 font-bold">من: {newBookingToast.name}</p>
-              <p className="text-[10px] text-[#C1A68D] font-black mt-1">{newBookingToast.check_in} ← {newBookingToast.check_out}</p>
+            <div className="w-14 h-14 bg-amber-400/20 border-2 border-amber-400 text-amber-400 rounded-2xl flex items-center justify-center text-3xl shrink-0 animate-pulse shadow-lg">
+              🔔
+            </div>
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="bg-rose-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                  طلب حجز جديد فوري 🚨
+                </span>
+                <span className="text-[10px] text-cyan-300 font-bold">من الموقع الإلكتروني</span>
+              </div>
+              <h3 className="text-xl md:text-2xl font-black text-white">
+                {newBookingToast.name || 'عميل جديد'}
+              </h3>
+              <div className="flex items-center gap-2 text-sm text-amber-200 font-bold">
+                <span>🏠 الوحدة:</span>
+                <strong className="text-white bg-white/10 px-2 py-0.5 rounded">
+                  {newBookingToast.studio || newBookingToast.apartmentId || newBookingToast.apartment_id || 'غير محدد'}
+                </strong>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-300 font-bold">
+                <span>📅 الفترة:</span>
+                <strong className="text-cyan-300 font-mono">
+                  {newBookingToast.checkIn || newBookingToast.check_in} ← {newBookingToast.checkOut || newBookingToast.check_out}
+                </strong>
+              </div>
+              {newBookingToast.phone && (
+                <div className="pt-1">
+                  <a
+                    href={`https://wa.me/${formatWhatsAppNumber(newBookingToast.phone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-black text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-xl border border-emerald-400 shadow-sm"
+                  >
+                    <span>💬 تواصل واتساب:</span>
+                    <span dir="ltr" className="font-mono tracking-wider">{newBookingToast.phone}</span>
+                  </a>
+                </div>
+              )}
             </div>
           </div>
-          <button onClick={() => setNewBookingToast(null)} className="absolute top-3 left-3 text-gray-500 hover:text-white text-xs font-bold">✕</button>
+
+          <div className="flex gap-2 pt-4 mt-4 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => {
+                setIsPendingRequestsExpanded(true);
+                setNewBookingToast(null);
+                // Scroll to pending requests section
+                const el = document.getElementById('website-requests-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-[#1F1C18] font-black py-3 rounded-2xl text-xs transition-all shadow-lg text-center"
+            >
+              عرض ومعاينة الطلب فوراً ➔
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewBookingToast(null)}
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-2xl text-xs font-bold transition-all"
+            >
+              إغلاق ✕
+            </button>
+          </div>
         </div>
       )}
 
