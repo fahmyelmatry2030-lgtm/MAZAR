@@ -58,9 +58,7 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): P
 const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
-    // وسوم بين أقواس مربعة فقط
-    .replace(/\[(?:مدفوع|متبقي|باقي|طريقة|طريقة الدفع|حساب خالص|اعتماد|تاريخ[^\]]*|مسؤول الحجز|مسئول الحجز|المستلم|المسلم|سبب|رقم(?:_الحجز)?):[^\]]*\]/gi, '')
-    .replace(/\[حساب خالص\]/gi, '')
+    .replace(/\[[^\]]*\]/g, '') // إزالة كافة الوسوم النظامية بين الأقواس المربعة
     .replace(/\|\s*\|/g, '|')
     .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
     .trim();
@@ -2251,7 +2249,7 @@ function ReportsContent() {
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
                                 <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {/* علامة وجود ملاحظة على العميل: تظهر البرتقالي فقط إذا كان مسجل له نوتس، والنقر عليها يفتح سجل العميل */}
+                                  {/* علامة وجود ملاحظة على العميل: تظهر علامة سيرش برتقالي فقط إذا كان مسجل له نوتس، والنقر عليها يفتح سجل العميل */}
                                   {Boolean(
                                     (row.notes && cleanNotesForDisplay(row.notes).trim()) || 
                                     (typeof window !== 'undefined' && row.phone && localStorage.getItem(`customer_note_${row.phone}`))
@@ -2262,11 +2260,10 @@ function ReportsContent() {
                                         e.stopPropagation();
                                         setProfileModal({ isOpen: true, name: row.name, phone: row.phone });
                                       }}
-                                      className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
-                                      title="يوجد ملاحظة على هذا العميل — اضغط لفتح سجل وبروفايل العميل"
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[11px]"
+                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لفتح ملف وسجل العميل"
                                     >
-                                      <span>📝</span>
-                                      <span className="hidden sm:inline">نوتس</span>
+                                      🔍
                                     </button>
                                   )}
                                 </div>
