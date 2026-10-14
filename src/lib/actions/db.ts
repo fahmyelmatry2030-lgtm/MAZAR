@@ -340,12 +340,35 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
         nationality: b.nationality,
         idNumber: b.id_number,
         commission: Number(b.commission || 0),
-        brokerName: b.broker_name,
+        brokerName: (b.broker_name && b.broker_name.trim())
+          ? b.broker_name.trim()
+          : (() => {
+              const m = String(b.notes || '').match(/(?:\[(?:الوسيط|مكتب):\s*([^\]]+)\]|(?:الوسيط|مكتب)\s*[:=\-]?\s*([^|\n\r,\]]+))/i);
+              return m ? (m[1] || m[2]).trim() : '';
+            })(),
         guestsCount: Number(b.guests_count || 1),
         clientStatus: b.client_status || 'انتظار',
-        bookingManager: b.booking_manager || '',
+        bookingManager: (b.booking_manager && b.booking_manager.trim() && b.booking_manager !== b.name)
+          ? b.booking_manager.trim()
+          : (() => {
+              const m = String(b.notes || '').match(/(?:\[(?:مسؤول|مسئول)_?الحجز:\s*([^\]]+)\]|(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*([^|\n\r,\]]+))/i);
+              if (m && (m[1] || m[2])) return (m[1] || m[2]).trim();
+              const accMatch = String(b.notes || '').match(/\[اعتماد:\s*([^\]]+)\]/i);
+              return accMatch ? accMatch[1].trim() : '';
+            })(),
         paymentMethod: b.payment_method || '',
-        notes: b.notes,
+        notes: (() => {
+          if (!b.notes) return '';
+          return String(b.notes)
+            .replace(/\[(?:الوسيط|مكتب):[^\]]*\]/gi, '')
+            .replace(/\[(?:مسؤول|مسئول)_?الحجز:[^\]]*\]/gi, '')
+            .replace(/\[اعتماد:[^\]]*\]/gi, '')
+            .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+            .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+            .replace(/\|\s*\|/g, '|')
+            .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
+            .trim();
+        })(),
         source: b.source || (String(b.payment_info || '').includes('[طلب') ? 'website' : 'manual'),
         isWebsiteBooking: b.is_website_booking ?? (String(b.payment_info || '').includes('[طلب') || b.status === 'جديد' || b.status === 'pending'),
         timestamp: b.timestamp,
@@ -381,15 +404,21 @@ export async function saveDbBooking(booking: any) {
       ? (Number(newBookingWithId.totalAmount || 0) - Number(newBookingWithId.commission))
       : Number(newBookingWithId.totalAmount || 0);
 
-    let backupNotes = newBookingWithId.notes || '';
-    if (newBookingWithId.bookingManager && !backupNotes.includes(newBookingWithId.bookingManager)) {
-      backupNotes = `[مسؤول_الحجز: ${newBookingWithId.bookingManager}] ${backupNotes}`.trim();
-    }
-    if (newBookingWithId.brokerName && !backupNotes.includes(newBookingWithId.brokerName)) {
-      backupNotes = `[الوسيط: ${newBookingWithId.brokerName}] ${backupNotes}`.trim();
-    }
+    // Clean user notes: NEVER inject brokerName or bookingManager into notes!
+    const cleanUserNotes = (() => {
+      if (!newBookingWithId.notes) return '';
+      return String(newBookingWithId.notes)
+        .replace(/\[(?:الوسيط|مكتب):[^\]]*\]/gi, '')
+        .replace(/\[(?:مسؤول|مسئول)_?الحجز:[^\]]*\]/gi, '')
+        .replace(/\[اعتماد:[^\]]*\]/gi, '')
+        .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+        .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+        .replace(/\|\s*\|/g, '|')
+        .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
+        .trim();
+    })();
 
-    // Build insert object — exclude columns that may not exist in DB yet
+    // Build insert object using ONLY verified existing schema columns in Supabase
     const insertData: any = {
       id: newBookingWithId.id,
       name: newBookingWithId.name,
@@ -405,47 +434,28 @@ export async function saveDbBooking(booking: any) {
       nationality: newBookingWithId.nationality ?? null,
       id_number: newBookingWithId.idNumber ?? null,
       commission: newBookingWithId.commission ?? null,
-      broker_name: newBookingWithId.brokerName ?? null,
+      broker_name: newBookingWithId.brokerName || null,
+      booking_manager: newBookingWithId.bookingManager || null,
+      payment_method: newBookingWithId.paymentMethod || null,
       client_status: newBookingWithId.clientStatus || 'انتظار',
       guests_count: newBookingWithId.guestsCount ?? 1,
-      notes: backupNotes || null,
+      notes: cleanUserNotes || null,
       timestamp: newBookingWithId.timestamp,
     };
 
-    // Append optional columns only if they have values (they may not exist in the DB schema yet)
-    if (newBookingWithId.paidAmount !== undefined) insertData.paid_amount = newBookingWithId.paidAmount;
-    if (newBookingWithId.remainingAmount !== undefined) insertData.remaining_amount = newBookingWithId.remainingAmount;
-    if (newBookingWithId.paymentStatus) insertData.payment_status = newBookingWithId.paymentStatus;
-    if (newBookingWithId.bookingManager) insertData.booking_manager = newBookingWithId.bookingManager;
-    if (newBookingWithId.paymentMethod) insertData.payment_method = newBookingWithId.paymentMethod;
-    if (newBookingWithId.bookingDate) {
-      insertData.booking_date = newBookingWithId.bookingDate;
-    }
-
     let { error } = await supabase.from('bookings').insert(insertData);
 
-    // Retry without optional columns if they don't exist in the schema
     const isSchemaError = error && (
       error.code === 'PGRST204' ||
       error.code === '42703' ||
-      error.message?.toLowerCase().includes('schema cache') ||
-      error.message?.toLowerCase().includes('booking_manager') ||
-      error.message?.toLowerCase().includes('payment_method') ||
-      error.message?.toLowerCase().includes('booking_date') ||
-      error.message?.toLowerCase().includes('paid_amount') ||
-      error.message?.toLowerCase().includes('remaining_amount') ||
-      error.message?.toLowerCase().includes('payment_status')
+      error.message?.toLowerCase().includes('schema cache')
     );
 
     if (isSchemaError) {
-      console.warn('Retrying insert without optional booking_manager/payment_method/booking_date columns...');
-      delete insertData.booking_manager;
-      delete insertData.payment_method;
-      delete insertData.booking_date;
-      delete insertData.paid_amount;
-      delete insertData.remaining_amount;
-      delete insertData.payment_status;
-      // Do not pollute user notes with bookingManager or paymentMethod
+      console.warn('Retrying insert...', error?.message);
+      if (error?.message?.toLowerCase().includes('booking_manager')) delete insertData.booking_manager;
+      if (error?.message?.toLowerCase().includes('payment_method')) delete insertData.payment_method;
+      if (error?.message?.toLowerCase().includes('broker_name')) delete insertData.broker_name;
       const retry = await supabase.from('bookings').insert(insertData);
       error = retry.error;
     }

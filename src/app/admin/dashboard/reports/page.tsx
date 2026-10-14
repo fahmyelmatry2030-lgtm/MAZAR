@@ -59,6 +59,9 @@ const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
     .replace(/\[[^\]]*\]/g, '') // إزالة كافة الوسوم النظامية بين الأقواس المربعة
+    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/\|\s*\|/g, '|')
     .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
     .trim();
@@ -1388,17 +1391,22 @@ function ReportsContent() {
       pricePerNight,
       total: bookingTotal,
       commission,
-      brokerName: booking.brokerName || '',
+      brokerName: (() => {
+        if (booking.brokerName && booking.brokerName.trim()) return booking.brokerName.trim();
+        const bMatch = String(booking.notes || '').match(/(?:\[(?:الوسيط|مكتب):\s*([^\]]+)\]|(?:الوسيط|مكتب)\s*[:=\-]?\s*([^|\n\r,\]]+))/i);
+        if (bMatch && (bMatch[1] || bMatch[2])) return (bMatch[1] || bMatch[2]).trim();
+        return '';
+      })(),
       netValue,
       clientStatus,
       bookingManager: (() => {
         if (booking.bookingManager && booking.bookingManager.trim() !== '' && booking.bookingManager !== booking.name && booking.bookingManager !== booking.guest) {
-          return booking.bookingManager;
+          return booking.bookingManager.trim();
         }
         // استخراج اسم مسؤول الحجز إذا كان مسجلاً في الملاحظات القديمة
-        const managerMatch = String(booking.notes || '').match(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*([^|\n\r,\]]+)/i);
-        if (managerMatch && managerMatch[1] && managerMatch[1].trim() !== '') {
-          return managerMatch[1].trim();
+        const managerMatch = String(booking.notes || '').match(/(?:\[(?:مسؤول|مسئول)_?الحجز:\s*([^\]]+)\]|(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*([^|\n\r,\]]+))/i);
+        if (managerMatch && (managerMatch[1] || managerMatch[2])) {
+          return (managerMatch[1] || managerMatch[2]).trim();
         }
         const match = String(booking.notes || '').match(/\[اعتماد:\s*([^\]]+)\]/i);
         if (match && match[1]) return match[1].trim();

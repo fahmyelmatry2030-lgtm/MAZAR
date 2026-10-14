@@ -17,6 +17,9 @@ const cleanManualNotes = (notesStr: string | null | undefined): string => {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
     .replace(/\[[^\]]*\]/g, '') // إزالة كل الوسوم النظامية بين الأقواس المربعة
+    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/\|\s*\|/g, '|')
     .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
     .trim();
@@ -375,9 +378,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         studio: finalStudio,
         approvedByAdmin: true,
         bookingManager: 'فهد',
-        notes: req.notes 
-          ? `${req.notes} [مسئول الحجز: فهد - اعتماد: ${shiftLead} - الوحدة: ${finalStudio}]` 
-          : `[مسئول الحجز: فهد - اعتماد: ${shiftLead} - الوحدة: ${finalStudio}]`
+        notes: req.notes || ''
       });
       loadOverviewData();
     } catch {
@@ -1805,13 +1806,13 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
 
                           {/* NOTES COLUMN */}
                           <td className="px-4 py-3 text-xs font-bold text-[#7A7061] max-w-[220px]">
-                            {apt.notes ? (
+                            {cleanManualNotes(apt.notes) ? (
                               <button
-                                onClick={() => setActiveNoteModal({ isOpen: true, text: apt.notes, title: `ملاحظات ${apt.title?.ar || apt.id}` })}
+                                onClick={() => setActiveNoteModal({ isOpen: true, text: cleanManualNotes(apt.notes), title: `ملاحظات ${apt.title?.ar || apt.id}` })}
                                 className="truncate block w-full text-right bg-amber-100/80 border border-amber-300/60 px-3 py-1.5 rounded-xl text-amber-900 font-bold hover:bg-amber-200/80 transition-all shadow-sm"
                                 title="اضغط لقراءة الملاحظة كاملة"
                               >
-                                📝 {apt.notes}
+                                📝 {cleanManualNotes(apt.notes)}
                               </button>
                             ) : (
                               <span className="text-gray-300">—</span>
