@@ -1358,8 +1358,17 @@ function ReportsContent() {
         } else {
           // الأساسي: المدفوع 0 والمتبقي كامل الصافي المطلوب
           paidAmount = 0;
-          remainingAmount = targetBookingAmount;
         }
+      }
+    }
+
+    // تصحيح فوري وإلزامي للمتبقي: إذا وجدت عمولة فالحساب الصافي المطلوب هو targetBookingAmount
+    if (commission > 0) {
+      if (paidAmount <= 0 && (remainingAmount >= bookingTotal || remainingAmount > targetBookingAmount || remainingAmount < 0)) {
+        remainingAmount = targetBookingAmount;
+        paidAmount = 0;
+      } else if (paidAmount > 0) {
+        remainingAmount = Math.max(0, targetBookingAmount - paidAmount);
       }
     }
 

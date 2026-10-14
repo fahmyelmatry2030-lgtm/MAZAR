@@ -271,7 +271,7 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
         calcRemaining = Math.max(0, targetAmount - calcPaid);
       } else if (paidTagMatch && remainingTagMatch) {
         calcPaid = Number(paidTagMatch[1]) || 0;
-        calcRemaining = Number(remainingTagMatch[1]) || 0;
+        calcRemaining = Math.min(targetAmount, Number(remainingTagMatch[1]) || 0);
       } else if (paidTagMatch) {
         calcPaid = Math.min(targetAmount, Number(paidTagMatch[1]) || 0);
         calcRemaining = Math.max(0, targetAmount - calcPaid);
@@ -284,10 +284,16 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
 
         if (textPaid !== null && textRemaining !== null) {
           calcPaid = textPaid;
-          calcRemaining = textRemaining;
+          calcRemaining = Math.min(targetAmount, textRemaining);
         } else if (textRemaining !== null) {
-          calcRemaining = textRemaining;
-          calcPaid = Math.max(0, targetAmount - textRemaining);
+          // إذا كان النص القديم يحتوي على الإجمالي القديم وكان هناك عمولة، يصحح فوراً للصافي
+          if (textRemaining >= totalAmount && commission > 0) {
+            calcRemaining = targetAmount;
+            calcPaid = 0;
+          } else {
+            calcRemaining = Math.min(targetAmount, textRemaining);
+            calcPaid = Math.max(0, targetAmount - calcRemaining);
+          }
         } else if (textPaid !== null) {
           calcPaid = textPaid;
           calcRemaining = Math.max(0, targetAmount - textPaid);
@@ -301,6 +307,15 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
           // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي كامل الصافي المطلوب حتى يحدد يدوياً
           calcPaid = 0;
           calcRemaining = targetAmount;
+        }
+      }
+
+      // ضبط نهائي صارم: في حالة وجود عمولة، المتبقي المطلوب تحصيله لا يمكن أن يتجاوز الصافي
+      if (commission > 0) {
+        if (calcPaid === 0 && (calcRemaining >= totalAmount || calcRemaining > targetAmount)) {
+          calcRemaining = targetAmount;
+        } else if (calcPaid > 0) {
+          calcRemaining = Math.max(0, targetAmount - calcPaid);
         }
       }
 
