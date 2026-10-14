@@ -1657,13 +1657,25 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                 </button>
                               </div>
                             ) : apt.guest ? (
-                              <button
-                                onClick={() => openCustomerProfile(apt.guest, apt.phone)}
-                                className="hover:text-[#C1A68D] text-[#2A2723] transition-colors flex items-center gap-1.5 font-black text-sm text-right"
-                              >
-                                <User size={15} className="text-[#C1A68D] shrink-0" />
-                                <span>{apt.guest}</span>
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => openCustomerProfile(apt.guest, apt.phone)}
+                                  className="hover:text-[#C1A68D] text-[#2A2723] transition-colors flex items-center gap-1.5 font-black text-sm text-right"
+                                >
+                                  <User size={15} className="text-[#C1A68D] shrink-0" />
+                                  <span>{apt.guest}</span>
+                                </button>
+                                {Boolean(apt.notes && apt.notes.trim()) && (
+                                  <button
+                                    onClick={() => setActiveNoteModal({ isOpen: true, text: apt.notes, title: `ملاحظات العميل: ${apt.guest}` })}
+                                    className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
+                                    title={`ملاحظة: ${apt.notes}`}
+                                  >
+                                    <span>📝</span>
+                                    <span>نوتس</span>
+                                  </button>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-gray-300 font-normal">—</span>
                             )}

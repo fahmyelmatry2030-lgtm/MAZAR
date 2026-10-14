@@ -10,7 +10,7 @@ import {
   saveDbBooking,
   deleteDbBooking
 } from '@/lib/actions/db';
-import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles } from 'lucide-react';
+import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSquareText, FileText, X } from 'lucide-react';
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
@@ -320,6 +320,12 @@ function ReportsContent() {
     isOpen: false,
     name: null,
     phone: null,
+  });
+
+  const [noteModal, setNoteModal] = useState<{ isOpen: boolean; title: string; note: string; bookingId?: string; guestName?: string }>({
+    isOpen: false,
+    title: '',
+    note: '',
   });
 
   // URL PARAM SYNC (for dynamic updates without full reload)
@@ -2119,15 +2125,39 @@ function ReportsContent() {
                             {row.hasData ? (
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
-                                {row.name && (
-                                  <button
-                                    onClick={() => setProfileModal({ isOpen: true, name: row.name, phone: row.phone })}
-                                    className="opacity-0 group-hover/name:opacity-100 text-[10px] bg-[#C1A68D] text-white px-1.5 py-0.5 rounded ml-1 transition-opacity shrink-0 font-black shadow-sm"
-                                    title="عرض سجل وحجوزات العميل"
-                                  >
-                                    👤 السجل
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-1 ml-1 shrink-0">
+                                  {/* علامة وجود ملاحظة على العميل */}
+                                  {Boolean(row.notes && row.notes.trim()) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setNoteModal({
+                                          isOpen: true,
+                                          title: `ملاحظة العميل (${row.name})`,
+                                          note: row.notes,
+                                          bookingId: row.id,
+                                          guestName: row.name,
+                                        });
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
+                                      title={`ملاحظة: ${row.notes}`}
+                                    >
+                                      <span>📝</span>
+                                      <span className="hidden sm:inline">نوتس</span>
+                                    </button>
+                                  )}
+                                  {row.name && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setProfileModal({ isOpen: true, name: row.name, phone: row.phone })}
+                                      className="opacity-0 group-hover/name:opacity-100 text-[10px] bg-[#C1A68D] hover:bg-[#a88b70] text-white px-1.5 py-0.5 rounded transition-all shrink-0 font-black shadow-xs cursor-pointer"
+                                      title="عرض سجل وحجوزات العميل"
+                                    >
+                                      👤 السجل
+                                    </button>
+                                  )}
+                                </div>
                               </>
                             ) : <span className="text-[#D5CBB8]">—</span>}
                           </td>
@@ -2853,6 +2883,85 @@ function ReportsContent() {
                       className="px-5 py-3 border border-[#EAE4D9] text-[#7A7061] hover:bg-stone-50 font-black rounded-xl text-xs transition cursor-pointer"
                     >
                       إلغاء
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            {/* ── نافذة عرض وتعديل ملاحظات العميل السريعة ── */}
+            {isMounted && noteModal.isOpen && createPortal(
+              <div
+                className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+                dir="rtl"
+                onClick={() => setNoteModal({ isOpen: false, title: '', note: '' })}
+              >
+                <div
+                  className="bg-white border-2 border-amber-400 rounded-[2rem] p-6 max-w-md w-full shadow-2xl space-y-4 my-auto relative animate-scale-in"
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* رأس النافذة */}
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2 text-[#2A2723]">
+                      <span className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg shadow-xs">
+                        📝
+                      </span>
+                      <div>
+                        <h3 className="text-base font-black text-[#2A2723]">
+                          {noteModal.title || 'ملاحظات العميل'}
+                        </h3>
+                        <p className="text-[11px] font-bold text-gray-400">
+                          الملاحظات الخاصة بهذا الحجز
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNoteModal({ isOpen: false, title: '', note: '' })}
+                      className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* نص الملاحظة */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-amber-900 block">
+                      نص الملاحظة المسجل:
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={noteModal.note}
+                      onChange={e => setNoteModal(prev => ({ ...prev, note: e.target.value }))}
+                      placeholder="اكتب الملاحظة هنا..."
+                      className="w-full bg-amber-50/50 border-2 border-amber-200 focus:border-amber-500 rounded-xl p-3 text-sm font-bold text-[#2A2723] outline-none transition-all leading-relaxed"
+                    />
+                  </div>
+
+                  {/* أزرار الإجراءات */}
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    {noteModal.bookingId && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (noteModal.bookingId) {
+                            await handleCellSave(noteModal.bookingId, 'notes', noteModal.note);
+                            setNoteModal({ isOpen: false, title: '', note: '' });
+                          }
+                        }}
+                        className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow-md"
+                      >
+                        حفظ الملاحظة 💾
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setNoteModal({ isOpen: false, title: '', note: '' })}
+                      className="px-5 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 font-black rounded-xl text-xs transition cursor-pointer"
+                    >
+                      إغلاق
                     </button>
                   </div>
                 </div>
