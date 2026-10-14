@@ -10,10 +10,11 @@ import {
   saveDbBooking,
   deleteDbBooking
 } from '@/lib/actions/db';
-import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSquareText, FileText, X } from 'lucide-react';
+import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSquareText, FileText, X, MessageSquare } from 'lucide-react';
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
+import { formatWhatsAppNumber } from '@/lib/utils';
 
 type PaymentSplitItem = {
   method: string;
@@ -2177,9 +2178,25 @@ function ReportsContent() {
                           </td>
 
                           {/* EDITABLE: Phone */}
-                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20">
+                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20 relative group/phone">
                             {row.hasData ? (
-                              <EditableCell value={row.phone} bookingId={row.id} field="phone" onSave={handleCellSave} className="text-[#1a1714] font-black" readOnly={row.isCarriedOver} />
+                              <div className="flex items-center justify-center gap-1 w-full px-1">
+                                <div className="flex-1" dir="ltr">
+                                  <EditableCell value={row.phone} bookingId={row.id} field="phone" onSave={handleCellSave} className="text-[#1a1714] font-black font-mono tracking-wider text-center" readOnly={row.isCarriedOver} />
+                                </div>
+                                {row.phone && (
+                                  <a
+                                    href={`https://wa.me/${formatWhatsAppNumber(row.phone)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="opacity-0 group-hover/phone:opacity-100 text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 p-1 rounded-lg transition-all shadow-2xs shrink-0 cursor-pointer"
+                                    title="فتح محادثة واتساب مع العميل"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <MessageSquare size={13} />
+                                  </a>
+                                )}
+                              </div>
                             ) : <span className="text-[#D5CBB8]">—</span>}
                           </td>
 

@@ -151,7 +151,21 @@ export default function CustomerProfileModal({
         <div className="px-6 py-4 bg-[#1F1C18] border-b border-white/5 flex items-center justify-between flex-wrap gap-3 flex-shrink-0">
           <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
             <Phone size={14} className="text-[#C1A68D]" />
-            <span>الهاتف: {phone || 'غير مسجل'}</span>
+            <span>الهاتف:</span>
+            {phone ? (
+              <a
+                href={`https://wa.me/${cleanPhone}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                dir="ltr"
+                className="font-mono text-emerald-400 hover:text-emerald-300 hover:underline tracking-wider"
+                title="اضغط للمحادثة واتساب"
+              >
+                {phone}
+              </a>
+            ) : (
+              <span>غير مسجل</span>
+            )}
           </div>
           {phone && (
             <a

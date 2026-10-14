@@ -41,8 +41,14 @@ export function formatWhatsAppNumber(phone: string): string {
     return cleanPhone;
   }
 
-  // Fallback: If no known prefix and not starting with 0, assume Egypt for this application
-  if (cleanPhone.length >= 8 && cleanPhone.length <= 12) {
+  // If phone already starts with any international code (e.g., 1, 31, 33, 44, 49, 971, 965, etc.) and is long enough
+  // Don't arbitrarily prepend 20 if length is > 10
+  if (cleanPhone.length > 10) {
+    return cleanPhone;
+  }
+
+  // Fallback: If no known prefix and not starting with 0, assume Egypt for this application (e.g. 1012345678 -> 201012345678)
+  if (cleanPhone.length >= 8 && cleanPhone.length <= 10) {
     return '20' + cleanPhone;
   }
 

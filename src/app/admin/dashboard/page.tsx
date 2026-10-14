@@ -904,9 +904,26 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                         <User size={16} className="text-cyan-400 shrink-0" />
                         <span className="truncate max-w-[180px]">{req.name || 'عميل جديد'}</span>
                       </button>
-                      <p className="text-[10px] text-blue-300/80 font-bold">
-                        📞 {req.phone || 'بدون رقم'}
-                      </p>
+                      {req.phone ? (
+                        <a
+                          href={`https://wa.me/${cleanP}?text=${encodeURIComponent(
+                            `أهلاً بك أستاذ ${req.name}، بخصوص طلب حجزك في مزار للوحدة (${
+                              selectedWebUnits[req.id]?.studio || req.studio || req.apartmentId || ''
+                            }) للفترة من ${req.checkIn || req.check_in} إلى ${req.checkOut || req.check_out}...`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-400 hover:text-emerald-300 hover:underline bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30 transition-all shadow-xs cursor-pointer"
+                          title="اضغط للمراسلة واتساب مباشرة"
+                        >
+                          <span>💬</span>
+                          <span dir="ltr" className="font-mono tracking-wider">{req.phone}</span>
+                        </a>
+                      ) : (
+                        <p className="text-[10px] text-blue-300/80 font-bold">
+                          📞 بدون رقم
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1">
