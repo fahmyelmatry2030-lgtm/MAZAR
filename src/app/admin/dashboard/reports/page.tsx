@@ -329,6 +329,9 @@ function ReportsContent() {
     note: '',
   });
 
+  const [selectedBrokerFilter, setSelectedBrokerFilter] = useState<string>('all');
+  const [reportSearchTerm, setReportSearchTerm] = useState<string>('');
+
   // URL PARAM SYNC (for dynamic updates without full reload)
   useEffect(() => {
     const unitParam = searchParams.get('unit');
@@ -337,11 +340,13 @@ function ReportsContent() {
     const tabParam = searchParams.get('tab');
     const checkInParam = searchParams.get('checkIn');
     const checkOutParam = searchParams.get('checkOut');
+    const brokerParam = searchParams.get('broker');
 
     if (unitParam) setSelectedUnit(unitParam);
     if (monthParam) setSelectedMonth(parseInt(monthParam, 10));
     if (yearParam) setSelectedYear(parseInt(yearParam, 10));
     if (tabParam) setActiveTab(tabParam as any);
+    if (brokerParam) setSelectedBrokerFilter(brokerParam);
     
     if (checkInParam || checkOutParam) {
       setNewRecord(prev => ({
@@ -580,9 +585,11 @@ function ReportsContent() {
 
       if (field === 'paymentStatus') {
         const isClean = value === 'خالص';
-        const total = Number(currentBooking.totalAmount || 0);
-        const paid = isClean ? total : 0;
-        const remaining = isClean ? 0 : total;
+        const commission = Number(currentBooking.commission || 0);
+        const grossTotal = Number(currentBooking.totalAmount || 0);
+        const target = commission > 0 ? (grossTotal - commission) : grossTotal;
+        const paid = isClean ? target : 0;
+        const remaining = isClean ? 0 : target;
         updates.paymentStatus = value;
         updates.paymentInfo = isClean ? 'خالص' : `متبقي ${remaining}`;
         updates.paidAmount = paid;
@@ -633,12 +640,13 @@ function ReportsContent() {
       return { ...s, method: m };
     });
 
-    const bookingTotal = Number(row.total || 0);
+    // المبلغ المستهدف تحصيله وسداده (الصافي إذا وجدت عمولة، أو الإجمالي بالكامل)
+    const bookingTarget = Number(row.commission > 0 ? row.netValue : row.total || 0);
     const currentSplitsTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 
-    // إذا كان الحجز في الجدول خالصاً بالفعل، يجب أن يكون المجموع في النافذة أيضاً خالصاً ومطابقاً للإجمالي
-    if (row.isFullyPaid && currentSplitsTotal < bookingTotal) {
-      const diff = bookingTotal - currentSplitsTotal;
+    // إذا كان الحجز في الجدول خالصاً بالفعل، يجب أن يكون المجموع في النافذة أيضاً خالصاً ومطابقاً للصافي المستهدف
+    if (row.isFullyPaid && currentSplitsTotal < bookingTarget) {
+      const diff = bookingTarget - currentSplitsTotal;
       splits.push({
         method: 'كاش',
         amount: diff,
@@ -652,8 +660,8 @@ function ReportsContent() {
 
   const handleAddModalSplit = () => {
     const currentTotal = modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const bookingTotal = Number(paymentModalRow?.total || 0);
-    const remaining = Math.max(0, bookingTotal - currentTotal);
+    const bookingTarget = Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0);
+    const remaining = Math.max(0, bookingTarget - currentTotal);
     setModalSplits(prev => [
       ...prev,
       { method: 'فودافون كاش', amount: remaining > 0 ? remaining : '', date: paymentModalRow?.bookingDate || '' }
@@ -678,8 +686,8 @@ function ReportsContent() {
 
   const handlePayFullRemainingInModal = () => {
     const currentTotal = modalSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const bookingTotal = Number(paymentModalRow?.total || 0);
-    const remaining = Math.max(0, bookingTotal - currentTotal);
+    const bookingTarget = Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0);
+    const remaining = Math.max(0, bookingTarget - currentTotal);
     if (remaining > 0) {
       setModalSplits(prev => [
         ...prev,
@@ -693,8 +701,8 @@ function ReportsContent() {
   }, [modalSplits]);
 
   const modalCurrentRemaining = useMemo(() => {
-    const bookingTotal = Number(paymentModalRow?.total || 0);
-    return Math.max(0, bookingTotal - modalCurrentPaid);
+    const bookingTarget = Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0);
+    return Math.max(0, bookingTarget - modalCurrentPaid);
   }, [paymentModalRow, modalCurrentPaid]);
 
   const handleSavePaymentModal = async () => {
@@ -702,9 +710,9 @@ function ReportsContent() {
     setIsSavingPaymentModal(true);
     try {
       const validSplits = modalSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
-      const bookingTotal = Number(paymentModalRow.total || 0);
+      const bookingTarget = Number(paymentModalRow.commission > 0 ? paymentModalRow.netValue : paymentModalRow.total || 0);
       const totalPaid = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-      const remaining = Math.max(0, bookingTotal - totalPaid);
+      const remaining = Math.max(0, bookingTarget - totalPaid);
       const isClean = remaining === 0;
 
       const formattedPaymentMethod = validSplits.length > 0
@@ -1094,6 +1102,9 @@ function ReportsContent() {
       }
 
       const totalAmount = nights * newRecord.pricePerNight;
+      const commissionVal = Number(newRecord.commission || 0);
+      const netAmount = totalAmount - commissionVal;
+      const targetRemaining = commissionVal > 0 ? netAmount : totalAmount;
 
       // Overlap check for new record
       if (nights > 0) {
@@ -1127,15 +1138,15 @@ function ReportsContent() {
         apartmentId: selectedUnit,
         studio: units.find((u: any) => u.id === selectedUnit)?.title?.ar || selectedUnit,
         status: 'approved',
-        paymentInfo: `متبقي ${totalAmount}`,
+        paymentInfo: `متبقي ${targetRemaining}`,
         paymentStatus: 'باقي',
         paidAmount: 0,
-        remainingAmount: totalAmount,
+        remainingAmount: targetRemaining,
         totalAmount,
         numberOfDays: nights,
         pricePerNight: newRecord.pricePerNight,
-        commission: newRecord.commission,
-        brokerName: newRecord.brokerName,
+        commission: commissionVal,
+        brokerName: newRecord.brokerName || '',
         clientStatus: newRecord.clientStatus || 'انتظار',
         bookingManager: (newRecord as any).bookingManager || '',
         paymentMethod: (newRecord as any).paymentMethod || '',
@@ -1211,7 +1222,27 @@ function ReportsContent() {
     if (b.status === 'deleted') return false;
     const isApproved = b.status === 'approved' || b.status === 'مؤكد';
     if (!isApproved) return false;
-    if (b.apartmentId !== selectedUnit) return false;
+
+    // Filter by broker if selected (across all units or within current unit)
+    if (selectedBrokerFilter !== 'all') {
+      const bBroker = String(b.brokerName || '').trim().toLowerCase();
+      const targetB = selectedBrokerFilter.trim().toLowerCase();
+      if (!bBroker.includes(targetB)) return false;
+    } else {
+      if (b.apartmentId !== selectedUnit) return false;
+    }
+
+    // Search term filter in reports
+    if (reportSearchTerm.trim()) {
+      const q = reportSearchTerm.trim().toLowerCase();
+      const nameMatch = String(b.name || '').toLowerCase().includes(q);
+      const brokerMatch = String(b.brokerName || '').toLowerCase().includes(q);
+      const phoneMatch = String(b.phone || '').includes(q);
+      const managerMatch = String(b.bookingManager || '').toLowerCase().includes(q);
+      const unitMatch = String(b.apartmentId || '').toLowerCase().includes(q) || String(b.studio || '').toLowerCase().includes(q);
+      if (!nameMatch && !brokerMatch && !phoneMatch && !managerMatch && !unitMatch) return false;
+    }
+
     return true;
   });
 
@@ -1299,6 +1330,7 @@ function ReportsContent() {
     const bookingRegisteredDate = booking.bookingDate || (booking.createdAt ? booking.createdAt.split('T')[0] : '') || (booking.timestamp ? booking.timestamp.split('T')[0] : '') || booking.checkIn;
 
     const bookingTotal = Number(total) || 0;
+    const targetBookingAmount = (commission && Number(commission) > 0) ? Number(netValue) : bookingTotal;
     let paidAmount: number = booking.paidAmount !== undefined && booking.paidAmount !== null && !isNaN(Number(booking.paidAmount))
       ? Number(booking.paidAmount)
       : -1;
@@ -1306,7 +1338,7 @@ function ReportsContent() {
       ? Number(booking.remainingAmount)
       : -1;
 
-    // استخراج المدفوع والمتبقي إذا لم يكونا محددين مباشرة في الحقول
+    // استخراج المدفوع والمتبقي بدقة بناءً على صافي الحساب المطلوب
     if (paidAmount < 0 || remainingAmount < 0) {
       const combinedNotes = `${booking.notes || ''} ${booking.paymentInfo || ''}`.toLowerCase();
       const remMatch = combinedNotes.match(/\[متبقي:\s*(\d+)\]/i) || combinedNotes.match(/\[باقي:\s*(\d+)\]/i) || combinedNotes.match(/(?:متبقي|باقي|باقى)\s*:?\s*(\d+)/i);
@@ -1314,19 +1346,19 @@ function ReportsContent() {
 
       if (remMatch && remMatch[1]) {
         remainingAmount = Number(remMatch[1]);
-        paidAmount = paidMatch && paidMatch[1] ? Number(paidMatch[1]) : Math.max(0, bookingTotal - remainingAmount);
+        paidAmount = paidMatch && paidMatch[1] ? Number(paidMatch[1]) : Math.max(0, targetBookingAmount - remainingAmount);
       } else if (paidMatch && paidMatch[1]) {
         paidAmount = Number(paidMatch[1]);
-        remainingAmount = Math.max(0, bookingTotal - paidAmount);
+        remainingAmount = Math.max(0, targetBookingAmount - paidAmount);
       } else {
         const isClean = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'].some(kw => combinedNotes.includes(kw)) || booking.paymentStatus === 'خالص';
         if (isClean) {
-          paidAmount = bookingTotal;
+          paidAmount = targetBookingAmount;
           remainingAmount = 0;
         } else {
-          // الأساسي أن العميل لم يدفع شيئاً (المدفوع 0 والمتبقي كامل الإجمالي)
+          // الأساسي: المدفوع 0 والمتبقي كامل الصافي المطلوب
           paidAmount = 0;
-          remainingAmount = bookingTotal;
+          remainingAmount = targetBookingAmount;
         }
       }
     }
@@ -1628,6 +1660,55 @@ function ReportsContent() {
                 </select>
               </div>
 
+              {/* فلترة حسب الوسيط */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-[#7A7061] uppercase tracking-widest opacity-60">الوسيط:</span>
+                <select
+                  title="فلترة حجوزات الوسيط لهذا الشهر"
+                  value={selectedBrokerFilter}
+                  onChange={e => setSelectedBrokerFilter(e.target.value)}
+                  className={`border rounded-xl px-3 py-2 text-xs font-black outline-none transition-all cursor-pointer ${
+                    selectedBrokerFilter !== 'all'
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                      : 'bg-[#FDFBF7] text-[#2A2723] border-[#EAE4D9]/60 focus:border-[#C1A68D]'
+                  }`}
+                >
+                  <option value="all">🏢 جميع الوسطاء</option>
+                  {Array.from(new Set(bookings.filter(b => b.brokerName && b.brokerName.trim()).map(b => b.brokerName.trim()))).map((bName, i) => (
+                    <option key={i} value={bName}>{bName}</option>
+                  ))}
+                </select>
+                {selectedBrokerFilter !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBrokerFilter('all')}
+                    className="text-[10px] font-black text-rose-600 hover:text-rose-800 bg-rose-50 px-2 py-1.5 rounded-lg border border-rose-200 transition"
+                    title="إلغاء فلترة الوسيط والرجوع للوحدة الحالية"
+                  >
+                    ✕ إلغاء
+                  </button>
+                )}
+              </div>
+
+              {/* مربع البحث السريع في التقرير */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="بحث باسم الضيف، الوسيط، الهاتف..."
+                  value={reportSearchTerm}
+                  onChange={e => setReportSearchTerm(e.target.value)}
+                  className="bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-8 py-2 text-xs font-black text-[#2A2723] focus:border-[#C1A68D] transition-all outline-none w-56 shadow-2xs"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                {reportSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setReportSearchTerm('')}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                  >✕</button>
+                )}
+              </div>
+
               <div className="flex-1" />
 
               <button
@@ -1720,6 +1801,25 @@ function ReportsContent() {
                     <input type="number" value={newRecord.commission} onChange={e => setNewRecord({ ...newRecord, commission: Number(e.target.value) })} className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-black text-orange-500 outline-none focus:border-[#C1A68D]" />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">الوسيط</label>
+                    <datalist id="past-brokers">
+                      <option value="بوكينج" />
+                      <option value="Airbnb" />
+                      <option value="مباشر" />
+                      {Array.from(new Set(bookings.filter(b => b.brokerName && b.brokerName.trim()).map(b => b.brokerName.trim()))).map((bName, idx) => (
+                        <option key={idx} value={bName} />
+                      ))}
+                    </datalist>
+                    <input 
+                      type="text" 
+                      list="past-brokers"
+                      value={newRecord.brokerName || ''} 
+                      onChange={e => setNewRecord({ ...newRecord, brokerName: e.target.value })} 
+                      placeholder="اسم الوسيط / المكتب" 
+                      className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-[#C1A68D]" 
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">الوحدة</label>
                     <select
                       required
@@ -1752,7 +1852,22 @@ function ReportsContent() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">مسئول الحجز</label>
-                    <input type="text" value={(newRecord as any).bookingManager || ''} onChange={e => setNewRecord({ ...newRecord, bookingManager: e.target.value } as any)} placeholder="اسم المسئول" className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-[#C1A68D]" />
+                    <datalist id="past-managers">
+                      <option value="مؤمن" />
+                      <option value="مدحت" />
+                      <option value="فهد" />
+                      {Array.from(new Set(bookings.filter(b => b.bookingManager && b.bookingManager.trim()).map(b => b.bookingManager.trim()))).map((mName, idx) => (
+                        <option key={idx} value={mName} />
+                      ))}
+                    </datalist>
+                    <input 
+                      type="text" 
+                      list="past-managers"
+                      value={(newRecord as any).bookingManager || ''} 
+                      onChange={e => setNewRecord({ ...newRecord, bookingManager: e.target.value } as any)} 
+                      placeholder="اسم المسئول" 
+                      className="w-full bg-[#FDFBF7] border border-[#EAE4D9] rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-[#C1A68D]" 
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-[#C1A68D] uppercase px-2">طريقة الدفع</label>
@@ -2127,35 +2242,22 @@ function ReportsContent() {
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
                                 <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {/* علامة وجود ملاحظة على العميل */}
-                                  {Boolean(row.notes && row.notes.trim()) && (
+                                  {/* علامة وجود ملاحظة على العميل: تظهر البرتقالي فقط إذا كان مسجل له نوتس، والنقر عليها يفتح سجل العميل */}
+                                  {Boolean(
+                                    (row.notes && cleanNotesForDisplay(row.notes).trim()) || 
+                                    (typeof window !== 'undefined' && row.phone && localStorage.getItem(`customer_note_${row.phone}`))
+                                  ) && (
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setNoteModal({
-                                          isOpen: true,
-                                          title: `ملاحظة العميل (${row.name})`,
-                                          note: row.notes,
-                                          bookingId: row.id,
-                                          guestName: row.name,
-                                        });
+                                        setProfileModal({ isOpen: true, name: row.name, phone: row.phone });
                                       }}
                                       className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
-                                      title={`ملاحظة: ${row.notes}`}
+                                      title="يوجد ملاحظة على هذا العميل — اضغط لفتح سجل وبروفايل العميل"
                                     >
                                       <span>📝</span>
                                       <span className="hidden sm:inline">نوتس</span>
-                                    </button>
-                                  )}
-                                  {row.name && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setProfileModal({ isOpen: true, name: row.name, phone: row.phone })}
-                                      className="opacity-0 group-hover/name:opacity-100 text-[10px] bg-[#C1A68D] hover:bg-[#a88b70] text-white px-1.5 py-0.5 rounded transition-all shrink-0 font-black shadow-xs cursor-pointer"
-                                      title="عرض سجل وحجوزات العميل"
-                                    >
-                                      👤 السجل
                                     </button>
                                   )}
                                 </div>
@@ -2228,8 +2330,27 @@ function ReportsContent() {
                           </td>
 
                           {/* EDITABLE: Broker Name */}
-                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20">
-                            {row.hasData ? <EditableCell value={row.brokerName} bookingId={row.id} field="brokerName" onSave={handleCellSave} className="text-[#7A7061] font-bold" readOnly={row.isCarriedOver} /> : <span className="text-[#EAE4D9]">—</span>}
+                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20 relative group/broker">
+                            {row.hasData ? (
+                              <div className="flex items-center justify-between px-1">
+                                <div className="flex-1">
+                                  <EditableCell value={row.brokerName} bookingId={row.id} field="brokerName" onSave={handleCellSave} className="text-[#7A7061] font-bold" readOnly={row.isCarriedOver} />
+                                </div>
+                                {row.brokerName && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedBrokerFilter(row.brokerName);
+                                    }}
+                                    className="opacity-0 group-hover/broker:opacity-100 text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-1 py-0.5 rounded transition cursor-pointer shrink-0 font-black"
+                                    title={`فلترة الجدول لعرض جميع حجوزات الوسيط (${row.brokerName}) لهذا الشهر`}
+                                  >
+                                    🔍
+                                  </button>
+                                )}
+                              </div>
+                            ) : <span className="text-[#EAE4D9]">—</span>}
                           </td>
 
                           <td className="px-3 py-3 border-l border-[#D5CBB8]/40 font-black text-[11px] text-emerald-700 bg-emerald-50/40">{row.hasData ? row.netValue : 0}</td>
@@ -2760,6 +2881,12 @@ function ReportsContent() {
                       </h3>
                       <p className="text-xs text-[#7A7061] font-bold mt-0.5">
                         حجز #{paymentModalRow.no || globalBookingNumberMap.get(String(paymentModalRow.id)) || '—'} | إجمالي الحساب: <strong className="text-[#2A2723] font-black">{paymentModalRow.total.toLocaleString()} ج.م</strong>
+                        {paymentModalRow.commission > 0 && (
+                          <span className="mr-2 text-orange-600 font-bold">
+                            | العمولة: {paymentModalRow.commission.toLocaleString()} ج.م | الصافي المطلوب: <strong className="text-emerald-700 font-black">{paymentModalRow.netValue.toLocaleString()} ج.م</strong>
+                          </span>
+                        )}
+                        {paymentModalRow.brokerName && <span className="mr-2 text-stone-600 font-bold">| الوسيط: {paymentModalRow.brokerName}</span>}
                         {paymentModalRow.phone && <span className="mr-2">| هاتف: {paymentModalRow.phone}</span>}
                       </p>
                     </div>

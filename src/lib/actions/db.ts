@@ -244,6 +244,8 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
     .filter((b: any) => !expiredIds.includes(b.id))
     .map((b: any) => {
       const totalAmount = Number(b.total_amount || 0);
+      const commission = Number(b.commission || 0);
+      const targetAmount = commission > 0 ? (totalAmount - commission) : totalAmount;
       const days = Number(b.number_of_days || 0);
 
       // احتساب المدفوع والمتبقي بدقة لكل حجز
@@ -262,20 +264,20 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
       }
 
       let calcPaid = 0;
-      let calcRemaining = totalAmount;
+      let calcRemaining = targetAmount;
 
       if (b.paid_amount !== undefined && b.paid_amount !== null && b.paid_amount !== '') {
-        calcPaid = Math.min(totalAmount, Math.max(0, Number(b.paid_amount)));
-        calcRemaining = Math.max(0, totalAmount - calcPaid);
+        calcPaid = Math.min(targetAmount, Math.max(0, Number(b.paid_amount)));
+        calcRemaining = Math.max(0, targetAmount - calcPaid);
       } else if (paidTagMatch && remainingTagMatch) {
         calcPaid = Number(paidTagMatch[1]) || 0;
         calcRemaining = Number(remainingTagMatch[1]) || 0;
       } else if (paidTagMatch) {
-        calcPaid = Math.min(totalAmount, Number(paidTagMatch[1]) || 0);
-        calcRemaining = Math.max(0, totalAmount - calcPaid);
+        calcPaid = Math.min(targetAmount, Number(paidTagMatch[1]) || 0);
+        calcRemaining = Math.max(0, targetAmount - calcPaid);
       } else if (remainingTagMatch) {
-        calcRemaining = Math.min(totalAmount, Number(remainingTagMatch[1]) || 0);
-        calcPaid = Math.max(0, totalAmount - calcRemaining);
+        calcRemaining = Math.min(targetAmount, Number(remainingTagMatch[1]) || 0);
+        calcPaid = Math.max(0, targetAmount - calcRemaining);
       } else {
         const textRemaining = extractRemainingFromText(combined);
         const textPaid = extractPaidFromText(combined);
@@ -285,20 +287,20 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
           calcRemaining = textRemaining;
         } else if (textRemaining !== null) {
           calcRemaining = textRemaining;
-          calcPaid = Math.max(0, totalAmount - textRemaining);
+          calcPaid = Math.max(0, targetAmount - textRemaining);
         } else if (textPaid !== null) {
           calcPaid = textPaid;
-          calcRemaining = Math.max(0, totalAmount - textPaid);
+          calcRemaining = Math.max(0, targetAmount - textPaid);
         } else if (splitTotal > 0) {
-          calcPaid = Math.min(totalAmount, splitTotal);
-          calcRemaining = Math.max(0, totalAmount - calcPaid);
+          calcPaid = Math.min(targetAmount, splitTotal);
+          calcRemaining = Math.max(0, targetAmount - calcPaid);
         } else if (detectPaymentStatus(b) === 'خالص') {
-          calcPaid = totalAmount;
+          calcPaid = targetAmount;
           calcRemaining = 0;
         } else {
-          // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي كامل المبلغ حتى يحدد يدوياً
+          // الافتراضي الصارم لأي حجز: صفر مدفوع والمتبقي كامل الصافي المطلوب حتى يحدد يدوياً
           calcPaid = 0;
-          calcRemaining = totalAmount;
+          calcRemaining = targetAmount;
         }
       }
 
@@ -360,6 +362,18 @@ export async function saveDbBooking(booking: any) {
       timestamp: booking.timestamp || new Date().toISOString(),
     };
 
+    const targetRemaining = (newBookingWithId.commission && Number(newBookingWithId.commission) > 0)
+      ? (Number(newBookingWithId.totalAmount || 0) - Number(newBookingWithId.commission))
+      : Number(newBookingWithId.totalAmount || 0);
+
+    let backupNotes = newBookingWithId.notes || '';
+    if (newBookingWithId.bookingManager && !backupNotes.includes(newBookingWithId.bookingManager)) {
+      backupNotes = `[مسؤول_الحجز: ${newBookingWithId.bookingManager}] ${backupNotes}`.trim();
+    }
+    if (newBookingWithId.brokerName && !backupNotes.includes(newBookingWithId.brokerName)) {
+      backupNotes = `[الوسيط: ${newBookingWithId.brokerName}] ${backupNotes}`.trim();
+    }
+
     // Build insert object — exclude columns that may not exist in DB yet
     const insertData: any = {
       id: newBookingWithId.id,
@@ -370,7 +384,7 @@ export async function saveDbBooking(booking: any) {
       apartment_id: newBookingWithId.apartmentId ?? null,
       studio: newBookingWithId.studio ?? null,
       status: newBookingWithId.status,
-      payment_info: newBookingWithId.paymentInfo || (newBookingWithId.totalAmount ? `متبقي ${newBookingWithId.totalAmount}` : 'باقي'),
+      payment_info: newBookingWithId.paymentInfo || (targetRemaining > 0 ? `متبقي ${targetRemaining}` : 'باقي'),
       total_amount: newBookingWithId.totalAmount ?? null,
       number_of_days: newBookingWithId.numberOfDays ?? null,
       nationality: newBookingWithId.nationality ?? null,
@@ -379,7 +393,7 @@ export async function saveDbBooking(booking: any) {
       broker_name: newBookingWithId.brokerName ?? null,
       client_status: newBookingWithId.clientStatus || 'انتظار',
       guests_count: newBookingWithId.guestsCount ?? 1,
-      notes: newBookingWithId.notes ?? null,
+      notes: backupNotes || null,
       timestamp: newBookingWithId.timestamp,
     };
 

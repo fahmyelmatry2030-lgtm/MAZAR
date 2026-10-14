@@ -238,6 +238,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         bookingId: activeBooking?.id,
         phone: activeBooking?.phone,
         clientStatus: activeBooking?.clientStatus || 'انتظار',
+        brokerName: activeBooking?.brokerName || '',
         checkOut: activeBooking?.checkOut,
         finalCheckOut,
         upcomingThree,
@@ -252,11 +253,13 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         arrivingNotes: inToday?.notes || '',
         leavingGuest: outToday?.name,
         leavingPhone: outToday?.phone,
+        leavingBroker: outToday?.brokerName || '',
         leavingBookingId: outToday?.id,
         leavingClientStatus: outToday?.clientStatus || 'انتظار',
         leavingCheckOut: outToday?.checkOut,
         arrivingGuest: inToday?.name,
         arrivingPhone: inToday?.phone,
+        arrivingBroker: inToday?.brokerName || '',
         arrivingBookingId: inToday?.id,
         arrivingClientStatus: inToday?.clientStatus || 'انتظار',
         arrivingCheckOut: inToday?.checkOut,
@@ -1488,10 +1491,10 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="بحث عن ضيف أو وحدة..."
+                placeholder="بحث عن ضيف، وحدة، أو وسيط..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-[#F8F5F0] border border-[#EAE4D9] rounded-xl px-9 py-2 text-xs font-black text-[#2A2723] focus:ring-2 focus:ring-[#C1A68D] transition-all outline-none w-48"
+                className="bg-[#F8F5F0] border border-[#EAE4D9] rounded-xl px-9 py-2 text-xs font-black text-[#2A2723] focus:ring-2 focus:ring-[#C1A68D] transition-all outline-none w-56"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
             </div>
@@ -1612,15 +1615,22 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
 
           const displayList = apartmentMap.filter(apt => {
             if (!searchTerm) return true;
-            const s = searchTerm.toLowerCase();
+            const s = searchTerm.toLowerCase().trim();
             const guestMatch = String(apt.guest || '').toLowerCase().includes(s);
             const idMatch = String(apt.id || '').toLowerCase().includes(s);
             const titleMatch = String(apt.title?.ar || '').toLowerCase().includes(s);
+            const brokerMatch = String(apt.brokerName || '').toLowerCase().includes(s) ||
+              String(apt.leavingBroker || '').toLowerCase().includes(s) ||
+              String(apt.arrivingBroker || '').toLowerCase().includes(s) ||
+              (apt.upcomingThree || []).some((ub: any) => String(ub.brokerName || '').toLowerCase().includes(s));
+            const leavingMatch = String(apt.leavingGuest || '').toLowerCase().includes(s);
+            const arrivingMatch = String(apt.arrivingGuest || '').toLowerCase().includes(s);
+            const notesMatch = String(apt.notes || '').toLowerCase().includes(s);
             const dateMatch = apt.checkOut?.includes(s) || (apt.checkOut && (() => {
               const [y, m, d] = apt.checkOut.split('-');
               return `${d}/${m}`.includes(s);
             })());
-            return guestMatch || idMatch || titleMatch || dateMatch;
+            return guestMatch || idMatch || titleMatch || brokerMatch || leavingMatch || arrivingMatch || notesMatch || dateMatch;
           });
 
           if (displayList.length === 0) {
@@ -1729,7 +1739,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                 </button>
                               </div>
                             ) : apt.guest ? (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => openCustomerProfile(apt.guest, apt.phone)}
                                   className="hover:text-[#C1A68D] text-[#2A2723] transition-colors flex items-center gap-1.5 font-black text-sm text-right"
@@ -1737,11 +1747,16 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   <User size={15} className="text-[#C1A68D] shrink-0" />
                                   <span>{apt.guest}</span>
                                 </button>
+                                {apt.brokerName && (
+                                  <span className="text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded-lg shrink-0" title={`حجز عن طريق وسيط: ${apt.brokerName}`}>
+                                    🏢 {apt.brokerName}
+                                  </span>
+                                )}
                                 {Boolean(apt.notes && apt.notes.trim()) && (
                                   <button
-                                    onClick={() => setActiveNoteModal({ isOpen: true, text: apt.notes, title: `ملاحظات العميل: ${apt.guest}` })}
+                                    onClick={() => openCustomerProfile(apt.guest, apt.phone)}
                                     className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
-                                    title={`ملاحظة: ${apt.notes}`}
+                                    title="يوجد ملاحظة على هذا العميل — اضغط لفتح سجل وبروفايل العميل"
                                   >
                                     <span>📝</span>
                                     <span>نوتس</span>
