@@ -1044,51 +1044,47 @@ export async function saveDbStaff(staff: any) {
   const supabase = getSupabaseServerClient();
   if (!supabase) return staff;
 
-  const { error } = await supabase.from('staff').upsert(staff);
+  let metaTags: string[] = [];
+  if (staff.housing_allowance || staff.transport_allowance || staff.other_allowances) {
+    metaTags.push(`[بدلات: ${staff.housing_allowance || 0}|${staff.transport_allowance || 0}|${staff.other_allowances || 0}]`);
+  }
+  if (staff.national_id && String(staff.national_id).trim()) {
+    metaTags.push(`[قومي: ${String(staff.national_id).trim()}]`);
+  }
+  if (staff.age && String(staff.age).trim()) {
+    metaTags.push(`[سن: ${String(staff.age).trim()}]`);
+  }
+  if (staff.address && String(staff.address).trim()) {
+    metaTags.push(`[عنوان: ${String(staff.address).trim()}]`);
+  }
+  if (staff.notes && String(staff.notes).trim()) {
+    metaTags.push(`[ملاحظات: ${String(staff.notes).trim()}]`);
+  }
+
+  // Clean raw position so we don't duplicate existing tags
+  let cleanPos = String(staff.position || '')
+    .replace(/\[(?:بدلات|قومي|سن|عنوان|ملاحظات):[^\]]*\]/g, '')
+    .trim();
+
+  let finalPosition = metaTags.length > 0
+    ? `${metaTags.join(' ')} ${cleanPos}`.trim()
+    : cleanPos;
+
+  const dbPayload: any = {
+    id: staff.id || `staff-${Date.now()}`,
+    name: staff.name,
+    position: finalPosition || 'موظف',
+    base_salary: Number(staff.base_salary) || 0,
+    phone: staff.phone || '',
+    hiring_date: staff.hiring_date || new Date().toISOString().split('T')[0]
+  };
+
+  const { error } = await supabase.from('staff').upsert(dbPayload);
   if (error) {
-    if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema')) {
-      const fallbackStaff = { ...staff };
-      let metaTags = [];
-
-      if (staff.housing_allowance || staff.transport_allowance || staff.other_allowances) {
-        metaTags.push(`[بدلات: ${staff.housing_allowance || 0}|${staff.transport_allowance || 0}|${staff.other_allowances || 0}]`);
-        delete fallbackStaff.housing_allowance;
-        delete fallbackStaff.transport_allowance;
-        delete fallbackStaff.other_allowances;
-      }
-
-      if (staff.national_id) {
-        metaTags.push(`[قومي: ${staff.national_id}]`);
-        delete fallbackStaff.national_id;
-      }
-
-      if (staff.age) {
-        metaTags.push(`[سن: ${staff.age}]`);
-        delete fallbackStaff.age;
-      }
-
-      if (staff.address) {
-        metaTags.push(`[عنوان: ${staff.address}]`);
-        delete fallbackStaff.address;
-      }
-
-      if (staff.notes) {
-        metaTags.push(`[ملاحظات: ${staff.notes}]`);
-        delete fallbackStaff.notes;
-      }
-
-      if (metaTags.length > 0) {
-        fallbackStaff.position = `${metaTags.join(' ')} ${staff.position || ''}`.trim();
-      }
-
-      const { error: retryError } = await supabase.from('staff').upsert(fallbackStaff);
-      if (retryError) throw retryError;
-      revalidatePath('/admin/dashboard/hr/salaries');
-      revalidatePath('/admin/dashboard/hr/staff');
-      return fallbackStaff;
-    }
+    console.error('Error saving staff:', error);
     throw error;
   }
+
   revalidatePath('/admin/dashboard/hr/salaries');
   revalidatePath('/admin/dashboard/hr/staff');
   return staff;
@@ -1227,7 +1223,7 @@ export async function saveDbSalary(salary: any) {
         from_entity: paymentMethod === 'كاش' ? 'الخزنة الفرعية' : (paymentMethod || 'الخزنة الفرعية'),
         to_entity: staffName,
         ordered_by: handedBy || 'إدارة الموظفين',
-        branch: 'عام'
+        branch: null
       };
 
       if (existingExpenses && existingExpenses.length > 0) {
@@ -1487,6 +1483,12 @@ export async function saveDbExpense(expense: any) {
       expense.invoice_number = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     }
   }
+
+  // Ensure branch is integer or null (never a string that crashes Postgres)
+  const cleanBranch = (typeof expense.branch === 'number' && !isNaN(expense.branch))
+    ? expense.branch
+    : (!isNaN(parseInt(expense.branch, 10)) ? parseInt(expense.branch, 10) : null);
+  expense.branch = cleanBranch;
 
   // Attempt 1: Direct insert with all properties
   const { error } = await supabase.from('expenses').insert([expense]);
