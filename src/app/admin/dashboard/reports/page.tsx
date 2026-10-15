@@ -14,7 +14,7 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber, hasCustomerProfileNote, getCustomerProfileNote, cleanManualNotes } from '@/lib/utils';
+import { formatWhatsAppNumber, hasAnyMeaningfulNote, cleanManualNotes } from '@/lib/utils';
 
 type PaymentSplitItem = {
   method: string;
@@ -2247,7 +2247,7 @@ function ReportsContent() {
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
                                 <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {hasCustomerProfileNote(row.phone) && (
+                                  {hasAnyMeaningfulNote(row.notes, row.phone) && (
                                     <button
                                       type="button"
                                       onClick={(e) => {

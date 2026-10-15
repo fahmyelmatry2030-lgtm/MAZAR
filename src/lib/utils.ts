@@ -207,3 +207,22 @@ export function getCustomerProfileNote(phone?: string | null): string {
   return note ? note.trim() : '';
 }
 
+/**
+ * جلب الملاحظة الفعلية (سواء المسجلة في ملف العميل أو ملاحظة الحجز بعد تصفية الوسوم والكلمات الروتينية)
+ */
+export function getCustomerEffectiveNote(bookingNotes?: string | null, phone?: string | null): string {
+  if (typeof window !== 'undefined' && phone) {
+    const local = localStorage.getItem(`customer_note_${phone.trim()}`);
+    if (local && local.trim()) return local.trim();
+  }
+  return cleanManualNotes(bookingNotes);
+}
+
+/**
+ * فحص ما إذا كان العميل مسجل له أي ملاحظة حقيقية (سواء في ملفه أو في الحجز)
+ */
+export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: string | null): boolean {
+  const note = getCustomerEffectiveNote(bookingNotes, phone);
+  return Boolean(note && note.trim().length > 0);
+}
+

@@ -8,7 +8,7 @@ import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, get
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasCustomerProfileNote, getCustomerProfileNote } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, getCustomerEffectiveNote } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
@@ -1739,7 +1739,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛫 {apt.leavingGuest}
                                   </button>
-                                  {hasCustomerProfileNote(apt.leavingPhone) && (
+                                  {hasAnyMeaningfulNote(apt.leavingNotes, apt.leavingPhone) && (
                                     <button
                                       type="button"
                                       onClick={() => openCustomerProfile(apt.leavingGuest, apt.leavingPhone, 'notes')}
@@ -1757,7 +1757,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛬 {apt.arrivingGuest}
                                   </button>
-                                  {hasCustomerProfileNote(apt.arrivingPhone) && (
+                                  {hasAnyMeaningfulNote(apt.arrivingNotes, apt.arrivingPhone) && (
                                     <button
                                       type="button"
                                       onClick={() => openCustomerProfile(apt.arrivingGuest, apt.arrivingPhone, 'notes')}
@@ -1778,7 +1778,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   <User size={15} className="text-[#C1A68D] shrink-0" />
                                   <span>{apt.guest}</span>
                                 </button>
-                                {hasCustomerProfileNote(apt.phone) && (
+                                {hasAnyMeaningfulNote(apt.notes, apt.phone) && (
                                   <button
                                     type="button"
                                     onClick={() => openCustomerProfile(apt.guest, apt.phone, 'notes')}
@@ -1798,8 +1798,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           <td className="px-4 py-3 text-xs font-bold text-[#7A7061] max-w-[240px]">
                             {(() => {
                               const effectiveNote = apt.isTurnover
-                                ? (getCustomerProfileNote(apt.leavingPhone) || cleanManualNotes(apt.leavingNotes) || getCustomerProfileNote(apt.arrivingPhone) || cleanManualNotes(apt.arrivingNotes))
-                                : (getCustomerProfileNote(apt.phone) || cleanManualNotes(apt.notes));
+                                ? (getCustomerEffectiveNote(apt.leavingNotes, apt.leavingPhone) || getCustomerEffectiveNote(apt.arrivingNotes, apt.arrivingPhone))
+                                : getCustomerEffectiveNote(apt.notes, apt.phone);
 
                               if (!effectiveNote) return <span className="text-gray-300">—</span>;
 

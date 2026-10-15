@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Calendar, History, Star, FileText, MessageSquare, Award, CheckCircle2, Home } from 'lucide-react';
-import { formatWhatsAppNumber } from '@/lib/utils';
+import { formatWhatsAppNumber, cleanManualNotes } from '@/lib/utils';
 import { updateDbBookingStatus } from '@/lib/actions/db';
 
 interface CustomerProfileModalProps {
@@ -47,34 +47,40 @@ export default function CustomerProfileModal({
   const totalRevenue = customerBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
   const totalNights = customerBookings.reduce((sum, b) => sum + (Number(b.numberOfDays) || 0), 0);
 
-  // Load permanent customer note
+  // Load permanent customer note (falling back to database booking note if localStorage empty)
   useEffect(() => {
-    if (phone) {
-      const stored = localStorage.getItem(`customer_note_${phone.trim()}`) || '';
-      setGlobalNote(stored);
-      if (initialMode === 'notes' && !stored.trim()) {
-        setIsEditingGlobalNote(true);
-      } else {
-        setIsEditingGlobalNote(false);
-      }
+    const stored = (phone && typeof window !== 'undefined') ? localStorage.getItem(`customer_note_${phone.trim()}`) || '' : '';
+    const bookingNote = cleanManualNotes(latestBooking.notes);
+    const initialText = stored.trim() || bookingNote.trim();
+    setGlobalNote(initialText);
+
+    if (initialMode === 'notes' && !initialText) {
+      setIsEditingGlobalNote(true);
     } else {
-      setGlobalNote('');
       setIsEditingGlobalNote(false);
     }
-  }, [phone, isOpen, initialMode]);
+  }, [phone, isOpen, latestBooking.notes, initialMode]);
 
-  const handleSaveGlobalNote = () => {
-    if (phone) {
-      const trimmed = globalNote.trim();
+  const handleSaveGlobalNote = async () => {
+    const trimmed = globalNote.trim();
+    if (phone && typeof window !== 'undefined') {
       if (trimmed) {
         localStorage.setItem(`customer_note_${phone.trim()}`, trimmed);
       } else {
         localStorage.removeItem(`customer_note_${phone.trim()}`);
       }
-      setIsEditingGlobalNote(false);
-      window.dispatchEvent(new Event('customer_notes_updated'));
-      if (onRefresh) onRefresh();
     }
+    // Also sync to DB if booking exists so it works across all devices and phones!
+    if (latestBooking?.id) {
+      try {
+        await updateDbBookingStatus(latestBooking.id, { notes: trimmed });
+      } catch (e) {
+        console.error('Failed to sync note to DB:', e);
+      }
+    }
+    setIsEditingGlobalNote(false);
+    window.dispatchEvent(new Event('customer_notes_updated'));
+    if (onRefresh) onRefresh();
   };
 
   if (!isOpen || !customerName) return null;
