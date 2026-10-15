@@ -14,7 +14,7 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber, getCustomerProfileOrBookingNote, cleanManualNotes } from '@/lib/utils';
+import { formatWhatsAppNumber, hasCustomerProfileNote, getCustomerProfileNote, cleanManualNotes } from '@/lib/utils';
 
 type PaymentSplitItem = {
   method: string;
@@ -307,10 +307,11 @@ function ReportsContent() {
     return searchParams.get('unit') ? 'operational' : 'expenses';
   });
 
-  const [profileModal, setProfileModal] = useState<{ isOpen: boolean; name: string | null; phone?: string | null }>({
+  const [profileModal, setProfileModal] = useState<{ isOpen: boolean; name: string | null; phone?: string | null; mode?: 'history' | 'notes' }>({
     isOpen: false,
     name: null,
     phone: null,
+    mode: 'history',
   });
 
   const [noteModal, setNoteModal] = useState<{ isOpen: boolean; title: string; note: string; bookingId?: string; guestName?: string }>({
@@ -2246,24 +2247,19 @@ function ReportsContent() {
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
                                 <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {(() => {
-                                    const effectiveNote = getCustomerProfileOrBookingNote(row.notes, row.phone);
-                                    if (!effectiveNote) return null;
-                                    return (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setProfileModal({ isOpen: true, name: row.name, phone: row.phone });
-                                        }}
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[10px] shadow-2xs cursor-pointer max-w-[140px] truncate"
-                                        title={`ملاحظة مسجلة: ${effectiveNote} — اضغط لفتح ملف وسجل العميل`}
-                                      >
-                                        <span className="shrink-0 text-amber-700">📝</span>
-                                        <span className="truncate">{effectiveNote}</span>
-                                      </button>
-                                    );
-                                  })()}
+                                  {hasCustomerProfileNote(row.phone) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProfileModal({ isOpen: true, name: row.name, phone: row.phone, mode: 'notes' });
+                                      }}
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0"
+                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لعرض الملاحظة"
+                                    >
+                                      🔍
+                                    </button>
+                                  )}
                                 </div>
                               </>
                             ) : <span className="text-[#D5CBB8]">—</span>}
@@ -2864,8 +2860,9 @@ function ReportsContent() {
               customerName={profileModal.name}
               customerPhone={profileModal.phone}
               bookings={bookings}
-              onClose={() => setProfileModal({ isOpen: false, name: null })}
+              onClose={() => setProfileModal({ isOpen: false, name: null, mode: 'history' })}
               onRefresh={loadData}
+              initialMode={profileModal.mode || 'history'}
             />
 
             {/* ── مربع تفاصيل طريقة الدفع وسداد المتبقي (النافذة الصغيرة التفاعلية) ── */}

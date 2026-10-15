@@ -176,26 +176,34 @@ export function cleanManualNotes(notesStr: string | null | undefined): string {
 
   if (!cleaned || /^[\s|+,.\-—/:]+$/.test(cleaned)) return '';
 
-  // تصفية الكلمات الروتينية الإدارية التي ليست ملاحظات حقيقية عن العميل أو الحجز
-  const stripped = cleaned
-    .replace(/\b(?:عمل\s*عقد|متبقي\s*عقد|عقد\s*فقط|بدون\s*عقد|عقد)\b/gi, '')
-    .replace(/\b(?:الحساب\s*خالص|حساب\s*خالص|خالص|تم\s*الدفع|تم\s*السداد|سداد|مدفوع|مسدد)\b/gi, '')
-    .replace(/\b(?:لا\s*يوجد|لايوجد|لا\s*توجد\s*ملاحظات|لا\s*توجد)\b/gi, '')
-    .replace(/^[\s|+,.\-—/:]+|[\s|+,.\-—/:]+$/g, '')
-    .trim();
+  // تصفية الكلمات الروتينية الإدارية التي ليست ملاحظات حقيقية عن العميل أو الحجز (بدون \b لدعم الحروف العربية)
+  const boilerplateRegex = /(?:^|[\s,.\-—/])(?:عمل\s*عقد|متبقي\s*عقد|عقد\s*فقط|بدون\s*عقد|عقد|الحساب\s*خالص|حساب\s*خالص|خالص|تم\s*الدفع|تم\s*السداد|سداد|مدفوع|مسدد|لا\s*يوجد|لايوجد|لا\s*توجد\s*ملاحظات|لا\s*توجد)(?=$|[\s,.\-—/])/gi;
+
+  let stripped = cleaned;
+  while (boilerplateRegex.test(stripped)) {
+    stripped = stripped.replace(boilerplateRegex, ' ').trim();
+  }
+  stripped = stripped.replace(/^[\s|+,.\-—/:]+|[\s|+,.\-—/:]+$/g, '').trim();
 
   if (!stripped || /^[\s|+,.\-—/:]+$/.test(stripped)) return '';
   return stripped;
 }
 
 /**
- * جلب ملاحظة العميل الفعلية (سواء الملاحظة الدائمة من ملف العميل، أو ملاحظة الحجز بعد استبعاد الكلمات الإدارية الروتينية)
+ * فحص ما إذا كان العميل مسجل له ملاحظة خاصة بالعميل في ملفه
  */
-export function getCustomerProfileOrBookingNote(bookingNotes?: string | null, phone?: string | null): string {
-  if (typeof window !== 'undefined' && phone) {
-    const local = localStorage.getItem(`customer_note_${phone.trim()}`);
-    if (local && local.trim()) return local.trim();
-  }
-  return cleanManualNotes(bookingNotes);
+export function hasCustomerProfileNote(phone?: string | null): boolean {
+  if (typeof window === 'undefined' || !phone) return false;
+  const note = localStorage.getItem(`customer_note_${phone.trim()}`);
+  return Boolean(note && note.trim().length > 0);
+}
+
+/**
+ * جلب ملاحظة العميل المسجلة في ملفه
+ */
+export function getCustomerProfileNote(phone?: string | null): string {
+  if (typeof window === 'undefined' || !phone) return '';
+  const note = localStorage.getItem(`customer_note_${phone.trim()}`);
+  return note ? note.trim() : '';
 }
 

@@ -12,6 +12,7 @@ interface CustomerProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRefresh?: () => void;
+  initialMode?: 'history' | 'notes';
 }
 
 export default function CustomerProfileModal({
@@ -20,11 +21,9 @@ export default function CustomerProfileModal({
   bookings,
   isOpen,
   onClose,
-  onRefresh
+  onRefresh,
+  initialMode = 'history'
 }: CustomerProfileModalProps) {
-  const [noteText, setNoteText] = useState('');
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [globalNote, setGlobalNote] = useState('');
   const [isEditingGlobalNote, setIsEditingGlobalNote] = useState(false);
 
@@ -48,20 +47,21 @@ export default function CustomerProfileModal({
   const totalRevenue = customerBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
   const totalNights = customerBookings.reduce((sum, b) => sum + (Number(b.numberOfDays) || 0), 0);
 
-  // Set note text when modal opens or customer changes
-  useEffect(() => {
-    if (latestBooking) {
-      setNoteText(latestBooking.notes || '');
-    }
-    setIsEditingNote(false);
-  }, [customerName, latestBooking.notes]);
-
+  // Load permanent customer note
   useEffect(() => {
     if (phone) {
-      setGlobalNote(localStorage.getItem(`customer_note_${phone}`) || '');
+      const stored = localStorage.getItem(`customer_note_${phone.trim()}`) || '';
+      setGlobalNote(stored);
+      if (initialMode === 'notes' && !stored.trim()) {
+        setIsEditingGlobalNote(true);
+      } else {
+        setIsEditingGlobalNote(false);
+      }
+    } else {
+      setGlobalNote('');
+      setIsEditingGlobalNote(false);
     }
-    setIsEditingGlobalNote(false);
-  }, [phone]);
+  }, [phone, isOpen, initialMode]);
 
   const handleSaveGlobalNote = () => {
     if (phone) {
@@ -82,24 +82,6 @@ export default function CustomerProfileModal({
   // VIP / Loyal Status badges
   const isVip = customerBookings.length >= 3;
   const isRepeatGuest = customerBookings.length >= 2;
-
-  const handleSaveNote = async () => {
-    if (!latestBooking.id) {
-      alert('لا يوجد حجز مسجل لتعديل ملاحظاته');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await updateDbBookingStatus(latestBooking.id, { notes: noteText });
-      setIsEditingNote(false);
-      window.dispatchEvent(new Event('customer_notes_updated'));
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('فشل حفظ الملاحظة');
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" dir="rtl">
@@ -241,59 +223,11 @@ export default function CustomerProfileModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-black/35 p-5 rounded-2xl border border-white/5 min-h-[260px] flex flex-col justify-between">
+                  <div className="bg-black/35 p-5 rounded-2xl border border-white/5 min-h-[320px] flex flex-col justify-between">
                     <p className="text-sm text-amber-100 font-bold leading-relaxed whitespace-pre-wrap">
                       {globalNote ? globalNote : '💬 لا توجد ملاحظات عامة مسجلة في ملف هذا العميل حالياً. اضغط على "تعديل الملاحظة" في الأعلى للبدء بالكتابة باستفاضة.'}
                     </p>
                   </div>
-                )}
-              </div>
-
-              {/* 🏠 Latest Booking Specific Note */}
-              <div className="bg-[#25221E] border border-white/5 rounded-2xl p-4 space-y-3 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 flex items-center gap-1.5">
-                    <span>🏠 ملاحظة الحجز الأخير (خاصة بهذا الحجز فقط)</span>
-                  </span>
-                  {!isEditingNote && latestBooking.id && (
-                    <button
-                      onClick={() => setIsEditingNote(true)}
-                      className="text-[10px] text-[#C1A68D] hover:underline font-bold"
-                    >
-                      تعديل ✏️
-                    </button>
-                  )}
-                </div>
-
-                {isEditingNote ? (
-                  <div className="space-y-2 mt-2">
-                    <textarea
-                      rows={3}
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="اكتب ملاحظة تخص الحجز الأخير فقط..."
-                      className="w-full bg-[#1F1C18] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none font-bold resize-none"
-                    />
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => { setIsEditingNote(false); setNoteText(latestBooking.notes || ''); }}
-                        className="px-3 py-1 rounded-lg text-xs bg-white/10 text-gray-300 hover:bg-white/20"
-                      >
-                        إلغاء
-                      </button>
-                      <button
-                        disabled={isSaving}
-                        onClick={handleSaveNote}
-                        className="px-4 py-1 rounded-lg text-xs font-black bg-[#C1A68D] text-white hover:opacity-90 flex items-center gap-1"
-                      >
-                        {isSaving ? 'جاري الحفظ...' : 'حفظ 💾'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 font-bold leading-relaxed whitespace-pre-wrap bg-black/10 p-3 rounded-xl border border-white/5">
-                    {latestBooking.notes ? latestBooking.notes : 'لا توجد ملاحظة للحجز الأخير.'}
-                  </p>
                 )}
               </div>
 
