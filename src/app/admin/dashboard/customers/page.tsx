@@ -123,7 +123,15 @@ function CustomerModal({
 
 
   const saveNote = () => {
-    if (customer?.phone) localStorage.setItem(`customer_note_${customer.phone}`, note);
+    if (customer?.phone) {
+      const trimmed = note.trim();
+      if (trimmed) {
+        localStorage.setItem(`customer_note_${customer.phone.trim()}`, trimmed);
+      } else {
+        localStorage.removeItem(`customer_note_${customer.phone.trim()}`);
+      }
+      window.dispatchEvent(new Event('customer_notes_updated'));
+    }
     setEditingNote(false);
   };
 

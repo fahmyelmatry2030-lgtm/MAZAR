@@ -65,8 +65,15 @@ export default function CustomerProfileModal({
 
   const handleSaveGlobalNote = () => {
     if (phone) {
-      localStorage.setItem(`customer_note_${phone}`, globalNote);
+      const trimmed = globalNote.trim();
+      if (trimmed) {
+        localStorage.setItem(`customer_note_${phone.trim()}`, trimmed);
+      } else {
+        localStorage.removeItem(`customer_note_${phone.trim()}`);
+      }
       setIsEditingGlobalNote(false);
+      window.dispatchEvent(new Event('customer_notes_updated'));
+      if (onRefresh) onRefresh();
     }
   };
 
@@ -85,6 +92,7 @@ export default function CustomerProfileModal({
     try {
       await updateDbBookingStatus(latestBooking.id, { notes: noteText });
       setIsEditingNote(false);
+      window.dispatchEvent(new Event('customer_notes_updated'));
       if (onRefresh) onRefresh();
     } catch (err) {
       alert('فشل حفظ الملاحظة');

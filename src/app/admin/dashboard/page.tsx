@@ -8,25 +8,10 @@ import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, get
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber, formatUnitName } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, getCustomerProfileOrBookingNote } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
-
-const cleanManualNotes = (notesStr: string | null | undefined): string => {
-  if (!notesStr) return '';
-  let cleaned = String(notesStr)
-    .replace(/\[[^\]]*\]/g, '') // إزالة كل الوسوم النظامية بين الأقواس المربعة
-    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/\|\s*\|/g, '|')
-    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
-    .trim();
-
-  if (/^[\s|+,.\-—]+$/.test(cleaned)) return '';
-  return cleaned;
-};
 
 export default function DashboardOverview() {
   const [newBookingToast, setNewBookingToast] = useState<any>(null);
@@ -34,6 +19,13 @@ export default function DashboardOverview() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [overviewZoom, setOverviewZoom] = useState<number>(100);
+  const [notesVersion, setNotesVersion] = useState(0);
+
+  useEffect(() => {
+    const handleNotesUpdate = () => setNotesVersion((v) => v + 1);
+    window.addEventListener('customer_notes_updated', handleNotesUpdate);
+    return () => window.removeEventListener('customer_notes_updated', handleNotesUpdate);
+  }, []);
 
   useEffect(() => {
     audioRef.current = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
@@ -1745,16 +1737,21 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛫 {apt.leavingGuest}
                                   </button>
-                                  {Boolean(cleanManualNotes(apt.leavingNotes)) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => openCustomerProfile(apt.leavingGuest, apt.leavingPhone)}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px]"
-                                      title={`ملاحظة: ${cleanManualNotes(apt.leavingNotes)}`}
-                                    >
-                                      🔍
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const note = getCustomerProfileOrBookingNote(apt.leavingNotes, apt.leavingPhone);
+                                    if (!note) return null;
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCustomerProfile(apt.leavingGuest, apt.leavingPhone)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 font-bold text-[10px] max-w-[150px] truncate shadow-2xs transition-all cursor-pointer"
+                                        title={`ملاحظة: ${note} (اضغط لعرض ملف العميل)`}
+                                      >
+                                        <span className="shrink-0">📝</span>
+                                        <span className="truncate">{note}</span>
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                   <button
@@ -1763,16 +1760,21 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛬 {apt.arrivingGuest}
                                   </button>
-                                  {Boolean(cleanManualNotes(apt.arrivingNotes)) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => openCustomerProfile(apt.arrivingGuest, apt.arrivingPhone)}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px]"
-                                      title={`ملاحظة: ${cleanManualNotes(apt.arrivingNotes)}`}
-                                    >
-                                      🔍
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const note = getCustomerProfileOrBookingNote(apt.arrivingNotes, apt.arrivingPhone);
+                                    if (!note) return null;
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCustomerProfile(apt.arrivingGuest, apt.arrivingPhone)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 font-bold text-[10px] max-w-[150px] truncate shadow-2xs transition-all cursor-pointer"
+                                        title={`ملاحظة: ${note} (اضغط لعرض ملف العميل)`}
+                                      >
+                                        <span className="shrink-0">📝</span>
+                                        <span className="truncate">{note}</span>
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             ) : apt.guest ? (
@@ -1785,16 +1787,17 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   <span>{apt.guest}</span>
                                 </button>
                                 {(() => {
-                                  const manualNote = cleanManualNotes(apt.notes) || (typeof window !== 'undefined' && apt.phone ? (localStorage.getItem(`customer_note_${apt.phone}`) || '') : '');
-                                  if (!manualNote || !manualNote.trim()) return null;
+                                  const note = getCustomerProfileOrBookingNote(apt.notes, apt.phone);
+                                  if (!note) return null;
                                   return (
                                     <button
                                       type="button"
                                       onClick={() => openCustomerProfile(apt.guest, apt.phone)}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[11px]"
-                                      title={`ملاحظة مسجلة على العميل: ${manualNote}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[11px] shadow-2xs max-w-[180px] md:max-w-[220px] truncate transition-all cursor-pointer"
+                                      title={`ملاحظة: ${note} (اضغط لعرض ملف العميل)`}
                                     >
-                                      🔍
+                                      <span className="shrink-0 text-amber-700">📝</span>
+                                      <span className="truncate">{note}</span>
                                     </button>
                                   );
                                 })()}
@@ -1805,18 +1808,28 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           </td>
 
                           {/* NOTES COLUMN */}
-                          <td className="px-4 py-3 text-xs font-bold text-[#7A7061] max-w-[220px]">
-                            {cleanManualNotes(apt.notes) ? (
-                              <button
-                                onClick={() => setActiveNoteModal({ isOpen: true, text: cleanManualNotes(apt.notes), title: `ملاحظات ${apt.title?.ar || apt.id}` })}
-                                className="truncate block w-full text-right bg-amber-100/80 border border-amber-300/60 px-3 py-1.5 rounded-xl text-amber-900 font-bold hover:bg-amber-200/80 transition-all shadow-sm"
-                                title="اضغط لقراءة الملاحظة كاملة"
-                              >
-                                📝 {cleanManualNotes(apt.notes)}
-                              </button>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
+                          <td className="px-4 py-3 text-xs font-bold text-[#7A7061] max-w-[240px]">
+                            {(() => {
+                              const effectiveNote = apt.isTurnover
+                                ? (getCustomerProfileOrBookingNote(apt.leavingNotes, apt.leavingPhone) || getCustomerProfileOrBookingNote(apt.arrivingNotes, apt.arrivingPhone))
+                                : getCustomerProfileOrBookingNote(apt.notes, apt.phone);
+
+                              if (!effectiveNote) return <span className="text-gray-300">—</span>;
+
+                              return (
+                                <button
+                                  onClick={() => setActiveNoteModal({ 
+                                    isOpen: true, 
+                                    text: effectiveNote, 
+                                    title: `ملاحظات ${apt.title?.ar || apt.id} - ${apt.guest || ''}` 
+                                  })}
+                                  className="truncate block w-full text-right bg-amber-100/90 border border-amber-300 px-3 py-1.5 rounded-xl text-amber-900 font-black hover:bg-amber-200 transition-all shadow-xs cursor-pointer"
+                                  title={`اضغط لقراءة الملاحظة كاملة: ${effectiveNote}`}
+                                >
+                                  📝 {effectiveNote}
+                                </button>
+                              );
+                            })()}
                           </td>
 
                           {/* STATUS COLUMN (RIGHT AFTER NOTES) */}

@@ -14,7 +14,7 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber } from '@/lib/utils';
+import { formatWhatsAppNumber, getCustomerProfileOrBookingNote, cleanManualNotes } from '@/lib/utils';
 
 type PaymentSplitItem = {
   method: string;
@@ -54,20 +54,9 @@ const parsePaymentSplitsFromString = (raw: string, fallbackTotal: number = 0): P
   return parsed.length > 0 ? parsed : [{ method: 'كاش', amount: fallbackTotal > 0 ? fallbackTotal : '' }];
 };
 
-// دالة إزالة الوسوم النظامية القديمة فقط بين الأقواس المربعة [..] مع الحفاظ الكامل على نص المستخدم كما كتبه
+// دالة إزالة الوسوم النظامية والكلمات الروتينية (عقد، خالص، إلخ) مع الحفاظ على نص الملاحظة الفعلي
 const cleanNotesForDisplay = (notesStr: string | null | undefined): string => {
-  if (!notesStr) return '';
-  let cleaned = String(notesStr)
-    .replace(/\[[^\]]*\]/g, '') // إزالة كافة الوسوم النظامية بين الأقواس المربعة
-    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/\|\s*\|/g, '|')
-    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
-    .trim();
-
-  if (/^[\s|+,.\-—]+$/.test(cleaned)) return '';
-  return cleaned;
+  return cleanManualNotes(notesStr);
 };
 
 // دالة ذكية لتحليل الدفعات السابقة من طريقة الدفع أو الملاحظات (تستخرج الدفعات المجزأة مع تواريخها)
@@ -2257,23 +2246,24 @@ function ReportsContent() {
                               <>
                                 <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
                                 <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {/* علامة وجود ملاحظة على العميل: تظهر علامة سيرش برتقالي فقط إذا كان مسجل له نوتس، والنقر عليها يفتح سجل العميل */}
-                                  {Boolean(
-                                    (row.notes && cleanNotesForDisplay(row.notes).trim()) || 
-                                    (typeof window !== 'undefined' && row.phone && localStorage.getItem(`customer_note_${row.phone}`))
-                                  ) && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setProfileModal({ isOpen: true, name: row.name, phone: row.phone });
-                                      }}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[11px]"
-                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لفتح ملف وسجل العميل"
-                                    >
-                                      🔍
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const effectiveNote = getCustomerProfileOrBookingNote(row.notes, row.phone);
+                                    if (!effectiveNote) return null;
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setProfileModal({ isOpen: true, name: row.name, phone: row.phone });
+                                        }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[10px] shadow-2xs cursor-pointer max-w-[140px] truncate"
+                                        title={`ملاحظة مسجلة: ${effectiveNote} — اضغط لفتح ملف وسجل العميل`}
+                                      >
+                                        <span className="shrink-0 text-amber-700">📝</span>
+                                        <span className="truncate">{effectiveNote}</span>
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                               </>
                             ) : <span className="text-[#D5CBB8]">—</span>}

@@ -155,6 +155,47 @@ export function formatTreasuryUnitName(rawIdOrName?: any): string {
   const twoRoomMatch = str.match(/^شقة\s*غرفتين\s*\((\d+)\)/i);
   if (twoRoomMatch) return `س ${twoRoomMatch[1]}`;
 
+
   return str;
+}
+
+/**
+ * إزالة الوسوم النظامية والكلمات الروتينية (مثل: عقد، خالص، سداد، تم الدفع، إلخ)
+ * واستخراج الملاحظة الحقيقية الفعلية فقط إن وجدت
+ */
+export function cleanManualNotes(notesStr: string | null | undefined): string {
+  if (!notesStr) return '';
+  let cleaned = String(notesStr)
+    .replace(/\[[^\]]*\]/g, '') // إزالة كل الوسوم بين الأقواس المربعة [مدفوع: ...] [حساب خالص]
+    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    .replace(/\|\s*\|/g, '|')
+    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
+    .trim();
+
+  if (!cleaned || /^[\s|+,.\-—/:]+$/.test(cleaned)) return '';
+
+  // تصفية الكلمات الروتينية الإدارية التي ليست ملاحظات حقيقية عن العميل أو الحجز
+  const stripped = cleaned
+    .replace(/\b(?:عمل\s*عقد|متبقي\s*عقد|عقد\s*فقط|بدون\s*عقد|عقد)\b/gi, '')
+    .replace(/\b(?:الحساب\s*خالص|حساب\s*خالص|خالص|تم\s*الدفع|تم\s*السداد|سداد|مدفوع|مسدد)\b/gi, '')
+    .replace(/\b(?:لا\s*يوجد|لايوجد|لا\s*توجد\s*ملاحظات|لا\s*توجد)\b/gi, '')
+    .replace(/^[\s|+,.\-—/:]+|[\s|+,.\-—/:]+$/g, '')
+    .trim();
+
+  if (!stripped || /^[\s|+,.\-—/:]+$/.test(stripped)) return '';
+  return stripped;
+}
+
+/**
+ * جلب ملاحظة العميل الفعلية (سواء الملاحظة الدائمة من ملف العميل، أو ملاحظة الحجز بعد استبعاد الكلمات الإدارية الروتينية)
+ */
+export function getCustomerProfileOrBookingNote(bookingNotes?: string | null, phone?: string | null): string {
+  if (typeof window !== 'undefined' && phone) {
+    const local = localStorage.getItem(`customer_note_${phone.trim()}`);
+    if (local && local.trim()) return local.trim();
+  }
+  return cleanManualNotes(bookingNotes);
 }
 
