@@ -166,7 +166,8 @@ export function formatTreasuryUnitName(rawIdOrName?: any): string {
 export function cleanManualNotes(notesStr: string | null | undefined): string {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
-    .replace(/\[[^\]]*\]/g, '') // إزالة كل الوسوم بين الأقواس المربعة [مدفوع: ...] [حساب خالص]
+    // إزالة الوسوم النظامية فقط بين الأقواس المربعة مثل [مدفوع: ...] [متبقي: ...] [حساب خالص]
+    .replace(/\[(?:مدفوع|متبقي|باقي|باقى|حساب\s*خالص|خالص|عمولة|عموله|الوسيط|مكتب|مسؤول|مسئول|طريقة|طريقة\s*الدفع|اعتماد)[^\]]*\]/gi, '')
     .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
