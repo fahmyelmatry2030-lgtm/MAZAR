@@ -400,9 +400,30 @@ export async function saveDbBooking(booking: any) {
       timestamp: booking.timestamp || new Date().toISOString(),
     };
 
+    // Calculate days if missing
+    let numberOfDays = Number(newBookingWithId.numberOfDays) || 0;
+    if ((!numberOfDays || numberOfDays <= 0) && newBookingWithId.checkIn && newBookingWithId.checkOut) {
+      const s = new Date(newBookingWithId.checkIn).getTime();
+      const e = new Date(newBookingWithId.checkOut).getTime();
+      if (!isNaN(s) && !isNaN(e) && e > s) {
+        numberOfDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+      }
+    }
+
+    let totalAmount = newBookingWithId.totalAmount !== undefined && newBookingWithId.totalAmount !== null
+      ? Number(newBookingWithId.totalAmount)
+      : null;
+    if ((totalAmount === null || isNaN(totalAmount) || totalAmount <= 0) && numberOfDays > 0) {
+      const pricePerNight = Number(newBookingWithId.pricePerNight) || 0;
+      if (pricePerNight > 0) {
+        totalAmount = numberOfDays * pricePerNight;
+      }
+    }
+
+    const effectiveTotal = totalAmount || Number(newBookingWithId.totalAmount || 0);
     const targetRemaining = (newBookingWithId.commission && Number(newBookingWithId.commission) > 0)
-      ? (Number(newBookingWithId.totalAmount || 0) - Number(newBookingWithId.commission))
-      : Number(newBookingWithId.totalAmount || 0);
+      ? (effectiveTotal - Number(newBookingWithId.commission))
+      : effectiveTotal;
 
     // Clean user notes: NEVER inject brokerName or bookingManager into notes!
     const cleanUserNotes = (() => {
@@ -429,8 +450,8 @@ export async function saveDbBooking(booking: any) {
       studio: newBookingWithId.studio ?? null,
       status: newBookingWithId.status,
       payment_info: newBookingWithId.paymentInfo || (targetRemaining > 0 ? `متبقي ${targetRemaining}` : 'باقي'),
-      total_amount: newBookingWithId.totalAmount ?? null,
-      number_of_days: newBookingWithId.numberOfDays ?? null,
+      total_amount: totalAmount !== null && totalAmount > 0 ? totalAmount : (newBookingWithId.totalAmount ?? null),
+      number_of_days: numberOfDays > 0 ? numberOfDays : (newBookingWithId.numberOfDays ?? null),
       nationality: newBookingWithId.nationality ?? null,
       id_number: newBookingWithId.idNumber ?? null,
       commission: newBookingWithId.commission ?? null,
@@ -2212,6 +2233,49 @@ export async function deleteDbTodo(id: string) {
   revalidatePath('/admin/dashboard');
   revalidatePath('/admin/dashboard/tasks');
 }
+
+// --- CUSTOMER PROFILE NOTES (Isolated from bookings, persisted in translations id: 102) ---
+
+export async function getDbCustomerNotes(): Promise<Record<string, string>> {
+  try {
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return {};
+    const { data, error } = await supabase.from('translations').select('data').eq('id', 102).single();
+    if (error || !data?.data) return {};
+    return typeof data.data === 'object' && data.data !== null ? data.data : {};
+  } catch (err) {
+    console.error('Error fetching customer profile notes:', err);
+    return {};
+  }
+}
+
+export async function saveDbCustomerNote(phone: string, note: string): Promise<boolean> {
+  if (!phone) return false;
+  try {
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return false;
+    const cleanPhone = phone.trim();
+    const currentNotes = await getDbCustomerNotes();
+    const trimmed = (note || '').trim();
+    if (trimmed) {
+      currentNotes[cleanPhone] = trimmed;
+    } else {
+      delete currentNotes[cleanPhone];
+    }
+    const { error } = await supabase
+      .from('translations')
+      .upsert({ id: 102, data: currentNotes, updated_at: new Date().toISOString() });
+    if (error) {
+      console.error('Error saving customer profile note:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error in saveDbCustomerNote:', err);
+    return false;
+  }
+}
+
 
 
 

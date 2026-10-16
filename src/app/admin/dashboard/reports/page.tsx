@@ -14,7 +14,8 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber, hasAnyMeaningfulNote, cleanManualNotes } from '@/lib/utils';
+import { formatWhatsAppNumber, hasAnyMeaningfulNote, cleanManualNotes, setCustomerProfileNotesCache } from '@/lib/utils';
+import { getDbCustomerNotes } from '@/lib/actions/db';
 
 type PaymentSplitItem = {
   method: string;
@@ -443,7 +444,10 @@ function ReportsContent() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [b, u] = await Promise.all([getFreshDbBookings(), getDbUnits()]);
+      const [b, u, customerNotes] = await Promise.all([getFreshDbBookings(), getDbUnits(), getDbCustomerNotes()]);
+      if (customerNotes && typeof customerNotes === 'object') {
+        setCustomerProfileNotesCache(customerNotes);
+      }
       let safeUnits = (u || []).filter((unit: any) => unit && unit.id);
       
       // Filter for Akoura (only show Mazar 3 units)
@@ -636,7 +640,7 @@ function ReportsContent() {
     const currentSplitsTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 
     // إذا كان الحجز في الجدول خالصاً بالفعل، يجب أن يكون المجموع في النافذة أيضاً خالصاً ومطابقاً للصافي المستهدف
-    if (row.isFullyPaid && currentSplitsTotal < bookingTarget) {
+    if (row.isFullyPaid && bookingTarget > 0 && currentSplitsTotal < bookingTarget) {
       const diff = bookingTarget - currentSplitsTotal;
       splits.push({
         method: 'كاش',
@@ -701,10 +705,13 @@ function ReportsContent() {
     setIsSavingPaymentModal(true);
     try {
       const validSplits = modalSplits.filter(s => s.method && s.amount !== '' && !isNaN(Number(s.amount)));
-      const bookingTarget = Number(paymentModalRow.commission > 0 ? paymentModalRow.netValue : paymentModalRow.total || 0);
+      const rowDays = Number(paymentModalRow.days) || 1;
+      const rowUnitPrice = Number(paymentModalRow.pricePerNight) || 0;
+      const effectiveTotal = Number(paymentModalRow.total) > 0 ? Number(paymentModalRow.total) : (rowDays * rowUnitPrice);
+      const bookingTarget = Number(paymentModalRow.commission > 0 ? paymentModalRow.netValue : effectiveTotal || 0);
       const totalPaid = validSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
       const remaining = Math.max(0, bookingTarget - totalPaid);
-      const isClean = remaining === 0;
+      const isClean = bookingTarget > 0 && remaining === 0 && totalPaid >= bookingTarget;
 
       const formattedPaymentMethod = validSplits.length > 0
         ? validSplits.map(s => `${s.method}: ${s.amount} ج.م`).join(' | ')
@@ -716,7 +723,7 @@ function ReportsContent() {
         ? 'خالص'
         : (totalPaid > 0 ? `مدفوع: ${totalPaid} | متبقي: ${remaining}` : `متبقي: ${remaining}`);
 
-      const updates = {
+      const updates: any = {
         paidAmount: totalPaid,
         remainingAmount: remaining,
         paymentMethod: formattedPaymentMethod,
@@ -724,6 +731,13 @@ function ReportsContent() {
         paymentInfo: paymentInfoVal,
         notes: finalNotes,
       };
+
+      if (effectiveTotal > 0 && (!paymentModalRow.total || Number(paymentModalRow.total) <= 0)) {
+        updates.totalAmount = effectiveTotal;
+      }
+      if (rowDays > 0 && (!paymentModalRow.days || Number(paymentModalRow.days) <= 0)) {
+        updates.numberOfDays = rowDays;
+      }
 
       const freshData = await updateDbBookingStatus(paymentModalRow.id, updates);
       if (freshData && Array.isArray(freshData)) {
@@ -1254,8 +1268,15 @@ function ReportsContent() {
     (acc: any, b: any) => {
       if (b.isCarriedOver) return acc;
 
-      const days = safeNum(b.numberOfDays);
-      const total = safeNum(b.totalAmount);
+      let days = safeNum(b.numberOfDays);
+      if ((!days || days <= 0) && b.checkIn && b.checkOut) {
+        const s = new Date(b.checkIn).getTime();
+        const e = new Date(b.checkOut).getTime();
+        if (!isNaN(s) && !isNaN(e) && e > s) {
+          days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+        }
+      }
+      const total = safeNum(b.totalAmount) || (days * unitPrice);
       const commission = safeNum(b.commission);
       const netValue = total - commission;
 
@@ -1271,19 +1292,27 @@ function ReportsContent() {
 
   // Build row data
   const dataRows = filteredBookings.map((booking: any, i: number) => {
-    const days = booking.numberOfDays || 0;
-
-
-    let pricePerNight = unitPrice;
-    if (days > 0 && booking.totalAmount !== undefined && booking.totalAmount !== null) {
-      pricePerNight = booking.totalAmount / days;
+    let days = Number(booking.numberOfDays) || 0;
+    if ((!days || days <= 0) && booking.checkIn && booking.checkOut) {
+      const s = new Date(booking.checkIn).getTime();
+      const e = new Date(booking.checkOut).getTime();
+      if (!isNaN(s) && !isNaN(e) && e > s) {
+        days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+      }
     }
 
-    const total = booking.totalAmount || (days * pricePerNight);
-    const commission = booking.commission || 0;
+    let pricePerNight = unitPrice;
+    if (booking.totalAmount !== undefined && booking.totalAmount !== null && Number(booking.totalAmount) > 0 && days > 0) {
+      pricePerNight = Math.round(Number(booking.totalAmount) / days);
+    }
+
+    const total = (booking.totalAmount !== undefined && booking.totalAmount !== null && Number(booking.totalAmount) > 0)
+      ? Number(booking.totalAmount)
+      : (days * pricePerNight);
+    const commission = Number(booking.commission) || 0;
     const netValue = total - commission;
 
-    // Manual Status takes precedence if it's not the default 'انتظار' or if it was manually changed
+    // Manual Status takes precedence if it's not the default 'انتظار' أو 'متواجد'
     let rawStatus = String(booking.clientStatus || 'انتظار').trim();
     let clientStatus = rawStatus;
 
@@ -1342,13 +1371,14 @@ function ReportsContent() {
         paidAmount = Number(paidMatch[1]);
         remainingAmount = Math.max(0, targetBookingAmount - paidAmount);
       } else {
-        const isClean = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'].some(kw => combinedNotes.includes(kw)) || booking.paymentStatus === 'خالص';
-        if (isClean) {
+        const isExplicitClean = ['حساب خالص', 'الحساب خالص', 'خالص', 'تم الدفع', 'تم السداد', 'مدفوع بالكامل'].some(kw => combinedNotes.includes(kw)) || booking.paymentStatus === 'خالص';
+        if (isExplicitClean && targetBookingAmount > 0 && booking.paymentStatus === 'خالص') {
           paidAmount = targetBookingAmount;
           remainingAmount = 0;
         } else {
           // الأساسي: المدفوع 0 والمتبقي كامل الصافي المطلوب
           paidAmount = 0;
+          remainingAmount = targetBookingAmount;
         }
       }
     }
@@ -1363,7 +1393,9 @@ function ReportsContent() {
       }
     }
 
-    const isFullyPaid = remainingAmount === 0;
+    // شرط الحساب الخالص: المبلغ المستهدف > 0 والمتبقي 0 والمدفوع يغطي المطلوب
+    const isExplicitClean = booking.paymentStatus === 'خالص' && targetBookingAmount > 0 && remainingAmount === 0;
+    const isFullyPaid = isExplicitClean || (targetBookingAmount > 0 && remainingAmount === 0 && paidAmount >= targetBookingAmount);
     const finalPaymentStatus = isFullyPaid ? 'خالص' : 'باقي';
 
     return {
@@ -2909,15 +2941,15 @@ function ReportsContent() {
                       </p>
                     </div>
                     <div className={`p-3.5 rounded-2xl text-center border-2 ${
-                      modalCurrentRemaining === 0
+                      modalCurrentRemaining === 0 && Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0) > 0
                         ? 'bg-emerald-100/70 border-emerald-300 text-emerald-950'
                         : 'bg-rose-50 border-rose-300 text-rose-950'
                     }`}>
                       <p className="text-[11px] font-bold mb-1 opacity-80">
-                        {modalCurrentRemaining === 0 ? 'حالة الحساب' : 'المتبقي المطلوب'}
+                        {modalCurrentRemaining === 0 && Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0) > 0 ? 'حالة الحساب' : 'المتبقي المطلوب'}
                       </p>
-                      <p className={`text-2xl font-black ${modalCurrentRemaining === 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
-                        {modalCurrentRemaining === 0 ? '✓ الحساب خالص' : `${modalCurrentRemaining.toLocaleString()} ج.م`}
+                      <p className={`text-2xl font-black ${modalCurrentRemaining === 0 && Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0) > 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                        {modalCurrentRemaining === 0 && Number(paymentModalRow?.commission > 0 ? paymentModalRow?.netValue : paymentModalRow?.total || 0) > 0 ? '✓ الحساب خالص' : `${modalCurrentRemaining.toLocaleString()} ج.م`}
                       </p>
                     </div>
                   </div>

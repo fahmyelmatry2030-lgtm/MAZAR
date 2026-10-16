@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import Calendar from '@/components/Calendar';
 import { useLanguage } from '@/lib/LanguageContext';
-import { uploadImage } from '@/lib/actions/upload';
+import { processAndUploadReceipt } from '@/lib/uploadHelper';
 import PaymentInfoBox from '@/components/PaymentInfoBox';
 
 
@@ -241,20 +241,33 @@ export default function BookingPage() {
     setError(null);
 
     const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
+    const start = new Date(checkIn).getTime();
+    const end = new Date(checkOut).getTime();
+    const nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    const pricePerNight = selectedUnit?.price ? (parseInt(String(selectedUnit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+    const totalAmount = nights * pricePerNight;
+
     const bookingData = {
       name,
       phone,
       checkIn,
       checkOut,
+      numberOfDays: nights,
+      pricePerNight,
+      totalAmount: totalAmount > 0 ? totalAmount : null,
+      paidAmount: 0,
+      remainingAmount: totalAmount > 0 ? totalAmount : null,
+      paymentStatus: 'باقي',
       apartmentId: selectedUnitId,
       dates: `${checkIn} - ${checkOut}`,
       guest: name,
       guestsCount: guestsCount,
       studio: selectedUnit ? (selectedUnit.title?.[language] || selectedUnitId) : selectedUnitId,
-      paymentInfo: receiptUrl ? `[طلب من الموقع] صورة التحويل: ${receiptUrl}` : '[طلب حجز من الموقع الإلكتروني]',
-      notes: receiptUrl ? `[طلب ويب سايت] رابط صورة إيصال التحويل: ${receiptUrl}` : '[طلب حجز من الموقع الإلكتروني]',
+      paymentInfo: receiptUrl ? `[طلب من الموقع] صورة التحويل: ${receiptUrl}` : (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
+      notes: receiptUrl ? `[طلب ويب سايت] رابط صورة إيصال التحويل: ${receiptUrl}` : '',
       source: 'website',
       isWebsiteBooking: true,
+      clientStatus: 'انتظار',
     };
 
     try {
@@ -944,13 +957,11 @@ export default function BookingPage() {
                               setIsUploadingReceipt(true);
                               setUploadError(null);
                               try {
-                                const formData = new FormData();
-                                formData.append('file', file);
-                                const url = await uploadImage(formData);
+                                const url = await processAndUploadReceipt(file);
                                 setReceiptUrl(url);
                               } catch (err: any) {
                                 console.error('Receipt upload failed:', err);
-                                setUploadError(isRTL ? 'فشل رفع الصورة. تأكد من حجم الملف (الحد الأقصى 4 ميجا)' : 'Upload failed. Max size is 4MB.');
+                                setUploadError(err?.message || (isRTL ? 'فشل رفع الصورة، يرجى المحاولة مرة أخرى أو اختيار صورة أخرى.' : 'Upload failed. Please try again.'));
                               } finally {
                                 setIsUploadingReceipt(false);
                               }

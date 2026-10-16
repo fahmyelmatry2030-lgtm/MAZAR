@@ -190,40 +190,79 @@ export function cleanManualNotes(notesStr: string | null | undefined): string {
   return stripped;
 }
 
+// In-memory cache for customer profile notes to allow sync across components & devices
+let globalCustomerProfileNotes: Record<string, string> = {};
+
+export function setCustomerProfileNotesCache(notes: Record<string, string>) {
+  if (!notes || typeof notes !== 'object') return;
+  globalCustomerProfileNotes = { ...notes };
+  if (typeof window !== 'undefined') {
+    try {
+      Object.entries(notes).forEach(([ph, nt]) => {
+        if (nt && typeof nt === 'string' && nt.trim()) {
+          localStorage.setItem(`customer_note_${ph.trim()}`, nt.trim());
+        }
+      });
+    } catch {}
+  }
+}
+
 /**
- * فحص ما إذا كان العميل مسجل له ملاحظة خاصة بالعميل في ملفه
+ * فحص ما إذا كان النص ملاحظة مالية للحجز وليس ملاحظة للعميل (مثل: متبقي 2800، متبقي 15000، الحساب خالص)
+ */
+export function isBookingFinancialNote(text: string): boolean {
+  if (!text) return true;
+  const t = text.trim();
+  if (/^(?:متبقي|باقي|باقى|مدفوع|مسدد|خالص|الحساب\s*خالص|حساب\s*خالص|عقد)\s*[:=+\-–—]?\s*[\d.,]*\s*(?:ج\.?م|الف|k)?$/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * فحص ما إذا كان العميل مسجل له ملاحظة خاصة بالعميل في ملفه الشخصي فقط
+ * (مفصول تماماً عن ملاحظات الحجز وملاحظات الفلوس)
  */
 export function hasCustomerProfileNote(phone?: string | null): boolean {
-  if (typeof window === 'undefined' || !phone) return false;
-  const note = localStorage.getItem(`customer_note_${phone.trim()}`);
-  return Boolean(note && note.trim().length > 0);
+  if (!phone) return false;
+  const note = getCustomerProfileNote(phone);
+  return Boolean(note && note.trim().length > 0 && !isBookingFinancialNote(note));
 }
 
 /**
- * جلب ملاحظة العميل المسجلة في ملفه
+ * جلب ملاحظة العميل المسجلة في ملفه الشخصي فقط
  */
 export function getCustomerProfileNote(phone?: string | null): string {
-  if (typeof window === 'undefined' || !phone) return '';
-  const note = localStorage.getItem(`customer_note_${phone.trim()}`);
-  return note ? note.trim() : '';
+  if (!phone) return '';
+  const p = phone.trim();
+  const cached = globalCustomerProfileNotes[p];
+  if (cached && cached.trim().length > 0 && !isBookingFinancialNote(cached)) {
+    return cached.trim();
+  }
+  if (typeof window === 'undefined') return '';
+  const note = localStorage.getItem(`customer_note_${p}`);
+  if (note && !isBookingFinancialNote(note)) {
+    return note.trim();
+  }
+  return '';
 }
 
 /**
- * جلب الملاحظة الفعلية (سواء المسجلة في ملف العميل أو ملاحظة الحجز بعد تصفية الوسوم والكلمات الروتينية)
+ * جلب الملاحظة الخاصة بالحجز فقط (بدون خلطها بملاحظة بروفايل العميل)
  */
-export function getCustomerEffectiveNote(bookingNotes?: string | null, phone?: string | null): string {
-  if (typeof window !== 'undefined' && phone) {
-    const local = localStorage.getItem(`customer_note_${phone.trim()}`);
-    if (local && local.trim()) return local.trim();
-  }
+export function getBookingCleanNote(bookingNotes?: string | null): string {
   return cleanManualNotes(bookingNotes);
 }
 
 /**
- * فحص ما إذا كان العميل مسجل له أي ملاحظة حقيقية (سواء في ملفه أو في الحجز)
+ * للتوافق مع الأكواد السابقة:
  */
-export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: string | null): boolean {
-  const note = getCustomerEffectiveNote(bookingNotes, phone);
-  return Boolean(note && note.trim().length > 0);
+export function getCustomerEffectiveNote(bookingNotes?: string | null, phone?: string | null): string {
+  return cleanManualNotes(bookingNotes);
 }
+
+export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: string | null): boolean {
+  return hasCustomerProfileNote(phone);
+}
+
 

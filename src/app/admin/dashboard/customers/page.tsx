@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { getFreshDbBookings, deleteDbBookingsByPhone } from '@/lib/actions/db';
-import { formatWhatsAppNumber } from '@/lib/utils';
+import { getFreshDbBookings, deleteDbBookingsByPhone, saveDbCustomerNote } from '@/lib/actions/db';
+import { formatWhatsAppNumber, getCustomerProfileNote } from '@/lib/utils';
 import {
   X, Search, Download, Phone, MessageSquare, Trash2,
   Star, Calendar, Home, TrendingUp, Clock, FileText,
@@ -105,7 +105,7 @@ function CustomerModal({
 
   useEffect(() => {
     if (customer?.phone) {
-      setNote(localStorage.getItem(`customer_note_${customer.phone}`) || '');
+      setNote(getCustomerProfileNote(customer.phone));
     }
     setEditingNote(false);
     setActiveTab('history');
@@ -122,13 +122,21 @@ function CustomerModal({
   }, [customer]);
 
 
-  const saveNote = () => {
+  const saveNote = async () => {
     if (customer?.phone) {
       const trimmed = note.trim();
-      if (trimmed) {
-        localStorage.setItem(`customer_note_${customer.phone.trim()}`, trimmed);
-      } else {
-        localStorage.removeItem(`customer_note_${customer.phone.trim()}`);
+      const p = customer.phone.trim();
+      if (typeof window !== 'undefined') {
+        if (trimmed) {
+          localStorage.setItem(`customer_note_${p}`, trimmed);
+        } else {
+          localStorage.removeItem(`customer_note_${p}`);
+        }
+      }
+      try {
+        await saveDbCustomerNote(p, trimmed);
+      } catch (e) {
+        console.error('Failed to sync customer note to DB:', e);
       }
       window.dispatchEvent(new Event('customer_notes_updated'));
     }

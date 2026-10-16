@@ -8,10 +8,10 @@ export async function uploadImage(formData: FormData) {
     throw new Error('لم يتم اختيار ملف للرفع.');
   }
 
-  // Check file size (Vercel limit is 4.5MB, we set to 4MB to be safe)
-  const MAX_SIZE = 4 * 1024 * 1024;
+  // Check file size (allowing up to 15MB)
+  const MAX_SIZE = 15 * 1024 * 1024;
   if (file.size > MAX_SIZE) {
-    throw new Error('حجم الصورة كبير جداً. الحد الأقصى هو 4 ميجابايت.');
+    throw new Error('حجم الصورة كبير جداً. الحد الأقصى هو 15 ميجابايت.');
   }
 
   try {

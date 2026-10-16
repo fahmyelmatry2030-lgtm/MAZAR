@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getDbTranslations, updateDbTranslations } from '@/lib/actions/db';
-import { uploadImage } from '@/lib/actions/upload';
+import { processAndUploadReceipt } from '@/lib/uploadHelper';
 
 function ImageUploader({ 
     label, 
@@ -22,12 +22,10 @@ function ImageUploader({
 
         setIsUploading(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const url = await uploadImage(formData);
+            const url = await processAndUploadReceipt(file);
             onUpload(url);
-        } catch (error) {
-            alert('خطأ في رفع الصورة!');
+        } catch (error: any) {
+            alert(error?.message || 'خطأ في رفع الصورة!');
             console.error(error);
         } finally {
             setIsUploading(false);

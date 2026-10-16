@@ -4,11 +4,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBookings, getSystemUnits } from '@/lib/data-init';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, getDbTodos, saveDbTodo, updateDbTodoStatus, deleteDbTodo } from '@/lib/actions/db';
+import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, getDbTodos, saveDbTodo, updateDbTodoStatus, deleteDbTodo, getDbCustomerNotes } from '@/lib/actions/db';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, getCustomerEffectiveNote } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, getCustomerEffectiveNote, setCustomerProfileNotesCache } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
@@ -94,12 +94,16 @@ export default function DashboardOverview() {
 
   const loadOverviewData = useCallback(async () => {
     setIsLoading(true);
-    let [bookings, apts, todoData] = await Promise.all([
+    let [bookings, apts, todoData, customerNotes] = await Promise.all([
       getBookings(Date.now().toString()),
       getSystemUnits(),
       getDbTodos(Date.now().toString()),
+      getDbCustomerNotes(),
     ]);
     setTodos(todoData || []);
+    if (customerNotes && typeof customerNotes === 'object') {
+      setCustomerProfileNotesCache(customerNotes);
+    }
 
     const currentRole = typeof window !== 'undefined'
       ? (JSON.parse(sessionStorage.getItem('adminInfo') || '{}')?.role || adminRole)

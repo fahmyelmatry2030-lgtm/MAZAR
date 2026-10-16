@@ -6,7 +6,7 @@ import Logo from '@/components/Logo';
 import Footer from '@/components/Footer';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
-import { uploadImage } from '@/lib/actions/upload';
+import { processAndUploadReceipt } from '@/lib/uploadHelper';
 import PaymentInfoBox from '@/components/PaymentInfoBox';
 import Image from 'next/image';
 import UnitImageLightbox from '@/components/UnitImageLightbox';
@@ -138,19 +138,31 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
     setIsSubmitting(true);
     setBookingError(null);
 
-    const nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24));
+    const nights = Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)));
+    const pricePerNight = unit?.price ? (parseInt(String(unit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+    const totalAmount = nights * pricePerNight;
+
     const bookingData = {
       name,
       phone,
       checkIn,
       checkOut,
+      numberOfDays: nights,
+      pricePerNight,
+      totalAmount: totalAmount > 0 ? totalAmount : null,
+      paidAmount: 0,
+      remainingAmount: totalAmount > 0 ? totalAmount : null,
+      paymentStatus: 'باقي',
       apartmentId: id,
       dates: `${checkIn} - ${checkOut}`,
       guest: name,
       guestsCount,
       studio: unit?.title?.['ar'] || id,
-      paymentInfo: receiptUrl ? `صورة التحويل: ${receiptUrl}` : 'كاش / تحويل بنكي',
+      paymentInfo: receiptUrl ? `[طلب ويب] صورة التحويل: ${receiptUrl}` : (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
       notes: receiptUrl ? `رابط إيصال التحويل: ${receiptUrl}` : '',
+      source: 'website',
+      isWebsiteBooking: true,
+      clientStatus: 'انتظار',
     };
 
     try {
@@ -601,12 +613,11 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
                         setIsUploadingReceipt(true);
                         setUploadError(null);
                         try {
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          const url = await uploadImage(formData);
+                          const url = await processAndUploadReceipt(file);
                           setReceiptUrl(url);
-                        } catch {
-                          setUploadError(isRTL ? 'فشل رفع الصورة. الحد الأقصى 4 ميجا.' : 'Upload failed. Max 4MB.');
+                        } catch (err: any) {
+                          console.error('Receipt upload failed:', err);
+                          setUploadError(err?.message || (isRTL ? 'فشل رفع الصورة، يرجى المحاولة مرة أخرى أو اختيار صورة أخرى.' : 'Upload failed. Please try again.'));
                         } finally {
                           setIsUploadingReceipt(false);
                         }
