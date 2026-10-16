@@ -277,13 +277,13 @@ export default function BookingPage() {
     const pricePerNight = selectedUnit?.price ? (parseInt(String(selectedUnit.price).replace(/[^0-9]/g, '')) || 0) : 0;
     const totalAmount = nights * pricePerNight;
 
-    const methodLabel = paymentMethod === 'visa' ? 'فيزا' : paymentMethod === 'instapay_bank' ? 'إنستا باي / تحويل بنكي' : 'تواصل عبر واتساب للتأكيد';
+    const methodLabel = 'إنستا باي / تحويل بنكي';
 
     const notesParts: string[] = [];
     if (receiptUrl) notesParts.push(`إيصال التحويل: ${receiptUrl}`);
     if (idDocUrl) notesParts.push(`إثبات الشخصية: ${idDocUrl}`);
     notesParts.push(`طريقة الدفع: ${methodLabel}`);
-    if (!receiptUrl && paymentMethod === 'whatsapp') {
+    if (!receiptUrl) {
       notesParts.push('حجز معلق بانتظار إرسال صورة التحويل عبر واتساب');
     }
 
@@ -328,10 +328,8 @@ export default function BookingPage() {
       let paymentNotice = '';
       if (receiptUrl) {
         paymentNotice = `\n🧾 *إيصال التحويل:* ${receiptUrl}\n✅ *حالة السداد:* تم إرفاق الإيصال وجاري المطابقة`;
-      } else if (paymentMethod === 'visa') {
-        paymentNotice = `\n💳 *طريقة الدفع المطلوبة:* فيزا (بطاقة بنكية أونلاين)`;
       } else {
-        paymentNotice = `\n⚠️ *ملاحظة:* العميل لم يرفق إيصالاً ويرغب في التأكيد وإرسال الإيصال عبر واتساب`;
+        paymentNotice = `\n⚠️ *ملاحظة:* لم يتم إرفاق إيصال بعد وسيقوم العميل بإرسال صورة التحويل عبر واتساب لتأكيد الحجز`;
       }
 
       const adminMsg = `🔔 *طلب حجز جديد من الموقع!*\n\n` +
@@ -1059,156 +1057,53 @@ export default function BookingPage() {
                       <div className="p-5 md:p-6 bg-[#F7F5F0] rounded-[24px] border border-[#EAE4D9] space-y-4">
                         <div className="flex items-center justify-between pb-2 border-b border-[#EAE4D9]/60">
                           <h4 className={`text-xs font-black text-[#2A2723] flex items-center gap-2 ${isRTL ? 'text-right' : 'text-left'}`}>
-                            <span>💳</span>
-                            <span>{isRTL ? 'طريقة السداد وتأكيد الحجز' : 'Payment & Confirmation Method'}</span>
+                            <span>⚡</span>
+                            <span>{isRTL ? 'بيانات التحويل والسداد (إنستا باي / تحويل بنكي)' : 'Payment & Transfer Info (InstaPay / Bank)'}</span>
                           </h4>
                         </div>
 
-                        {/* Payment Method Selector Tabs */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('instapay_bank')}
-                            className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
-                              paymentMethod === 'instapay_bank'
-                                ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
-                                : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
-                            }`}
-                          >
-                            <span className="text-base">⚡</span>
-                            <span className="text-[10px] font-black">{isRTL ? 'إنستا باي / بنك' : 'InstaPay / Bank'}</span>
-                          </button>
-                          
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('visa')}
-                            className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
-                              paymentMethod === 'visa'
-                                ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
-                                : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
-                            }`}
-                          >
-                            <span className="text-base">💳</span>
-                            <span className="text-[10px] font-black">{isRTL ? 'فيزا / بطاقة' : 'Visa / Card'}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('whatsapp')}
-                            className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
-                              paymentMethod === 'whatsapp'
-                                ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
-                                : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
-                            }`}
-                          >
-                            <span className="text-base">💬</span>
-                            <span className="text-[10px] font-black">{isRTL ? 'تواصل واتساب' : 'WhatsApp'}</span>
-                          </button>
+                        <div className="space-y-3 pt-2">
+                          <PaymentInfoBox isRTL={isRTL} />
+                          <div className="space-y-2 pt-2 border-t border-[#EAE4D9]">
+                            <label className={`block text-[10px] font-black text-[#5C554B] uppercase ${isRTL ? 'text-right' : 'text-left'}`}>
+                              🧾 {isRTL ? 'إرفاق صورة التحويل (إيصال السداد أو سكرين شوت)' : 'Attach Transfer Receipt (Image / PDF)'}
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setIsUploadingReceipt(true);
+                                setUploadError(null);
+                                try {
+                                  const url = await processAndUploadReceipt(file);
+                                  setReceiptUrl(url);
+                                } catch (err: any) {
+                                  console.error('Receipt upload failed:', err);
+                                  setUploadError(err?.message || (isRTL ? 'فشل رفع الإيصال، يرجى المحاولة مرة أخرى.' : 'Upload failed. Please try again.'));
+                                } finally {
+                                  setIsUploadingReceipt(false);
+                                }
+                              }}
+                              className="w-full text-xs text-[#7A7061] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-[#2A2723] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
+                            />
+                            {isUploadingReceipt && (
+                              <p className="text-[10px] font-black text-amber-600 animate-pulse">⏳ {isRTL ? 'جاري رفع الإيصال...' : 'Uploading receipt...'}</p>
+                            )}
+                            {receiptUrl && (
+                              <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-xl text-green-800 text-[11px] font-black">
+                                <span>✓ {isRTL ? 'تم رفع إيصال التحويل بنجاح!' : 'Receipt uploaded successfully!'}</span>
+                                <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2A2723] underline hover:text-black">
+                                  {isRTL ? 'معاينة' : 'Preview'}
+                                </a>
+                              </div>
+                            )}
+                            {uploadError && (
+                              <p className="text-[10px] font-black text-red-500">⚠️ {uploadError}</p>
+                            )}
+                          </div>
                         </div>
-
-                        {/* Method details & instructions */}
-                        {paymentMethod === 'instapay_bank' && (
-                          <div className="space-y-3 pt-2">
-                            <PaymentInfoBox isRTL={isRTL} />
-                            <div className="space-y-2 pt-2 border-t border-[#EAE4D9]">
-                              <label className={`block text-[10px] font-black text-[#5C554B] uppercase ${isRTL ? 'text-right' : 'text-left'}`}>
-                                🧾 {isRTL ? 'إرفاق صورة التحويل (إيصال السداد أو سكرين شوت)' : 'Attach Transfer Receipt (Image / PDF)'}
-                              </label>
-                              <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  setIsUploadingReceipt(true);
-                                  setUploadError(null);
-                                  try {
-                                    const url = await processAndUploadReceipt(file);
-                                    setReceiptUrl(url);
-                                  } catch (err: any) {
-                                    console.error('Receipt upload failed:', err);
-                                    setUploadError(err?.message || (isRTL ? 'فشل رفع الإيصال، يرجى المحاولة مرة أخرى.' : 'Upload failed. Please try again.'));
-                                  } finally {
-                                    setIsUploadingReceipt(false);
-                                  }
-                                }}
-                                className="w-full text-xs text-[#7A7061] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-[#2A2723] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
-                              />
-                              {isUploadingReceipt && (
-                                <p className="text-[10px] font-black text-amber-600 animate-pulse">⏳ {isRTL ? 'جاري رفع الإيصال...' : 'Uploading receipt...'}</p>
-                              )}
-                              {receiptUrl && (
-                                <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-xl text-green-800 text-[11px] font-black">
-                                  <span>✓ {isRTL ? 'تم رفع إيصال التحويل بنجاح!' : 'Receipt uploaded successfully!'}</span>
-                                  <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2A2723] underline hover:text-black">
-                                    {isRTL ? 'معاينة' : 'Preview'}
-                                  </a>
-                                </div>
-                              )}
-                              {uploadError && (
-                                <p className="text-[10px] font-black text-red-500">⚠️ {uploadError}</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {paymentMethod === 'visa' && (
-                          <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl text-sky-950 space-y-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">💳</span>
-                              <span className="font-black text-xs">{isRTL ? 'الدفع بالفيزا / بطاقة بنكية' : 'Pay via Visa / Card'}</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-sky-900 leading-relaxed">
-                              {isRTL
-                                ? 'يمكنك سداد الحجز ببطاقة الفيزا أو ماستر كارد. بعد تقديم الطلب سيتم تحويلك فوراً لممثلي خدمة العملاء أو إرسال رابط الدفع المباشر، أو يمكنك رفع إشعار عملية الدفع إن وُجد.'
-                                : 'You can pay using your Visa/MasterCard. Customer service will verify and provide the instant payment link or record.'}
-                            </p>
-                            <div className="space-y-2 pt-1 border-t border-sky-200/80">
-                              <label className="block text-[10px] font-black text-sky-900 uppercase">
-                                📸 {isRTL ? 'إرفاق إشعار أو سكرين شوت الدفع بالفيزا (اختياري)' : 'Attach Visa Payment Proof (Optional)'}
-                              </label>
-                              <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  setIsUploadingReceipt(true);
-                                  setUploadError(null);
-                                  try {
-                                    const url = await processAndUploadReceipt(file);
-                                    setReceiptUrl(url);
-                                  } catch (err: any) {
-                                    setUploadError(err?.message || 'فشل الرفع');
-                                  } finally {
-                                    setIsUploadingReceipt(false);
-                                  }
-                                }}
-                                className="w-full text-xs text-sky-900 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[11px] file:font-black file:bg-sky-800 file:text-white hover:file:bg-sky-900 cursor-pointer"
-                              />
-                              {receiptUrl && (
-                                <p className="text-[10px] font-black text-green-700">✓ {isRTL ? 'تم رفع إشعار السداد!' : 'Proof uploaded!'}</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {paymentMethod === 'whatsapp' && (
-                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-950 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">💬</span>
-                              <span className="font-black text-xs">{isRTL ? 'تأكيد الحجز والتواصل عبر واتساب' : 'Confirm & Chat via WhatsApp'}</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-amber-900 leading-relaxed">
-                              {isRTL
-                                ? 'سيتم تسجيل طلب حجز مبدئي باسمك، وسيتم توجيهك مباشرة لواتساب الإدارة لإرسال صورة إيصال التحويل واعتماد الحجز رسمياً.'
-                                : 'Your preliminary request will be saved and you will be directed to WhatsApp to send the receipt.'}
-                            </p>
-                            <div className="p-3 bg-white/80 rounded-xl border border-amber-300 text-[11px] font-black text-amber-900">
-                              ⚠️ {isRTL ? 'تنبيه: الحجز لا يُعتبر مؤكداً نهائياً إلا بعد إرسال صورة التحويل والتأكيد من خدمة العملاء.' : 'Note: Booking remains unconfirmed until transfer receipt is verified via WhatsApp.'}
-                            </div>
-                          </div>
-                        )}
                       </div>
 
                     </div>
