@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getBookings } from '@/lib/data-init';
 import {
+  getFreshDbBookings,
   deleteDbTreasuryTransfer,
   getDbExpenses,
   getDbTreasuryTransfers,
@@ -50,6 +50,18 @@ const PAYMENT_METHODS = [
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
   {
+    id: 'visa',
+    label: 'فيزا',
+    icon: CreditCard,
+    color: 'text-sky-800 bg-sky-100/90 border-sky-300',
+    activeBg: 'bg-sky-600 text-white shadow-sm',
+    cardBorder: 'border-sky-300 hover:border-sky-500',
+    cardBg: 'bg-sky-50/50 hover:bg-sky-50/80',
+    cardSelected: 'border-sky-600 bg-sky-50/95 ring-2 ring-sky-500/30 shadow-md',
+    textColor: 'text-sky-950',
+    badgeColor: 'bg-sky-100 text-sky-800 border-sky-200',
+  },
+  {
     id: 'instapay',
     label: 'إنستا باي / حساب بنكي',
     icon: Zap,
@@ -86,7 +98,10 @@ const detectPaymentMethod = (text: string | null | undefined = ''): { id: Paymen
   const tagMatch = raw.match(/\[(?:طريقة|طريقة الدفع|طريقة_الدفع|payment_method|method):\s*([^\]]+)\]/i);
   if (tagMatch) {
     const rawTag = tagMatch[1].trim();
-    if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي|فيزا|visa/i.test(rawTag)) {
+    if (/فيزا|visa|ماستر|master/i.test(rawTag)) {
+      return { id: 'visa', label: 'فيزا' };
+    }
+    if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي/i.test(rawTag)) {
       return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
     }
     if (/فودافون|vodafone/i.test(rawTag)) {
@@ -95,11 +110,14 @@ const detectPaymentMethod = (text: string | null | undefined = ''): { id: Paymen
     return { id: 'cash', label: 'كاش' };
   }
 
-  // 2) فحص مباشر لأي ذكر لفودافون كاش أو إنستا باي في النص الأصلي الكامل
+  // 2) فحص مباشر لأي ذكر للفيزا أو فودافون كاش أو إنستا باي في النص الأصلي الكامل
+  if (/فيزا|visa|ماستر|master/i.test(raw)) {
+    return { id: 'visa', label: 'فيزا' };
+  }
   if (/فودافون|vodafone/i.test(raw)) {
     return { id: 'vodafone_cash', label: 'فودافون كاش' };
   }
-  if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي|فيزا|visa/i.test(raw)) {
+  if (/إنستا|انستا|instapay|حساب بنكي|بنك|تحويل بنكي/i.test(raw)) {
     return { id: 'instapay', label: 'إنستا باي / حساب بنكي' };
   }
 
@@ -347,7 +365,7 @@ export default function TreasuryPage() {
   const [error, setError] = useState('');
 
   // فلتر مراجعة التحويلات حسب طريقة الدفع
-  const [transferFilter, setTransferFilter] = useState<'all' | PaymentMethodId>('all');
+  const [transferFilter, setTransferFilter] = useState<'all' | 'electronic' | PaymentMethodId>('all');
 
   // المربع النشط المختار من شجرة الخزنة (عند النقر يفتح ما يخصه فوراً)
   type DetailBoxId = 'cash' | 'instapay' | 'vodafone' | 'uncollected' | 'expenses' | 'total_expected' | 'collected_net' | 'net_expected' | 'big_treasury';
@@ -366,7 +384,7 @@ export default function TreasuryPage() {
       // الخزنة الفرعية تعرض إجمالي الفلوس فقط في الكارت بدون فتح أي جدول بالأسفل
       return;
     } else if (boxId === 'instapay') {
-      setTransferFilter('instapay');
+      setTransferFilter('electronic');
       setRecordsTab('deposits');
     } else if (boxId === 'vodafone') {
       setTransferFilter('vodafone_cash');
@@ -557,7 +575,7 @@ export default function TreasuryPage() {
 
     try {
       const [bookingData, expenseData] = await Promise.all([
-        getBookings(),
+        getFreshDbBookings(Date.now().toString(), true),
         getDbExpenses(),
       ]);
       setBookings(bookingData || []);
@@ -626,6 +644,7 @@ export default function TreasuryPage() {
     pendingBookings,
     completedBookings,
     totalCashRevenueCollected,
+    totalVisaRevenueCollected,
     totalVodafoneRevenueCollected,
     totalInstapayRevenueCollected,
     totalElectronicRevenueCollected,
@@ -633,6 +652,7 @@ export default function TreasuryPage() {
   } = useMemo(() => {
     let revPaid = 0;
     let revCash = 0;
+    let revVisa = 0;
     let revVodafone = 0;
     let revInstapay = 0;
     let revElectronic = 0;
@@ -668,24 +688,43 @@ export default function TreasuryPage() {
 
       const splits = getBookingPaymentSplits(b, p);
       let bCash = 0;
+      let bVisa = 0;
       let bVodafone = 0;
       let bInstapay = 0;
 
       splits.forEach((s) => {
         if (s.methodId === 'cash') bCash += s.amount;
+        else if (s.methodId === 'visa') bVisa += s.amount;
         else if (s.methodId === 'vodafone_cash') bVodafone += s.amount;
         else if (s.methodId === 'instapay') bInstapay += s.amount;
       });
 
       revCash += bCash;
+      revVisa += bVisa;
       revVodafone += bVodafone;
       revInstapay += bInstapay;
-      revElectronic += (bVodafone + bInstapay);
+      revElectronic += (bVisa + bVodafone + bInstapay);
 
       const bookingPerson = b.bookingManager ? `مسؤول الحجز: ${b.bookingManager}` : (b.name ? `العميل: ${b.name}` : 'حجز');
       const unitInfo = formatTreasuryUnitName(b.studio || b.apartmentId) || 'الوحدة';
       const bookingDateStr = b.bookingDate || b.checkIn || today.toISOString().slice(0, 10);
       const customNotesClean = cleanDisplayNotes(b.notes);
+
+      if (bVisa > 0) {
+        autoElectronic.push({
+          id: `booking-${b.id}-visa`,
+          bookingId: b.id,
+          amount: bVisa,
+          methodId: 'visa' as PaymentMethodId,
+          methodLabel: 'فيزا',
+          handed_by: bookingPerson,
+          received_by: 'حساب الفيزا (الخزنة الكبيرة)',
+          notes: customNotesClean ? `${unitInfo} — ${customNotesClean}` : `${unitInfo} (حجز ${bookingDateStr})`,
+          transfer_date: bookingDateStr,
+          isAutomatic: true,
+          booking: b,
+        });
+      }
 
       if (bVodafone > 0) {
         autoElectronic.push({
@@ -719,7 +758,7 @@ export default function TreasuryPage() {
         });
       }
 
-      const isElec = (bVodafone + bInstapay) > 0;
+      const isElec = (bVisa + bVodafone + bInstapay) > 0;
 
       return {
         ...b,
@@ -729,6 +768,7 @@ export default function TreasuryPage() {
         isFullyPaid: r === 0,
         isElectronicPayment: isElec,
         cashPaid: bCash,
+        visaPaid: bVisa,
         vodafonePaid: bVodafone,
         instapayPaid: bInstapay,
       };
@@ -740,6 +780,7 @@ export default function TreasuryPage() {
     return {
       totalRevenueCollected: revPaid,
       totalCashRevenueCollected: revCash,
+      totalVisaRevenueCollected: revVisa,
       totalVodafoneRevenueCollected: revVodafone,
       totalInstapayRevenueCollected: revInstapay,
       totalElectronicRevenueCollected: revElectronic,
@@ -796,30 +837,42 @@ export default function TreasuryPage() {
     return isWithdraw && parsed ? parsed.month === month && parsed.year === year : false;
   }), [transfers, month, year]);
 
-  // تقسيم مسحوبات الإدارة حسب طريقة الدفع (كاش، فودافون كاش، إنستا باي)
+  // تقسيم مسحوبات الإدارة حسب طريقة الدفع (كاش، فيزا، فودافون كاش، إنستا باي)
   const withdrawalsBreakdown = useMemo(() => {
     let cash = 0;
+    let visa = 0;
     let vodafone = 0;
     let instapay = 0;
     monthlyWithdrawals.forEach((w) => {
       const fullText = `${w.notes || ''} ${w.handed_by || ''} ${w.received_by || ''}`;
       const mid = detectPaymentMethod(fullText).id;
       const amt = Number(w.amount) || 0;
-      if (mid === 'vodafone_cash') vodafone += amt;
+      if (mid === 'visa') visa += amt;
+      else if (mid === 'vodafone_cash') vodafone += amt;
       else if (mid === 'instapay') instapay += amt;
       else cash += amt;
     });
     return {
       cash,
+      visa,
       vodafone,
       instapay,
-      total: cash + vodafone + instapay,
+      total: cash + visa + vodafone + instapay,
     };
   }, [monthlyWithdrawals]);
 
   const totalWithdrawnFromBig = useMemo(() => {
     return withdrawalsBreakdown.total;
   }, [withdrawalsBreakdown]);
+
+  // إجمالي فيزا بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
+  const totalVisaTreasury = useMemo(() => {
+    const manualVisa = monthlyDeposits.reduce((sum, t) => {
+      const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
+      return detectPaymentMethod(fullText).id === 'visa' ? sum + (Number(t?.amount) || 0) : sum;
+    }, 0);
+    return (totalVisaRevenueCollected || 0) + manualVisa;
+  }, [monthlyDeposits, totalVisaRevenueCollected]);
 
   // إجمالي فودافون كاش بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
   const totalVodafoneTreasury = useMemo(() => {
@@ -830,7 +883,7 @@ export default function TreasuryPage() {
     return (totalVodafoneRevenueCollected || 0) + manualVodafone;
   }, [monthlyDeposits, totalVodafoneRevenueCollected]);
 
-  // إجمالي إنستا باي والحساب البنكي والفيزا بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
+  // إجمالي إنستا باي والحساب البنكي بالكامل (من الحجوزات أوتوماتيك + أي تحويل يدوي مسجل)
   const totalInstapayTreasury = useMemo(() => {
     const manualInstapay = monthlyDeposits.reduce((sum, t) => {
       const fullText = `${t.notes || ''} ${t.handed_by || ''} ${t.received_by || ''}`;
@@ -839,10 +892,10 @@ export default function TreasuryPage() {
     return (totalInstapayRevenueCollected || 0) + manualInstapay;
   }, [monthlyDeposits, totalInstapayRevenueCollected]);
 
-  // إجمالي الوارد للخزنة الكبيرة = كاش مورد من الصغيرة + فودافون كاش كله + إنستا باي كله
+  // إجمالي الوارد للخزنة الكبيرة = كاش مورد من الصغيرة + فودافون كاش كله + إنستا باي وبنك كله + فيزا كلها
   const totalBigTreasuryInflow = useMemo(() => {
-    return totalCashDepositedToBig + totalVodafoneTreasury + totalInstapayTreasury;
-  }, [totalCashDepositedToBig, totalVodafoneTreasury, totalInstapayTreasury]);
+    return totalCashDepositedToBig + totalVodafoneTreasury + totalInstapayTreasury + totalVisaTreasury;
+  }, [totalCashDepositedToBig, totalVodafoneTreasury, totalInstapayTreasury, totalVisaTreasury]);
 
   // 1) رصيد الخزنة الكبيرة الفعلي = إجمالي الوارد للخزنة الكبيرة − مسحوبات الشركاء
   const bigTreasuryBalance = useMemo(() => {
@@ -883,10 +936,11 @@ export default function TreasuryPage() {
     return combined.sort((a, b) => (b.transfer_date || '').localeCompare(a.transfer_date || ''));
   }, [monthlyDeposits, automatedElectronicDeposits]);
 
-  // ── تفصيل رصيد الخزنة الكبيرة وتجميعات طرق الدفع (كاش، إنستا باي / بنك، فودافون كاش) ──
+  // ── تفصيل رصيد الخزنة الكبيرة وتجميعات طرق الدفع (كاش، فيزا، إنستا باي / بنك، فودافون كاش) ──
   const bigTreasuryByMethod = useMemo(() => {
     const summary: Record<PaymentMethodId, { deposited: number; withdrawn: number; balance: number; count: number }> = {
       cash: { deposited: totalCashDepositedToBig, withdrawn: 0, balance: totalCashDepositedToBig, count: 0 },
+      visa: { deposited: totalVisaTreasury, withdrawn: 0, balance: totalVisaTreasury, count: 0 },
       instapay: { deposited: totalInstapayTreasury, withdrawn: 0, balance: totalInstapayTreasury, count: 0 },
       vodafone_cash: { deposited: totalVodafoneTreasury, withdrawn: 0, balance: totalVodafoneTreasury, count: 0 },
     };
@@ -908,7 +962,7 @@ export default function TreasuryPage() {
     });
 
     return summary;
-  }, [totalCashDepositedToBig, totalInstapayTreasury, totalVodafoneTreasury, allBigTreasuryRecords, monthlyWithdrawals]);
+  }, [totalCashDepositedToBig, totalVisaTreasury, totalInstapayTreasury, totalVodafoneTreasury, allBigTreasuryRecords, monthlyWithdrawals]);
 
   // ── الحسابات المحاسبية المطابقة لشجرة الورقة بالمليم ──
   const totalAccountMonth = (totalRevenueCollected || 0) + (totalRemainingUncollected || 0);
@@ -918,11 +972,13 @@ export default function TreasuryPage() {
   const collectedNetProfit = totalRevenueCollected || 0;
   const branchCashTreasury = smallTreasuryBalance;
   const bankInstapayTreasury = totalInstapayTreasury;
+  const visaTreasury = totalVisaTreasury;
   const vodafoneCashTreasury = totalVodafoneTreasury;
 
   // فلترة سجل التوريدات حسب طريقة الدفع المختارة
   const filteredDeposits = useMemo(() => {
     if (transferFilter === 'all') return allBigTreasuryRecords;
+    if (transferFilter === 'electronic') return allBigTreasuryRecords.filter((r) => r.methodId !== 'cash');
     return allBigTreasuryRecords.filter((r) => r.methodId === transferFilter);
   }, [allBigTreasuryRecords, transferFilter]);
 
@@ -1514,7 +1570,7 @@ export default function TreasuryPage() {
             </div>
           </div>
 
-          {/* 2. حوالات بنكية / إنستا باي 🔵 */}
+          {/* 2. حوالات بنكية / إنستا باي / فيزا 🔵 */}
           <button
             type="button"
             onClick={() => handleSelectBox('instapay')}
@@ -1527,7 +1583,7 @@ export default function TreasuryPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-black text-sm md:text-base flex items-center gap-1.5">
-                  <Zap size={18} /> حوالات بنكية / إنستا باي
+                  <Zap size={18} /> حوالات بنكية / إنستا باي / فيزا
                 </span>
                 <span className={`text-[10px] md:text-xs font-black px-2.5 py-1 rounded-full border ${
                   activeBox === 'instapay' ? 'bg-white text-blue-800 border-white' : 'bg-blue-200 text-blue-900 border-blue-300'
@@ -1535,12 +1591,19 @@ export default function TreasuryPage() {
                   إلكتروني 🔵
                 </span>
               </div>
-              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(bankInstapayTreasury)}</div>
+              <div className="text-xl md:text-2xl font-black my-2">{isLoading ? '...' : money(bankInstapayTreasury + visaTreasury)}</div>
             </div>
-            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed ${
+            <div className={`text-[11px] font-bold pt-2 border-t mt-1.5 leading-relaxed space-y-1 ${
               activeBox === 'instapay' ? 'border-white/20 text-blue-100' : 'border-blue-200 text-blue-800'
             }`}>
-              إجمالي رصيد الحساب البنكي وإنستا باي والفيزا
+              <div className="flex justify-between items-center">
+                <span>⚡ إنستا باي وبنك:</span>
+                <span className="font-mono font-black">{isLoading ? '...' : money(bankInstapayTreasury)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>💳 مدفوعات فيزا:</span>
+                <span className="font-mono font-black">{isLoading ? '...' : money(visaTreasury)}</span>
+              </div>
             </div>
           </button>
 
@@ -1971,7 +2034,7 @@ export default function TreasuryPage() {
           </div>
           {transferFilter !== 'all' && (
             <span className="text-xs font-black text-indigo-900 bg-white px-3 py-1 rounded-lg border border-indigo-200 shadow-sm">
-              مفلتر حالياً: {PAYMENT_METHODS.find(m => m.id === transferFilter)?.label}
+              مفلتر حالياً: {transferFilter === 'electronic' ? 'التحويلات الإلكترونية (إنستا باي + فيزا + فودافون)' : PAYMENT_METHODS.find(m => m.id === transferFilter)?.label}
             </span>
           )}
         </div>

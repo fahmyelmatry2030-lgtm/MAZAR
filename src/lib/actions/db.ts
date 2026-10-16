@@ -494,6 +494,8 @@ export async function saveDbBooking(booking: any) {
     }
 
     revalidatePath('/admin/dashboard/reports');
+    revalidatePath('/admin/dashboard/treasury');
+    revalidatePath('/admin/dashboard');
     invalidateBookingsCache();
     const freshData = await getFreshDbBookings(Date.now().toString(), true);
     return { success: true, data: freshData };
@@ -603,6 +605,8 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   // Revalidate to clear any server-side response cache
   invalidateBookingsCache();
   revalidatePath('/admin/dashboard/reports');
+  revalidatePath('/admin/dashboard/treasury');
+  revalidatePath('/admin/dashboard');
   
   // Return the fresh data directly
   return await getFreshDbBookings(Date.now().toString(), true);
@@ -630,6 +634,8 @@ export async function deleteDbBooking(id: string) {
   // Revalidate to clear server-side cache
   invalidateBookingsCache();
   revalidatePath('/admin/dashboard/reports');
+  revalidatePath('/admin/dashboard/treasury');
+  revalidatePath('/admin/dashboard');
   
   // Return the fresh data
   return await getFreshDbBookings(Date.now().toString(), true);
