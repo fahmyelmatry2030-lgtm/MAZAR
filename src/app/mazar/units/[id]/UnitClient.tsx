@@ -6,7 +6,8 @@ import Logo from '@/components/Logo';
 import Footer from '@/components/Footer';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
-import { processAndUploadReceipt } from '@/lib/uploadHelper';
+import { processAndUploadReceipt, processAndUploadDocument } from '@/lib/uploadHelper';
+import { resolveUnitVideo } from '@/lib/utils';
 import PaymentInfoBox from '@/components/PaymentInfoBox';
 import Image from 'next/image';
 import UnitImageLightbox from '@/components/UnitImageLightbox';
@@ -73,6 +74,11 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
   const [receiptUrl, setReceiptUrl] = useState('');
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [idDocUrl, setIdDocUrl] = useState('');
+  const [isUploadingIdDoc, setIsUploadingIdDoc] = useState(false);
+  const [idDocError, setIdDocError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'instapay_bank' | 'visa' | 'whatsapp'>('instapay_bank');
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [unitAvailable, setUnitAvailable] = useState(true);
 
@@ -134,13 +140,29 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
   // ── Submit booking ──────────────────────────────────────────────────
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || !rulesAccepted) return;
+    if (!name || !phone) return;
+    if (!rulesAccepted) {
+      alert(isRTL ? 'يرجى الموافقة على قواعد وشروط الإقامة للمتابعة.' : 'Please agree to house rules to proceed.');
+      return;
+    }
     setIsSubmitting(true);
     setBookingError(null);
 
     const nights = Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)));
     const pricePerNight = unit?.price ? (parseInt(String(unit.price).replace(/[^0-9]/g, '')) || 0) : 0;
     const totalAmount = nights * pricePerNight;
+
+    const methodLabel = paymentMethod === 'visa' ? 'فيزا' : paymentMethod === 'instapay_bank' ? 'إنستا باي / تحويل بنكي' : 'تواصل عبر واتساب للتأكيد';
+
+    const notesParts: string[] = [];
+    if (receiptUrl) notesParts.push(`إيصال التحويل: ${receiptUrl}`);
+    if (idDocUrl) notesParts.push(`إثبات الشخصية: ${idDocUrl}`);
+    notesParts.push(`طريقة الدفع: ${methodLabel}`);
+    if (!receiptUrl && paymentMethod === 'whatsapp') {
+      notesParts.push('حجز معلق بانتظار إرسال صورة التحويل عبر واتساب');
+    }
+
+    const fullNotes = `[طلب من صفحة الوحدة] ${notesParts.join(' | ')}`;
 
     const bookingData = {
       name,
@@ -153,13 +175,15 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
       paidAmount: 0,
       remainingAmount: totalAmount > 0 ? totalAmount : null,
       paymentStatus: 'باقي',
+      paymentMethod: paymentMethod === 'visa' ? 'فيزا' : (paymentMethod === 'instapay_bank' ? 'إنستا باي' : 'كاش'),
+      idNumber: idDocUrl || null,
       apartmentId: id,
       dates: `${checkIn} - ${checkOut}`,
       guest: name,
       guestsCount,
       studio: unit?.title?.['ar'] || id,
-      paymentInfo: receiptUrl ? `[طلب ويب] صورة التحويل: ${receiptUrl}` : (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
-      notes: receiptUrl ? `رابط إيصال التحويل: ${receiptUrl}` : '',
+      paymentInfo: fullNotes || (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
+      notes: fullNotes,
       source: 'website',
       isWebsiteBooking: true,
       clientStatus: 'انتظار',
@@ -175,7 +199,26 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
       setIsSubmitting(false);
       setIsSuccess(true);
 
-      const adminMsg = `🔔 *طلب حجز جديد من الموقع!*\n\n👤 *العميل:* ${name}\n📱 *الموبايل:* ${phone}\n👥 *عدد الأشخاص:* ${guestsCount}\n🏠 *الوحدة:* ${unit?.title?.['ar'] || id}\n📅 *الفترة:* من ${formatDate(checkIn)} إلى ${formatDate(checkOut)} (إجمالي ${nights} ليالي)${receiptUrl ? `\n📸 *إيصال التحويل:* ${receiptUrl}` : ''}\n\nيرجى تأكيد الحجز معي.`;
+      let paymentNotice = '';
+      if (receiptUrl) {
+        paymentNotice = `\n🧾 *إيصال التحويل:* ${receiptUrl}\n✅ *حالة السداد:* تم إرفاق الإيصال وجاري المطابقة`;
+      } else if (paymentMethod === 'visa') {
+        paymentNotice = `\n💳 *طريقة الدفع المطلوبة:* فيزا (بطاقة بنكية أونلاين)`;
+      } else {
+        paymentNotice = `\n⚠️ *ملاحظة:* العميل لم يرفق إيصالاً ويرغب في التأكيد وإرسال الإيصال عبر واتساب`;
+      }
+
+      const adminMsg = `🔔 *طلب حجز جديد من الموقع!*\n\n` +
+        `👤 *الاسم:* ${name}\n` +
+        `📱 *الموبايل:* ${phone}\n` +
+        `👥 *عدد الضيوف:* ${guestsCount}\n` +
+        `🏠 *الوحدة:* ${unit?.title?.['ar'] || id}\n` +
+        `📅 *الفترة:* من ${formatDate(checkIn)} إلى ${formatDate(checkOut)} (${nights} ليالي)\n` +
+        `💰 *الإجمالي التقريبي:* ${totalAmount > 0 ? `${totalAmount} ج.م` : 'حسب التسعير'}\n` +
+        `💳 *وسيلة السداد:* ${methodLabel}\n` +
+        (idDocUrl ? `🪪 *إثبات الشخصية:* ${idDocUrl}\n` : '') +
+        paymentNotice + `\n\nيرجى تأكيد الحجز معي.`;
+
       const waUrl = `https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}&text=${encodeURIComponent(adminMsg)}`;
       window.location.href = waUrl;
     } catch {
@@ -243,6 +286,8 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
     ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
+  const unitVideo = resolveUnitVideo(unit);
+
   return (
     <main className="min-h-screen bg-[#FDFBF7] text-[#2A2723] selection:bg-[#C1A68D] selection:text-white">
 
@@ -280,8 +325,8 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
               }}
               className="relative h-[360px] md:h-[480px] rounded-[32px] overflow-hidden shadow-md bg-black flex items-center justify-center group cursor-pointer"
             >
-              {activeMedia === 'video' && unit?.video ? (
-                <video src={encodeURI(unit.video)} controls autoPlay muted playsInline preload="metadata" className="w-full h-full object-contain" />
+              {activeMedia === 'video' && unitVideo ? (
+                <video src={unitVideo} controls autoPlay muted playsInline preload="metadata" className="w-full h-full object-contain" />
               ) : (
                 <>
                   <Image
@@ -316,7 +361,7 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
                       <span>{isRTL ? "تكبير الصورة" : "Zoom"}</span>
                     </button>
                   )}
-                  {unit?.video && (
+                  {unitVideo && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -342,7 +387,7 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
 
             {/* Thumbnails */}
             <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
-              {unit?.video && (
+              {unitVideo && (
                 <button
                   type="button"
                   onClick={() => setActiveMedia('video')}
@@ -594,62 +639,239 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
                   </div>
                 </div>
 
-                {/* ── Payment & Receipt ──────────────────────────── */}
+                {/* ── SECTION 1: إثبات الشخصية ──────────────────── */}
                 <div className="p-5 bg-[#F7F5F0] rounded-2xl border border-[#EAE4D9] space-y-3">
-                  <h4 className="text-xs font-black text-[#2A2723] pb-2 border-b border-[#EAE4D9]/60 text-right">
-                    💳 {isRTL ? 'بيانات الدفع' : 'Payment Info'}
-                  </h4>
-                  <PaymentInfoBox isRTL={isRTL} />
-                  <div className="space-y-2 pt-1">
-                    <label className="block text-[10px] font-black text-[#5C554B] uppercase text-right">
-                      📸 {isRTL ? 'إرفاق إيصال التحويل (اختياري)' : 'Attach Receipt (Optional)'}
+                  <div className="flex items-center justify-between pb-2 border-b border-[#EAE4D9]/60">
+                    <label className={`text-xs font-black text-[#2A2723] flex items-center gap-2 ${isRTL ? 'text-right' : 'text-left'}`}>
+                      <span>🪪</span>
+                      <span>{isRTL ? 'إثبات الشخصية (بطاقة أو باسبور)' : 'National ID or Passport'}</span>
                     </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setIsUploadingReceipt(true);
-                        setUploadError(null);
-                        try {
-                          const url = await processAndUploadReceipt(file);
-                          setReceiptUrl(url);
-                        } catch (err: any) {
-                          console.error('Receipt upload failed:', err);
-                          setUploadError(err?.message || (isRTL ? 'فشل رفع الصورة، يرجى المحاولة مرة أخرى أو اختيار صورة أخرى.' : 'Upload failed. Please try again.'));
-                        } finally {
-                          setIsUploadingReceipt(false);
-                        }
-                      }}
-                      className="w-full text-xs text-[#7A7061] file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-[#2A2723] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
-                    />
-                    {isUploadingReceipt && <p className="text-[10px] font-black text-amber-600 animate-pulse">⏳ {isRTL ? 'جاري رفع الإيصال...' : 'Uploading...'}</p>}
-                    {receiptUrl && <p className="text-[10px] font-black text-green-600">✓ {isRTL ? 'تم رفع الإيصال بنجاح!' : 'Receipt uploaded!'}</p>}
-                    {uploadError && <p className="text-[10px] font-black text-red-500">⚠️ {uploadError}</p>}
+                    <span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-full">
+                      {isRTL ? 'مطلوب للإقامة' : 'Required'}
+                    </span>
                   </div>
+                  <p className={`text-[10px] text-[#7A7061] font-bold leading-relaxed ${isRTL ? 'text-right' : 'text-left'}`}>
+                    {isRTL ? 'يرجى إرفاق صورة واضحة من بطاقة الرقم القومي أو جواز السفر (صورة أو ملف PDF)' : 'Please attach a clear photo of your ID or passport (image or PDF)'}
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsUploadingIdDoc(true);
+                      setIdDocError(null);
+                      try {
+                        const url = await processAndUploadDocument(file);
+                        setIdDocUrl(url);
+                      } catch (err: any) {
+                        console.error('ID upload failed:', err);
+                        setIdDocError(err?.message || (isRTL ? 'فشل رفع المستند، يرجى المحاولة مرة أخرى.' : 'Upload failed. Please try again.'));
+                      } finally {
+                        setIsUploadingIdDoc(false);
+                      }
+                    }}
+                    className="w-full text-xs text-[#7A7061] file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-[#2A2723] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
+                  />
+                  {isUploadingIdDoc && (
+                    <p className="text-[10px] font-black text-amber-600 animate-pulse">⏳ {isRTL ? 'جاري رفع إثبات الشخصية...' : 'Uploading ID document...'}</p>
+                  )}
+                  {idDocUrl && (
+                    <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-xl text-green-800 text-[11px] font-black">
+                      <span>✓ {isRTL ? 'تم رفع إثبات الشخصية بنجاح!' : 'ID document uploaded successfully!'}</span>
+                      <a href={idDocUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2A2723] underline hover:text-black">
+                        {isRTL ? 'معاينة' : 'Preview'}
+                      </a>
+                    </div>
+                  )}
+                  {idDocError && (
+                    <p className="text-[10px] font-black text-red-500">⚠️ {idDocError}</p>
+                  )}
                 </div>
 
-                {/* ── Rules checkbox ─────────────────────────────── */}
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <div className="relative flex items-center justify-center shrink-0 mt-1">
-                    <input
-                      type="checkbox"
-                      required
-                      checked={rulesAccepted}
-                      onChange={e => setRulesAccepted(e.target.checked)}
-                      className="peer appearance-none w-6 h-6 border-2 border-[#EAE4D9] rounded-lg checked:bg-[#2A2723] checked:border-[#2A2723] transition-colors cursor-pointer"
-                    />
-                    <span className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none text-xs">✓</span>
+                {/* ── SECTION 2: طريقة الدفع والسداد ─────────────── */}
+                <div className="p-5 bg-[#F7F5F0] rounded-2xl border border-[#EAE4D9] space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#EAE4D9]/60">
+                    <h4 className={`text-xs font-black text-[#2A2723] flex items-center gap-2 ${isRTL ? 'text-right' : 'text-left'}`}>
+                      <span>💳</span>
+                      <span>{isRTL ? 'طريقة السداد وتأكيد الحجز' : 'Payment & Confirmation Method'}</span>
+                    </h4>
                   </div>
-                  <p className="text-xs text-[#7A7061] font-bold leading-relaxed text-right">
-                    أوافق على{' '}
-                    <Link href="/mazar/rules" target="_blank" className="text-[#C1A68D] underline hover:text-[#2A2723] font-black">
-                      قواعد المبيت والشروط والأحكام
-                    </Link>{' '}
-                    الخاصة بمجمع مزار الفندقي.
-                  </p>
-                </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('instapay_bank')}
+                      className={`p-2.5 rounded-xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                        paymentMethod === 'instapay_bank'
+                          ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
+                          : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm">⚡</span>
+                      <span className="text-[9px] font-black">{isRTL ? 'إنستا باي / بنك' : 'InstaPay / Bank'}</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('visa')}
+                      className={`p-2.5 rounded-xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                        paymentMethod === 'visa'
+                          ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
+                          : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm">💳</span>
+                      <span className="text-[9px] font-black">{isRTL ? 'فيزا / بطاقة' : 'Visa / Card'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('whatsapp')}
+                      className={`p-2.5 rounded-xl border-2 text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                        paymentMethod === 'whatsapp'
+                          ? 'bg-[#2A2723] text-white border-[#2A2723] shadow-md'
+                          : 'bg-white text-[#2A2723] border-[#EAE4D9] hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm">💬</span>
+                      <span className="text-[9px] font-black">{isRTL ? 'تواصل واتساب' : 'WhatsApp'}</span>
+                    </button>
+                  </div>
+
+                  {paymentMethod === 'instapay_bank' && (
+                    <div className="space-y-3 pt-2">
+                      <PaymentInfoBox isRTL={isRTL} />
+                      <div className="space-y-2 pt-1 border-t border-[#EAE4D9]">
+                        <label className={`block text-[10px] font-black text-[#5C554B] uppercase ${isRTL ? 'text-right' : 'text-left'}`}>
+                          🧾 {isRTL ? 'إرفاق إيصال التحويل (صورة أو PDF)' : 'Attach Receipt (Image / PDF)'}
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsUploadingReceipt(true);
+                            setUploadError(null);
+                            try {
+                              const url = await processAndUploadReceipt(file);
+                              setReceiptUrl(url);
+                            } catch (err: any) {
+                              console.error('Receipt upload failed:', err);
+                              setUploadError(err?.message || (isRTL ? 'فشل رفع الإيصال، يرجى المحاولة مرة أخرى.' : 'Upload failed. Please try again.'));
+                            } finally {
+                              setIsUploadingReceipt(false);
+                            }
+                          }}
+                          className="w-full text-xs text-[#7A7061] file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-[#2A2723] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
+                        />
+                        {isUploadingReceipt && <p className="text-[10px] font-black text-amber-600 animate-pulse">⏳ {isRTL ? 'جاري رفع الإيصال...' : 'Uploading...'}</p>}
+                        {receiptUrl && (
+                          <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-xl text-green-800 text-[11px] font-black">
+                            <span>✓ {isRTL ? 'تم رفع إيصال التحويل بنجاح!' : 'Receipt uploaded!'}</span>
+                            <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2A2723] underline hover:text-black">
+                              {isRTL ? 'معاينة' : 'Preview'}
+                            </a>
+                          </div>
+                        )}
+                        {uploadError && <p className="text-[10px] font-black text-red-500">⚠️ {uploadError}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'visa' && (
+                    <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-sky-950 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">💳</span>
+                        <span className="font-black text-xs">{isRTL ? 'الدفع بالفيزا / بطاقة بنكية' : 'Pay via Visa / Card'}</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-sky-900 leading-relaxed">
+                        {isRTL
+                          ? 'يمكنك سداد الحجز ببطاقة الفيزا أو ماستر كارد. بعد تقديم الطلب سيتم تحويلك فوراً لممثلي خدمة العملاء أو إرسال رابط الدفع المباشر، أو يمكنك رفع إشعار عملية الدفع إن وُجد.'
+                          : 'You can pay using your Visa/MasterCard. Customer service will verify and provide the instant payment link or record.'}
+                      </p>
+                      <div className="space-y-1.5 pt-1 border-t border-sky-200/80">
+                        <label className="block text-[9px] font-black text-sky-900 uppercase">
+                          📸 {isRTL ? 'إرفاق إشعار أو سكرين شوت الدفع بالفيزا (اختياري)' : 'Attach Visa Proof (Optional)'}
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsUploadingReceipt(true);
+                            setUploadError(null);
+                            try {
+                              const url = await processAndUploadReceipt(file);
+                              setReceiptUrl(url);
+                            } catch (err: any) {
+                              setUploadError(err?.message || 'فشل الرفع');
+                            } finally {
+                              setIsUploadingReceipt(false);
+                            }
+                          }}
+                          className="w-full text-xs text-sky-900 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-sky-800 file:text-white hover:file:bg-sky-900 cursor-pointer"
+                        />
+                        {receiptUrl && (
+                          <p className="text-[10px] font-black text-green-700">✓ {isRTL ? 'تم رفع إشعار السداد!' : 'Proof uploaded!'}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'whatsapp' && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">💬</span>
+                        <span className="font-black text-xs">{isRTL ? 'تأكيد الحجز والتواصل عبر واتساب' : 'Confirm via WhatsApp'}</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-amber-900 leading-relaxed">
+                        {isRTL
+                          ? 'سيتم تسجيل طلب حجز مبدئي باسمك، وسيتم توجيهك مباشرة لواتساب الإدارة لإرسال صورة إيصال التحويل واعتماد الحجز رسمياً.'
+                          : 'Your preliminary request will be saved and you will be directed to WhatsApp to send the receipt.'}
+                      </p>
+                      <div className="p-2 bg-white/80 rounded-lg border border-amber-300 text-[10px] font-black text-amber-900">
+                        ⚠️ {isRTL ? 'تنبيه: الحجز لا يُعتبر مؤكداً نهائياً إلا بعد إرسال صورة التحويل والتأكيد من خدمة العملاء.' : 'Note: Booking remains unconfirmed until transfer receipt is verified via WhatsApp.'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── SECTION 3: شروط وقوانين الإقامة ─────────────── */}
+                <div className="space-y-2 pt-1">
+                  <div className={`flex items-center justify-between ${isRTL ? 'flex-row' : 'flex-row-reverse'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setShowRulesModal(true)}
+                      className="text-xs font-black text-[#C1A68D] hover:text-[#2A2723] underline flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span>📜</span>
+                      <span>{isRTL ? 'اضغط هنا لقراءة قواعد وشروط الإقامة' : 'Click to view house rules & terms'}</span>
+                    </button>
+                  </div>
+
+                  <label className="flex items-start gap-3 cursor-pointer group bg-[#F7F5F0] p-3.5 rounded-xl border border-[#EAE4D9] hover:border-[#C1A68D] transition-colors">
+                    <div className="relative flex items-center justify-center shrink-0 mt-0.5">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={rulesAccepted}
+                        onChange={e => setRulesAccepted(e.target.checked)}
+                        className="peer appearance-none w-5 h-5 border-2 border-[#C1A68D] rounded-md checked:bg-[#2A2723] checked:border-[#2A2723] transition-colors cursor-pointer"
+                      />
+                      <span className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none text-xs font-black">✓</span>
+                    </div>
+                    <p className={`text-xs text-[#7A7061] font-bold leading-relaxed selection:bg-transparent ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {isRTL ? (
+                        <>أوافق على قراءة والالتزام الكامل بـ <span onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }} className="text-[#C1A68D] underline font-black">قواعد وشروط الإقامة</span> الخاصة بمجمع مزار الفندقي.</>
+                      ) : (
+                        <>I agree to comply with the <span onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }} className="text-[#C1A68D] underline font-black">house rules and terms</span> of Mazar.</>
+                      )}
+                    </p>
+                  </label>
+                </div>
 
                 {/* ── Error ──────────────────────────────────────── */}
                 {bookingError && (
@@ -659,19 +881,37 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
                 )}
 
                 {/* ── Submit ─────────────────────────────────────── */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !name || !phone || !rulesAccepted || nights <= 0 || !unitAvailable}
-                  className="w-full bg-[#E63946] text-white font-black py-5 rounded-2xl text-lg hover:bg-[#c1121f] transition-all shadow-xl shadow-red-500/20 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-30"
-                >
-                  <span className="text-2xl">💬</span>
-                  {isSubmitting ? '...' : (isRTL ? 'تأكيد الحجز عبر واتساب' : 'Confirm via WhatsApp')}
-                </button>
+                <div className="pt-2 space-y-2">
+                  {(!receiptUrl && paymentMethod === 'whatsapp') && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-[11px] font-bold text-center">
+                      ⚠️ {isRTL ? 'تنبيه: لتأكيد الحجز النهائي يرجى التواصل معنا على واتساب وإرسال صورة إيصال التحويل' : 'Final confirmation requires transfer receipt via WhatsApp'}
+                    </div>
+                  )}
 
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">
-                  {isRTL ? 'دفع عند الوصول' : 'Pay on Arrival'}
-                </p>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !name || !phone || !rulesAccepted || nights <= 0 || !unitAvailable}
+                    className={`w-full text-white font-black py-4 md:py-5 rounded-2xl text-base md:text-lg transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-30 ${
+                      receiptUrl || paymentMethod === 'visa'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                        : 'bg-[#E63946] hover:bg-[#c1121f] shadow-red-500/20'
+                    }`}
+                  >
+                    <span className="relative z-10">
+                      {isSubmitting ? '...' : (
+                        receiptUrl || paymentMethod === 'visa'
+                          ? (isRTL ? '✅ تأكيد وإرسال الحجز الفوري' : '✅ Instant Confirmation')
+                          : (isRTL ? '💬 إرسال الطلب والتواصل عبر واتساب' : '💬 Reserve & Confirm via WhatsApp')
+                      )}
+                    </span>
+                  </button>
 
+                  <p className="text-center text-[10px] font-bold text-[#7A7061] opacity-80">
+                    {receiptUrl || paymentMethod === 'visa'
+                      ? (isRTL ? '✨ سيتم تأكيد حجزك فورياً لمطابقة الإيصال وإثبات الشخصية' : 'Instant confirmation upon receipt and ID verification')
+                      : (isRTL ? 'لو لم ترسل صورة تحويل، يرجى التواصل معنا على واتساب لاعتماد الحجز' : 'If no receipt is attached, contact us on WhatsApp to confirm')}
+                  </p>
+                </div>
               </form>
             </div>
           </div>
@@ -709,6 +949,86 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
         onSelectIndex={(idx) => setLightboxIndex(idx)}
         isRTL={isRTL}
       />
+
+      {/* House Rules Quick Modal */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" dir={isRTL ? 'rtl' : 'ltr'}>
+          <div className="bg-white max-w-xl w-full rounded-[2.5rem] border border-[#EAE4D9] shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#EAE4D9]">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📜</span>
+                <h3 className="text-lg md:text-xl font-black text-[#2A2723]">
+                  {isRTL ? 'قواعد وشروط الإقامة' : 'House Rules & Terms'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRulesModal(false)}
+                className="w-9 h-9 rounded-full bg-[#F7F5F0] hover:bg-[#2A2723] hover:text-white flex items-center justify-center font-black transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs md:text-sm text-[#5C554B] font-bold leading-relaxed">
+              <div className="p-4 bg-[#FDFBF7] rounded-2xl border border-[#EAE4D9] space-y-2">
+                <h4 className="font-black text-[#2A2723] flex items-center gap-2">
+                  <span>🕒</span>
+                  <span>{isRTL ? 'مواعيد الدخول والمغادرة' : 'Check-In & Check-Out'}</span>
+                </h4>
+                <ul className="list-disc list-inside space-y-1 text-[#7A7061]">
+                  <li>{isRTL ? 'تسجيل الوصول: من الساعة 2:00 ظهرًا.' : 'Check-in: from 2:00 PM.'}</li>
+                  <li>{isRTL ? 'تسجيل المغادرة: حتى الساعة 12:00 ظهرًا.' : 'Check-out: by 12:00 PM.'}</li>
+                </ul>
+              </div>
+
+              <div className="p-4 bg-[#FDFBF7] rounded-2xl border border-[#EAE4D9] space-y-2">
+                <h4 className="font-black text-[#2A2723] flex items-center gap-2">
+                  <span>🪪</span>
+                  <span>{isRTL ? 'إثبات الهوية واستلام الوحدة' : 'ID & Unit Handover'}</span>
+                </h4>
+                <p className="text-[#7A7061]">
+                  {isRTL
+                    ? 'يجب تقديم بطاقة رقم قومي سارية أو جواز سفر لجميع المقيمين عند الاستلام، وكارت الدخول مسؤولية شخصية.'
+                    : 'Valid ID or passport is required for all guests upon arrival.'}
+                </p>
+              </div>
+
+              <div className="p-4 bg-red-50/80 rounded-2xl border border-red-100 space-y-2 text-red-950">
+                <h4 className="font-black text-red-700 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{isRTL ? 'سياسة الهدوء والأمان' : 'Peace & Safety Policy'}</span>
+                </h4>
+                <ul className="list-disc list-inside space-y-1 text-red-900/90 text-[11px] md:text-xs">
+                  <li>{isRTL ? 'يمنع منعاً باتاً استقبال أي زائر غير مسجل لدى إدارة مزار مسبقاً.' : 'Unregistered visitors are strictly prohibited.'}</li>
+                  <li>{isRTL ? 'يمنع إدخال أو تناول المشروبات الكحولية أو المواد المخدرة داخل المبنى.' : 'Alcohol and drugs are strictly prohibited.'}</li>
+                  <li>{isRTL ? 'تحتفظ إدارة مزار بالحق في إنهاء الإقامة فوراً دون استرداد في حال مخالفة التعليمات.' : 'Management reserves the right to terminate stay without refund upon violation.'}</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRulesAccepted(true);
+                  setShowRulesModal(false);
+                }}
+                className="flex-1 bg-[#2A2723] text-white py-3.5 rounded-2xl font-black text-xs hover:bg-black transition-all shadow-md text-center"
+              >
+                {isRTL ? '✓ قرأت وأوافق على جميع الشروط' : '✓ I have read and agree'}
+              </button>
+              <Link
+                href="/mazar/rules"
+                target="_blank"
+                className="py-3.5 px-5 rounded-2xl border border-[#EAE4D9] text-[#7A7061] hover:text-[#2A2723] font-black text-xs transition-colors text-center"
+              >
+                {isRTL ? 'فتح صفحة القواعد الكاملة' : 'View Full Rules Page'}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </main>

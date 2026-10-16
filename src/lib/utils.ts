@@ -265,4 +265,43 @@ export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: strin
   return hasCustomerProfileNote(phone);
 }
 
+/**
+ * توحيد وتشغيل فيديو الوحدة:
+ * يحول أي مسار قديم أو به حروف عربية إلى ملفات الفيديو الإنجليزية في /images/video/studio-${num}.mp4
+ */
+export function resolveUnitVideo(unit: any): string | null {
+  if (!unit) return null;
+  const rawVideo = unit.video;
+  if (rawVideo && typeof rawVideo === 'string') {
+    if (rawVideo.startsWith('http')) return rawVideo;
+    if (rawVideo.startsWith('/images/video/')) return rawVideo;
+    if (rawVideo.includes('mazar2-video')) return '/images/mazar2/mazar2-video.mp4';
+  }
+
+  // فحص رقم الاستوديو من الـ ID (مثل: b1-s1 -> 1, b2-s14 -> 14, إلخ)
+  const idStr = String(unit.id || '');
+  const match = idStr.match(/s(\d+)$/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    // الفيديوهات المتوفرة في /images/video هي من 1 إلى 24 ما عدا 7
+    if (num >= 1 && num <= 24 && num !== 7) {
+      return `/images/video/studio-${num}.mp4`;
+    }
+  }
+
+  // فحص رقم الاستوديو من مسار الفيديو إذا كان يحتوي على s1 أو s14
+  if (rawVideo && typeof rawVideo === 'string') {
+    const sMatch = rawVideo.match(/s(\d+)[\/\.]/i) || rawVideo.match(/studio[_\-](\d+)/i);
+    if (sMatch) {
+      const num = parseInt(sMatch[1], 10);
+      if (num >= 1 && num <= 24 && num !== 7) {
+        return `/images/video/studio-${num}.mp4`;
+      }
+    }
+    return encodeURI(rawVideo);
+  }
+
+  return null;
+}
+
 

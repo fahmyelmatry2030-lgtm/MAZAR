@@ -7,6 +7,7 @@ interface ReceiptImageModalProps {
   isOpen: boolean;
   url: string | null;
   guestName?: string | null;
+  title?: string;
   onClose: () => void;
 }
 
@@ -30,7 +31,7 @@ export const toDirectImageUrl = (rawUrl: string): string => {
   return url;
 };
 
-export default function ReceiptImageModal({ isOpen, url, guestName, onClose }: ReceiptImageModalProps) {
+export default function ReceiptImageModal({ isOpen, url, guestName, title, onClose }: ReceiptImageModalProps) {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [imgError, setImgError] = useState(false);
@@ -45,6 +46,7 @@ export default function ReceiptImageModal({ isOpen, url, guestName, onClose }: R
 
   if (!isOpen || !url) return null;
 
+  const isPdf = url.toLowerCase().includes('.pdf');
   const directUrl = toDirectImageUrl(url);
 
   // Fallback URLs if the primary image CDN fails
@@ -66,7 +68,7 @@ export default function ReceiptImageModal({ isOpen, url, guestName, onClose }: R
         <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
           <div className="flex items-center gap-2 text-[#C1A68D] font-black text-base">
             <ImageIcon size={20} className="text-[#C1A68D]" />
-            <span>معاينة إثبات الدفع وجدية الحجز</span>
+            <span>{title || 'معاينة المستند / الإيصال'}</span>
             {guestName && <span className="text-gray-300 text-xs font-bold">({guestName})</span>}
           </div>
 
@@ -104,12 +106,18 @@ export default function ReceiptImageModal({ isOpen, url, guestName, onClose }: R
           </div>
         </div>
 
-        {/* Image Container */}
+        {/* Image / Document Container */}
         <div className="relative flex-1 rounded-2xl overflow-hidden bg-black/80 border border-white/10 flex items-center justify-center min-h-[350px] max-h-[65vh] p-4">
-          {!imgError ? (
+          {isPdf ? (
+            <iframe
+              src={url}
+              className="w-full h-[60vh] rounded-xl border-0 bg-white"
+              title="معاينة ملف PDF"
+            />
+          ) : !imgError ? (
             <img
               src={currentSrc}
-              alt="إثبات الدفع"
+              alt="إثبات الدفع أو الهوية"
               className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-2xl transition-transform duration-200"
               style={{
                 transform: `scale(${scale}) rotate(${rotation}deg)`,

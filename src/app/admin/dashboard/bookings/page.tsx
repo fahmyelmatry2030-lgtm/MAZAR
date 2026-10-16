@@ -9,8 +9,22 @@ import ReceiptImageModal from '@/components/ReceiptImageModal';
 const getReceiptUrl = (b: any) => {
   if (!b) return null;
   const text = `${b.paymentInfo || ''} ${b.notes || ''} ${b.payment_info || ''} ${b.paymentProof || ''}`;
-  const match = text.match(/https:\/\/[^\s"'\)]+/);
-  return match ? match[0] : null;
+  const receiptMatch = text.match(/(?:إيصال|تحويل|receipt)[^h]*?(https:\/\/[^\s"'\)|]+)/i);
+  if (receiptMatch) return receiptMatch[1];
+  const allUrls = text.match(/https:\/\/[^\s"'\)|]+/g);
+  return allUrls ? allUrls[0] : null;
+};
+
+const getIdDocUrl = (b: any) => {
+  if (!b) return null;
+  const text = `${b.paymentInfo || ''} ${b.notes || ''} ${b.payment_info || ''} ${b.idNumber || ''} ${b.id_number || ''}`;
+  const idMatch = text.match(/(?:شخصية|هوية|بطاقة|باسبور|id)[^h]*?(https:\/\/[^\s"'\)|]+)/i);
+  if (idMatch) return idMatch[1];
+  const allUrls = text.match(/https:\/\/[^\s"'\)|]+/g);
+  if (allUrls && allUrls.length > 1) {
+    return allUrls[1];
+  }
+  return null;
 };
 
 
@@ -23,7 +37,7 @@ export default function BookingsManagement() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [activeReceiptModal, setActiveReceiptModal] = useState<{ isOpen: boolean; url: string | null; name?: string }>({ isOpen: false, url: null });
+  const [activeReceiptModal, setActiveReceiptModal] = useState<{ isOpen: boolean; url: string | null; name?: string; title?: string }>({ isOpen: false, url: null });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
@@ -331,7 +345,7 @@ export default function BookingsManagement() {
                   <th className="px-6 py-6">وقت الطلب</th>
                   <th className="px-6 py-6">التواريخ</th>
                   <th className="px-6 py-6">الوحدة المطلوبة</th>
-                  <th className="px-6 py-6">إيصال التحويل</th>
+                  <th className="px-6 py-6">المستندات والإيصالات</th>
                   <th className="px-6 py-6">الحالة</th>
                   <th className="px-6 py-6 text-left">الإجراءات</th>
                 </tr>
@@ -380,17 +394,33 @@ export default function BookingsManagement() {
                       <td className="px-6 py-6">
                         {(() => {
                           const receipt = getReceiptUrl(booking);
-                          return receipt ? (
-                            <button
-                              type="button"
-                              onClick={() => setActiveReceiptModal({ isOpen: true, url: receipt, name: booking.name })}
-                              className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white px-3 py-2 rounded-xl text-[10px] font-black transition-all border border-emerald-200/80 shadow-sm"
-                            >
-                              <span className="text-xs">🖼️</span>
-                              <span>صورة الإيصال</span>
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-[#7A7061] opacity-40 font-bold">—</span>
+                          const idDoc = getIdDocUrl(booking);
+                          if (!receipt && !idDoc) {
+                            return <span className="text-[10px] text-[#7A7061] opacity-40 font-bold">—</span>;
+                          }
+                          return (
+                            <div className="flex flex-col gap-1.5">
+                              {receipt && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveReceiptModal({ isOpen: true, url: receipt, name: booking.name, title: 'إيصال التحويل البنكي' })}
+                                  className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border border-emerald-200/80 shadow-sm"
+                                >
+                                  <span className="text-xs">🧾</span>
+                                  <span>صورة الإيصال</span>
+                                </button>
+                              )}
+                              {idDoc && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveReceiptModal({ isOpen: true, url: idDoc, name: booking.name, title: 'إثبات الشخصية (بطاقة / باسبور)' })}
+                                  className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border border-blue-200/80 shadow-sm"
+                                >
+                                  <span className="text-xs">🪪</span>
+                                  <span>إثبات الهوية</span>
+                                </button>
+                              )}
+                            </div>
                           );
                         })()}
                       </td>
@@ -499,6 +529,35 @@ export default function BookingsManagement() {
                            <span className="text-[10px] font-black tracking-tighter">دخول: {b.checkIn} ➔ خروج: {b.checkOut}</span>
                         </div>
                      </div>
+
+                     {/* Documents & Receipts in card view */}
+                     {(() => {
+                       const receipt = getReceiptUrl(b);
+                       const idDoc = getIdDocUrl(b);
+                       if (!receipt && !idDoc) return null;
+                       return (
+                         <div className="pt-3 border-t border-white/5 flex flex-wrap gap-2">
+                           {receipt && (
+                             <button
+                               type="button"
+                               onClick={() => setActiveReceiptModal({ isOpen: true, url: receipt, name: b.name, title: 'إيصال التحويل البنكي' })}
+                               className="flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border border-emerald-500/20"
+                             >
+                               <span>🧾 صورة الإيصال</span>
+                             </button>
+                           )}
+                           {idDoc && (
+                             <button
+                               type="button"
+                               onClick={() => setActiveReceiptModal({ isOpen: true, url: idDoc, name: b.name, title: 'إثبات الشخصية (بطاقة / باسبور)' })}
+                               className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border border-blue-500/20"
+                             >
+                               <span>🪪 إثبات الهوية</span>
+                             </button>
+                           )}
+                         </div>
+                       );
+                     })()}
 
                      {b.notes && (
                        <div className="pt-4 border-t border-white/5">
@@ -744,11 +803,12 @@ export default function BookingsManagement() {
         </div>
       </div>
 
-      {/* RECEIPT IMAGE MODAL */}
+      {/* RECEIPT / ID DOCUMENT MODAL */}
       <ReceiptImageModal
         isOpen={activeReceiptModal.isOpen}
         url={activeReceiptModal.url}
         guestName={activeReceiptModal.name}
+        title={activeReceiptModal.title}
         onClose={() => setActiveReceiptModal({ isOpen: false, url: null })}
       />
     </div>

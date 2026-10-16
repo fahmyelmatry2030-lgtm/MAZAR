@@ -8,7 +8,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
  * 2. تحاول الرفع المباشر إلى Supabase Storage لتجاوز قيود حجم الخادم وVercel وتوفير سرعة فائقة.
  * 3. في حالة فشل الرفع المباشر، تلجأ تلقائياً إلى Server Action المحدث لرفعها بأمان.
  */
-export async function processAndUploadReceipt(file: File): Promise<string> {
+export async function processAndUploadReceipt(file: File, folder: string = 'receipts'): Promise<string> {
   if (!file) {
     throw new Error('لم يتم اختيار ملف للرفع.');
   }
@@ -26,7 +26,7 @@ export async function processAndUploadReceipt(file: File): Promise<string> {
       };
       fileToUpload = await imageCompression(file, options);
     } catch (compressErr) {
-      console.warn('Receipt compression fallback to original file:', compressErr);
+      console.warn('Image compression fallback to original file:', compressErr);
     }
   }
 
@@ -34,15 +34,15 @@ export async function processAndUploadReceipt(file: File): Promise<string> {
   try {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      const safeName = (fileToUpload.name || 'receipt.jpg').replace(/[^\w.\-]+/g, '-');
-      const objectPath = `receipts/${Date.now()}-${safeName}`;
+      const safeName = (fileToUpload.name || 'document.jpg').replace(/[^\w.\-]+/g, '-');
+      const objectPath = `${folder}/${Date.now()}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('uploads')
         .upload(objectPath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
-          contentType: fileToUpload.type || 'image/jpeg',
+          contentType: fileToUpload.type || (fileToUpload.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
         });
 
       if (!uploadError) {
@@ -63,3 +63,5 @@ export async function processAndUploadReceipt(file: File): Promise<string> {
   formData.append('file', fileToUpload);
   return await uploadImage(formData);
 }
+
+export const processAndUploadDocument = (file: File) => processAndUploadReceipt(file, 'documents');
