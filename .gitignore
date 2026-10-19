@@ -44,7 +44,11 @@ next-env.d.ts
 
 # app data
 /brain/
+treasury_report_*.*
+
 
 # large media files
 *.mp4
 public/**/*.mp4
+!public/images/video/*.mp4
+!public/images/mazar2/*.mp4

@@ -15,7 +15,7 @@ export const units = [
     "video": "/استديوهات/s14/VID-20260814-WA0008.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:50.093424+00:00"
   },
   {
@@ -34,7 +34,7 @@ export const units = [
     "video": "/استديوهات/s17/VID-20260814-WA0016.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:50.856663+00:00"
   },
   {
@@ -53,7 +53,7 @@ export const units = [
     "video": "/استديوهات/s20/VID-20260814-WA0023.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.337142+00:00"
   },
   {
@@ -72,7 +72,7 @@ export const units = [
     "video": "/استديوهات/s23/VID-20260814-WA0014.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.870352+00:00"
   },
   {
@@ -91,7 +91,7 @@ export const units = [
     "video": "/استديوهات/s15/VID-20260814-WA0019.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:50.249953+00:00"
   },
   {
@@ -110,7 +110,7 @@ export const units = [
     "video": "/استديوهات/s18/VID-20260814-WA0013.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.016174+00:00"
   },
   {
@@ -129,7 +129,7 @@ export const units = [
     "video": "/استديوهات/s21/VID-20260814-WA0012.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.503714+00:00"
   },
   {
@@ -148,7 +148,7 @@ export const units = [
     "video": "/استديوهات/s24/VID-20260814-WA0011.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:52.032842+00:00"
   },
   {
@@ -167,7 +167,7 @@ export const units = [
     "video": "/استديوهات/s13/VID-20260814-WA0027.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:49.896185+00:00"
   },
   {
@@ -186,7 +186,7 @@ export const units = [
     "video": "/استديوهات/s16/VID-20260814-WA0021.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:50.429159+00:00"
   },
   {
@@ -205,7 +205,7 @@ export const units = [
     "video": "/استديوهات/s19/VID-20260814-WA0018.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.161179+00:00"
   },
   {
@@ -224,7 +224,7 @@ export const units = [
     "video": "/استديوهات/s22/VID-20260814-WA0015.mp4",
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:51.717765+00:00"
   },
   {
@@ -300,7 +300,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:48.35257+00:00"
   },
   {
@@ -332,7 +332,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:48.684024+00:00"
   },
   {
@@ -364,7 +364,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:47.557825+00:00"
   },
   {
@@ -442,7 +442,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:49.293832+00:00"
   },
   {
@@ -476,7 +476,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:49.459151+00:00"
   },
   {
@@ -510,7 +510,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:49.728235+00:00"
   },
   {
@@ -542,7 +542,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:47.762525+00:00"
   },
   {
@@ -574,7 +574,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:48.908529+00:00"
   },
   {
@@ -608,7 +608,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:49.11541+00:00"
   },
   {
@@ -640,7 +640,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:47.934572+00:00"
   },
   {
@@ -674,7 +674,7 @@ export const units = [
       ]
     },
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:48.127201+00:00"
   },
   {
@@ -983,7 +983,7 @@ export const units = [
       ]
     },
     "original_price": "350",
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-04-19T22:11:47.153348+00:00"
   },
   {
@@ -1002,7 +1002,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   },
   {
@@ -1021,7 +1021,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   },
   {
@@ -1040,7 +1040,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   },
   {
@@ -1059,7 +1059,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   },
   {
@@ -1078,7 +1078,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   },
   {
@@ -1097,7 +1097,7 @@ export const units = [
     "video": null,
     "features": null,
     "original_price": null,
-    "price": "200",
+    "price": "3000",
     "updated_at": "2026-05-04T05:53:28.052+00:00"
   }
 ];

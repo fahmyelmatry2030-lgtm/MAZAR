@@ -71,6 +71,7 @@ const EXTERNAL_APARTMENTS = [
       '/images/apt1/apt1-15.jpg',
       '/images/apt1/apt1-16.jpg',
     ],
+    videoSrc: '/images/video/apartment-26.mp4',
     browseHref: '/mazar/units/apt-1',
     unitId: 'apt-1',
   },
@@ -110,6 +111,7 @@ const EXTERNAL_APARTMENTS = [
       '/images/apt2/apt2-27.jpg',
       '/images/apt2/apt2-28.jpg',
     ],
+    videoSrc: '/images/video/apartment-26.mp4',
     browseHref: '/mazar/units/apt-2',
     unitId: 'apt-2',
   },
@@ -131,7 +133,7 @@ const EXTERNAL_APARTMENTS = [
       '/images/apt3/apt3-9.jpg',
       '/images/apt3/apt3-10.jpg',
     ],
-    videoSrc: '/images/apt3/apt3-video.mp4',
+    videoSrc: '/images/video/apartment-26.mp4',
     browseHref: '/mazar/units/apt-3',
     unitId: 'apt-3',
   },
@@ -389,6 +391,7 @@ export default function HomeClient() {
           galleryImages={BRANCH1_IMAGES}
           unitCount={12}
           unitLabel="استوديو"
+          videoSrc="/images/video/studio-1.mp4"
           browseHref="/mazar/units/studios?branch=1"
           accentColor="#C1A68D"
         />

@@ -47,9 +47,6 @@ export const getSystemUnits = async () => {
               merged[key] = val;
             }
           });
-          if (su.id && String(su.id).startsWith('apt-')) {
-            merged.video = null;
-          }
           return merged;
         });
     }

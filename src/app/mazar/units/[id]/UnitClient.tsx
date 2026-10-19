@@ -149,7 +149,8 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
     setBookingError(null);
 
     const nights = Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)));
-    const pricePerNight = unit?.price ? (parseInt(String(unit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+    const rawPrice = unit?.price ? (parseInt(String(unit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+    const pricePerNight = rawPrice >= 1000 ? rawPrice : ((id.startsWith('apt-') || id.startsWith('ext-')) ? 4000 : 3000);
     const totalAmount = nights * pricePerNight;
 
     const methodLabel = 'إنستا باي / تحويل بنكي';
@@ -163,6 +164,8 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
     }
 
     const fullNotes = `[طلب من صفحة الوحدة] ${notesParts.join(' | ')}`;
+    const paymentSummary = `إجمالي الحجز: ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م) | متبقي: ${totalAmount} ج.م`;
+    const fullPaymentInfo = `${paymentSummary} | ${fullNotes}`;
 
     const bookingData = {
       name,
@@ -182,7 +185,7 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
       guest: name,
       guestsCount,
       studio: unit?.title?.['ar'] || id,
-      paymentInfo: fullNotes || (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
+      paymentInfo: fullPaymentInfo,
       notes: fullNotes,
       source: 'website',
       isWebsiteBooking: true,
@@ -212,7 +215,7 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
         `👥 *عدد الضيوف:* ${guestsCount}\n` +
         `🏠 *الوحدة:* ${unit?.title?.['ar'] || id}\n` +
         `📅 *الفترة:* من ${formatDate(checkIn)} إلى ${formatDate(checkOut)} (${nights} ليالي)\n` +
-        `💰 *الإجمالي التقريبي:* ${totalAmount > 0 ? `${totalAmount} ج.م` : 'حسب التسعير'}\n` +
+        `💰 *إجمالي التكلفة:* ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م)\n` +
         `💳 *وسيلة السداد:* ${methodLabel}\n` +
         (idDocUrl ? `🪪 *إثبات الشخصية:* ${idDocUrl}\n` : '') +
         paymentNotice + `\n\nيرجى تأكيد الحجز معي.`;
@@ -570,13 +573,28 @@ export default function UnitDetailsPage({ initialUnit }: { initialUnit: any }) {
                     </div>
                   </div>
 
-                  {/* Nights summary */}
-                  {nights > 0 && (
-                    <div className={`flex items-center justify-between bg-[#2A2723] text-white px-5 py-3 rounded-2xl font-black`}>
-                      <span className="text-sm">{isRTL ? 'إجمالي الإقامة' : 'Total Stay'}</span>
-                      <span className="text-lg">✨ {nights} {isRTL ? 'ليالي' : 'Nights'}</span>
-                    </div>
-                  )}
+                  {/* Nights & Price summary */}
+                  {nights > 0 && (() => {
+                    const rawP = unit?.price ? (parseInt(String(unit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+                    const unitP = rawP >= 1000 ? rawP : ((id.startsWith('apt-') || id.startsWith('ext-')) ? 4000 : 3000);
+                    const tot = nights * unitP;
+                    return (
+                      <div className="bg-[#2A2723] text-white p-4 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between font-black pb-2 border-b border-white/10">
+                          <span className="text-xs text-[#C1A68D]">{isRTL ? 'تفاصيل التكلفة' : 'Cost Breakdown'}</span>
+                          <span className="text-sm">✨ {nights} {isRTL ? 'ليالي' : 'Nights'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-300">
+                          <span>{isRTL ? 'سعر الليلة:' : 'Price per night:'}</span>
+                          <span className="font-bold text-white">{unitP} ج.م</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-white/10 text-sm font-black">
+                          <span className="text-[#C1A68D]">{isRTL ? 'الإجمالي المطلوب:' : 'Total Amount:'}</span>
+                          <span className="text-base text-[#4ECDC4]">{tot} ج.م</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Unavailable warning */}
                   {nights > 0 && !unitAvailable && (

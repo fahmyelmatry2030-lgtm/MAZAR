@@ -145,16 +145,23 @@ export default function BookingsManagement() {
 
       const apt = availableAptsForBooking.find(a => a.id === selectedAptId);
       let calculatedTotal = 0;
-      if (apt && apt.price) {
-        const numericPrice = parseInt(apt.price.toString().replace(/[^0-9]/g, '')) || 0;
+      if (selectedBooking.totalAmount && Number(selectedBooking.totalAmount) > 0) {
+        calculatedTotal = Number(selectedBooking.totalAmount);
+      } else if (apt && apt.price) {
+        let numericPrice = parseInt(apt.price.toString().replace(/[^0-9]/g, '')) || 0;
+        if (numericPrice < 1000) {
+          numericPrice = (apt.id.startsWith('apt-') || apt.id.startsWith('ext-')) ? 4000 : 3000;
+        }
         calculatedTotal = numericPrice * diffDays;
       }
       setTotalAmount(calculatedTotal);
       
-      if (calculatedTotal > 0) {
-          setPaymentInfo(`إجمالي تكلفة الإقامة لمدة (${diffDays}) ليالي هو ${calculatedTotal} ج.م.\n\nيرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز النهائي.`);
+      if (selectedBooking.paymentInfo && selectedBooking.paymentInfo.includes('إجمالي الحجز')) {
+        setPaymentInfo(selectedBooking.paymentInfo);
+      } else if (calculatedTotal > 0) {
+        setPaymentInfo(`إجمالي تكلفة الإقامة لمدة (${diffDays}) ليالي هو ${calculatedTotal} ج.م.\n\nيرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز النهائي.`);
       } else {
-          setPaymentInfo(`يرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز.`);
+        setPaymentInfo(`يرجى تحويل مبلغ العربون (500 ج.م) لتأكيد الحجز.`);
       }
     }
   }, [selectedBooking, selectedAptId, availableAptsForBooking]);
@@ -346,6 +353,7 @@ export default function BookingsManagement() {
                   <th className="px-6 py-6">التواريخ</th>
                   <th className="px-6 py-6">الوحدة المطلوبة</th>
                   <th className="px-6 py-6">المستندات والإيصالات</th>
+                  <th className="px-6 py-6">الإجمالي / المدة</th>
                   <th className="px-6 py-6">الحالة</th>
                   <th className="px-6 py-6 text-left">الإجراءات</th>
                 </tr>
@@ -353,7 +361,7 @@ export default function BookingsManagement() {
               <tbody className="text-xs">
                 {filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-8 py-24 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">
+                    <td colSpan={8} className="px-8 py-24 text-center text-[#7A7061] italic font-bold opacity-40 uppercase tracking-widest">
                       {isLoading ? 'جاري تحميل البيانات...' : 'لا توجد طلبات حجز حالياً في هذا القسم.'}
                     </td>
                   </tr>
@@ -423,6 +431,18 @@ export default function BookingsManagement() {
                             </div>
                           );
                         })()}
+                      </td>
+                      <td className="px-6 py-6">
+                        <div className="font-black text-[#2A2723] text-sm">
+                          {booking.totalAmount ? (
+                            <span className="text-emerald-700 font-black">{booking.totalAmount} <span className="text-[10px] text-gray-500 font-bold">ج.م</span></span>
+                          ) : (
+                            <span className="text-[11px] text-gray-400 font-bold">—</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#7A7061] font-bold mt-1">
+                          {booking.numberOfDays ? `${booking.numberOfDays} ليالي` : ''}
+                        </div>
                       </td>
                       <td className="px-6 py-6">
                         <span className={`px-4 py-2 rounded-full text-[9px] font-black tracking-widest uppercase shadow-sm ${

@@ -39,7 +39,7 @@
       ]
     },
     "originalPrice": "350",
-    "price": "200"
+    "price": "3000"
   },
   {
     "id": "b1-s2",
@@ -52,7 +52,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s2/VID-20260814-WA0026.mp4"
+    "video": "/استديوهات/s2/VID-20260814-WA0026.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s3",
@@ -65,7 +66,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s3/VID-20260814-WA0028.mp4"
+    "video": "/استديوهات/s3/VID-20260814-WA0028.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s4",
@@ -78,7 +80,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s4/VID-20260814-WA0017.mp4"
+    "video": "/استديوهات/s4/VID-20260814-WA0017.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s5",
@@ -91,7 +94,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s5/VID-20260814-WA0022.mp4"
+    "video": "/استديوهات/s5/VID-20260814-WA0022.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s6",
@@ -104,7 +108,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s6/VID-20260814-WA0009.mp4"
+    "video": "/استديوهات/s6/VID-20260814-WA0009.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s7",
@@ -117,7 +122,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": null
+    "video": null,
+    "price": "3000"
   },
   {
     "id": "b1-s8",
@@ -130,7 +136,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s8/VID-20260814-WA0020.mp4"
+    "video": "/استديوهات/s8/VID-20260814-WA0020.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s9",
@@ -143,7 +150,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s9/VID-20260814-WA0029.mp4"
+    "video": "/استديوهات/s9/VID-20260814-WA0029.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s10",
@@ -156,7 +164,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s10/VID-20260814-WA0007.mp4"
+    "video": "/استديوهات/s10/VID-20260814-WA0007.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s11",
@@ -169,7 +178,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s11/VID-20260814-WA0024.mp4"
+    "video": "/استديوهات/s11/VID-20260814-WA0024.mp4",
+    "price": "3000"
   },
   {
     "id": "b1-s12",
@@ -182,7 +192,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s12/VID-20260814-WA0010.mp4"
+    "video": "/استديوهات/s12/VID-20260814-WA0010.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s1",
@@ -195,7 +206,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s13/VID-20260814-WA0027.mp4"
+    "video": "/استديوهات/s13/VID-20260814-WA0027.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s2",
@@ -208,7 +220,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s14/VID-20260814-WA0008.mp4"
+    "video": "/استديوهات/s14/VID-20260814-WA0008.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s3",
@@ -221,7 +234,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s15/VID-20260814-WA0019.mp4"
+    "video": "/استديوهات/s15/VID-20260814-WA0019.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s4",
@@ -234,7 +248,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s16/VID-20260814-WA0021.mp4"
+    "video": "/استديوهات/s16/VID-20260814-WA0021.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s5",
@@ -247,7 +262,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s17/VID-20260814-WA0016.mp4"
+    "video": "/استديوهات/s17/VID-20260814-WA0016.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s6",
@@ -260,7 +276,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s18/VID-20260814-WA0013.mp4"
+    "video": "/استديوهات/s18/VID-20260814-WA0013.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s7",
@@ -273,7 +290,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s19/VID-20260814-WA0018.mp4"
+    "video": "/استديوهات/s19/VID-20260814-WA0018.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s8",
@@ -286,7 +304,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s20/VID-20260814-WA0023.mp4"
+    "video": "/استديوهات/s20/VID-20260814-WA0023.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s9",
@@ -299,7 +318,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s21/VID-20260814-WA0012.mp4"
+    "video": "/استديوهات/s21/VID-20260814-WA0012.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s10",
@@ -312,7 +332,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s22/VID-20260814-WA0015.mp4"
+    "video": "/استديوهات/s22/VID-20260814-WA0015.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s11",
@@ -325,7 +346,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s23/VID-20260814-WA0014.mp4"
+    "video": "/استديوهات/s23/VID-20260814-WA0014.mp4",
+    "price": "3000"
   },
   {
     "id": "b2-s12",
@@ -338,7 +360,8 @@
     "status": "متاح",
     "housekeeping": "نظيف",
     "nextBooking": "لا يوجد",
-    "video": "/استديوهات/s24/VID-20260814-WA0011.mp4"
+    "video": "/استديوهات/s24/VID-20260814-WA0011.mp4",
+    "price": "3000"
   },
   {
     "id": "apt-1",
@@ -350,7 +373,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "4000"
   },
   {
     "id": "apt-2",
@@ -362,7 +386,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "4000"
   },
   {
     "id": "apt-3",
@@ -374,7 +399,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "4000"
   },
   {
     "id": "p-s25",
@@ -386,7 +412,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   },
   {
     "id": "p-s26",
@@ -398,7 +425,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   },
   {
     "id": "p-s27",
@@ -410,7 +438,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   },
   {
     "id": "p-s28",
@@ -422,7 +451,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   },
   {
     "id": "p-s29",
@@ -434,7 +464,8 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   },
   {
     "id": "p-s30",
@@ -446,6 +477,7 @@
     },
     "status": "متاح",
     "housekeeping": "نظيف",
-    "nextBooking": "لا يوجد"
+    "nextBooking": "لا يوجد",
+    "price": "3000"
   }
 ]

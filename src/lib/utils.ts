@@ -271,33 +271,62 @@ export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: strin
  */
 export function resolveUnitVideo(unit: any): string | null {
   if (!unit) return null;
-  const rawVideo = unit.video;
+  const rawVideo = unit.video || unit.videoSrc;
   if (rawVideo && typeof rawVideo === 'string') {
     if (rawVideo.startsWith('http')) return rawVideo;
     if (rawVideo.startsWith('/images/video/')) return rawVideo;
     if (rawVideo.includes('mazar2-video')) return '/images/mazar2/mazar2-video.mp4';
+    if (rawVideo.includes('apartment-26')) return '/images/video/apartment-26.mp4';
   }
 
-  // فحص رقم الاستوديو من الـ ID (مثل: b1-s1 -> 1, b2-s14 -> 14, إلخ)
-  const idStr = String(unit.id || '');
-  const match = idStr.match(/s(\d+)$/i);
-  if (match) {
-    const num = parseInt(match[1], 10);
-    // الفيديوهات المتوفرة في /images/video هي من 1 إلى 24 ما عدا 7
-    if (num >= 1 && num <= 24 && num !== 7) {
+  const idStr = String(unit.id || '').trim();
+
+  // 1. الفئات الرئيسية المجمعة (Master categories)
+  if (idStr === 's-single') return '/images/video/studio-2.mp4';
+  if (idStr === 's-double') return '/images/video/studio-1.mp4';
+  if (idStr === 's-triple') return '/images/video/studio-4.mp4';
+  if (idStr === 's-tworoom') return '/images/video/apartment-26.mp4';
+
+  // 2. استوديوهات الفرع الأول (b1-s1 إلى b1-s12)
+  if (idStr.startsWith('b1-s')) {
+    const num = parseInt(idStr.replace('b1-s', ''), 10);
+    if (num >= 1 && num <= 12 && num !== 7) {
       return `/images/video/studio-${num}.mp4`;
     }
   }
 
-  // فحص رقم الاستوديو من مسار الفيديو إذا كان يحتوي على s1 أو s14
-  if (rawVideo && typeof rawVideo === 'string') {
-    const sMatch = rawVideo.match(/s(\d+)[\/\.]/i) || rawVideo.match(/studio[_\-](\d+)/i);
-    if (sMatch) {
-      const num = parseInt(sMatch[1], 10);
-      if (num >= 1 && num <= 24 && num !== 7) {
-        return `/images/video/studio-${num}.mp4`;
-      }
+  // 3. استوديوهات الفرع الثاني (b2-s1 إلى b2-s12 -> استوديوهات 13 إلى 24)
+  if (idStr.startsWith('b2-s')) {
+    const subNum = parseInt(idStr.replace('b2-s', ''), 10);
+    const realNum = subNum + 12; // b2-s1 -> 13, b2-s2 -> 14, إلخ
+    if (realNum >= 13 && realNum <= 24) {
+      return `/images/video/studio-${realNum}.mp4`;
     }
+  }
+
+  // 4. شقق الفرع الثالث غرفتين (p-s25 إلى p-s30)
+  if (idStr.startsWith('p-s') || idStr.includes('tworoom')) {
+    return '/images/video/apartment-26.mp4';
+  }
+
+  // 5. الشقق الفندقية الخارجية (apt-1, apt-2, apt-3)
+  if (idStr.startsWith('apt-') || idStr.startsWith('ext-')) {
+    return '/images/video/apartment-26.mp4';
+  }
+
+  // 6. الفحص بالرقم المباشر لو كُتب studio-X أو sX
+  const numMatch = idStr.match(/s?(\d+)$/i);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (num >= 1 && num <= 24 && num !== 7) {
+      return `/images/video/studio-${num}.mp4`;
+    }
+    if (num >= 25 && num <= 30) {
+      return '/images/video/apartment-26.mp4';
+    }
+  }
+
+  if (rawVideo && typeof rawVideo === 'string') {
     return encodeURI(rawVideo);
   }
 

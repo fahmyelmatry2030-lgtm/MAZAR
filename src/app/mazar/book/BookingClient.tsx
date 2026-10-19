@@ -62,6 +62,15 @@ export default function BookingPage() {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
+  const getSafeUnitPrice = (unit: any): number => {
+    if (!unit) return 3000;
+    const num = parseInt(String(unit.price || '').replace(/[^0-9]/g, ''), 10) || 0;
+    if (num >= 1000) return num;
+    const idStr = String(unit.id || '').toLowerCase();
+    if (idStr.startsWith('apt-') || idStr.startsWith('ext-')) return 4000;
+    return 3000;
+  };
+
   useEffect(() => {
     const init = async () => {
       const params = new URLSearchParams(window.location.search);
@@ -149,10 +158,12 @@ export default function BookingPage() {
   const openWhatsAppAdmin = useCallback(() => {
     const selectedUnit = availableUnits.find((u: any) => u.id === selectedUnitId);
     
-    // Calculate total nights
+    // Calculate total nights & price
     const start = new Date(checkIn).getTime();
     const end = new Date(checkOut).getTime();
-    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    const nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    const pricePerNight = getSafeUnitPrice(selectedUnit);
+    const totalAmount = nights * pricePerNight;
 
     const methodLabel = paymentMethod === 'visa' ? 'فيزا (بطاقة بنكية)' : paymentMethod === 'instapay_bank' ? 'إنستا باي / تحويل بنكي' : 'تواصل عبر واتساب للتأكيد';
     
@@ -171,6 +182,7 @@ export default function BookingPage() {
       `👥 *عدد الأشخاص:* ${guestsCount}\n` +
       `🏠 *الوحدة:* ${selectedUnit ? (selectedUnit.title?.['ar'] || selectedUnitId) : selectedUnitId}\n` +
       `📅 *الفترة:* من ${formatDate(checkIn)} إلى ${formatDate(checkOut)} (إجمالي ${nights} ليالي)\n` +
+      `💰 *إجمالي التكلفة:* ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م)\n` +
       `💳 *وسيلة الدفع:* ${methodLabel}\n` +
       (idDocUrl ? `🪪 *إثبات الشخصية:* ${idDocUrl}\n` : '') +
       paymentStatusMsg + `\n\nيرجى تأكيد الحجز معي.`;
@@ -274,7 +286,7 @@ export default function BookingPage() {
     const start = new Date(checkIn).getTime();
     const end = new Date(checkOut).getTime();
     const nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-    const pricePerNight = selectedUnit?.price ? (parseInt(String(selectedUnit.price).replace(/[^0-9]/g, '')) || 0) : 0;
+    const pricePerNight = getSafeUnitPrice(selectedUnit);
     const totalAmount = nights * pricePerNight;
 
     const methodLabel = 'إنستا باي / تحويل بنكي';
@@ -288,6 +300,8 @@ export default function BookingPage() {
     }
 
     const fullNotes = `[طلب من الموقع] ${notesParts.join(' | ')}`;
+    const paymentSummary = `إجمالي الحجز: ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م) | متبقي: ${totalAmount} ج.م`;
+    const fullPaymentInfo = `${paymentSummary} | ${fullNotes}`;
 
     const bookingData = {
       name,
@@ -307,7 +321,7 @@ export default function BookingPage() {
       guest: name,
       guestsCount: guestsCount,
       studio: selectedUnit ? (selectedUnit.title?.[language] || selectedUnitId) : selectedUnitId,
-      paymentInfo: fullNotes || (totalAmount > 0 ? `متبقي ${totalAmount}` : 'باقي'),
+      paymentInfo: fullPaymentInfo,
       notes: fullNotes,
       source: 'website',
       isWebsiteBooking: true,
@@ -338,7 +352,7 @@ export default function BookingPage() {
         `👥 *عدد الضيوف:* ${guestsCount}\n` +
         `🏠 *الوحدة:* ${selectedUnit ? (selectedUnit.title?.['ar'] || selectedUnitId) : selectedUnitId}\n` +
         `📅 *الفترة:* من ${formatDate(checkIn)} إلى ${formatDate(checkOut)} (${nights} ليالي)\n` +
-        `💰 *الإجمالي التقريبي:* ${totalAmount > 0 ? `${totalAmount} ج.م` : 'حسب التسعير'}\n` +
+        `💰 *إجمالي التكلفة:* ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م)\n` +
         `💳 *وسيلة السداد:* ${methodLabel}\n` +
         (idDocUrl ? `🪪 *إثبات الشخصية:* ${idDocUrl}\n` : '') +
         paymentNotice + `\n\nيرجى تأكيد الحجز معي.`;
@@ -1108,15 +1122,40 @@ export default function BookingPage() {
 
                     </div>
 
-                    {selectedUnitId && (
-                      <div className="bg-[#2A2723] p-5 md:p-6 rounded-3xl text-white space-y-3 shadow-lg">
-                        <div className="flex justify-between items-center opacity-60 text-[7px] md:text-[8px] font-black uppercase tracking-widest">
-                          <span>{isRTL ? 'تفاصيل الحجز' : 'Selection Detail'}</span>
-                          <span>{formatDate(checkIn)} → {formatDate(checkOut)}</span>
+                    {selectedUnitId && (() => {
+                      const selUnit = availableUnits.find(u => u.id === selectedUnitId);
+                      const unitP = getSafeUnitPrice(selUnit);
+                      const nDays = Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)));
+                      const tot = nDays * unitP;
+                      return (
+                        <div className="bg-[#2A2723] p-5 md:p-6 rounded-3xl text-white space-y-4 shadow-lg">
+                          <div className="flex justify-between items-center opacity-60 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
+                            <span>{isRTL ? 'تفاصيل الحجز' : 'Selection Detail'}</span>
+                            <span>{formatDate(checkIn)} → {formatDate(checkOut)}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                            <p className="text-base md:text-lg font-bold">{selUnit?.title?.[language] || selectedUnitId}</p>
+                            <span className="text-xs bg-[#C1A68D]/20 text-[#C1A68D] px-2.5 py-1 rounded-full font-black">
+                              {selUnit?.type === 'studio' ? (isRTL ? 'استوديو' : 'Studio') : (isRTL ? 'شقة فندقية' : 'Apartment')}
+                            </span>
+                          </div>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between items-center text-gray-300">
+                              <span>{isRTL ? 'سعر الليلة:' : 'Price per night:'}</span>
+                              <span className="font-bold text-white">{unitP} ج.م</span>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-300">
+                              <span>{isRTL ? 'عدد الليالي:' : 'Number of nights:'}</span>
+                              <span className="font-bold text-white">{nDays} {isRTL ? 'ليالي' : 'nights'}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2 border-t border-white/10 text-base font-black">
+                              <span className="text-[#C1A68D]">{isRTL ? 'الإجمالي المطلوب:' : 'Total Amount:'}</span>
+                              <span className="text-xl text-[#4ECDC4]">{tot} ج.م</span>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-lg md:text-xl font-bold">{availableUnits.find(u => u.id === selectedUnitId)?.title?.[language] || selectedUnitId}</p>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* SECTION 3: شروط وقوانين الإقامة */}
                     <div className="space-y-3 pt-2">
