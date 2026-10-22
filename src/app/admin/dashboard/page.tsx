@@ -117,9 +117,26 @@ export default function DashboardOverview() {
       const branch3Ids = apts.map((u: any) => u.id);
       bookings = bookings.filter((b: any) => branch3Ids.includes(b.apartmentId) || String(b.apartmentId).startsWith('p-s') || String(b.apartmentId).startsWith('apt-'));
     } else if (isCurrentMohsen) {
-      apts = apts.filter((u: any) => u.branch === 1 || u.branch === 2);
+      // Mohsen ONLY has Mazar 1 & 2 Studios (b1-s1..12 and b2-s1..12)
+      apts = apts.filter((u: any) => {
+        const id = String(u.id || '').toLowerCase();
+        return (id.startsWith('b1-s') || id.startsWith('b2-s')) && (u.branch === 1 || u.branch === 2);
+      });
       const mazar12Ids = new Set(apts.map((u: any) => u.id));
-      bookings = bookings.filter((b: any) => mazar12Ids.has(b.apartmentId) || (!String(b.apartmentId).startsWith('p-s') && !String(b.apartmentId).startsWith('apt-')));
+      bookings = bookings.filter((b: any) => {
+        const aptId = String(b.apartmentId || b.apartment_id || '').toLowerCase().trim();
+        const studio = String(b.studio || '').toLowerCase().trim();
+        // Strict exclusions: apartments, two-room, branch 3, chalets, luxury apts
+        if (aptId.startsWith('apt-') || aptId.startsWith('ext-') || aptId.startsWith('p-s') || aptId.includes('tworoom')) return false;
+        if (studio.includes('شقة') || studio.includes('غرفتين') || studio.includes('شاليه') || studio.includes('مزار 3') || studio.includes('3 غرف') || studio.includes('ثلاث') || studio.includes('زكي رستم') || studio.includes('سيتي ستارز') || studio.includes('عباس')) return false;
+        if (aptId && mazar12Ids.has(aptId)) return true;
+        const match = studio.match(/(?:استوديو|studio)\s*(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num >= 1 && num <= 24) return true;
+        }
+        return false;
+      });
     }
 
     apts = apts.filter((u: any) => !['s-single', 's-double', 's-triple', 's-tworoom'].includes(u.id));
@@ -289,13 +306,18 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       setApartmentMap(map.filter((u: any) => u.category === selectedCategory));
     }
 
-    setInventoryStats([
+    const baseStats = [
       { id: 'single',   label: 'سنجل',    count: map.filter((u: any) => u.category === 'single' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'single').length, color: 'text-green-500'  },
       { id: 'double',   label: 'دبل',      count: map.filter((u: any) => u.category === 'double' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'double').length, color: 'text-blue-400'   },
       { id: 'triple',   label: 'تريبل',    count: map.filter((u: any) => u.category === 'triple' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'triple').length, color: 'text-orange-400' },
-      { id: 'two-room', label: 'غرفتين',   count: map.filter((u: any) => u.category === 'two-room' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'two-room').length, color: 'text-purple-400' },
-      { id: 'apartment', label: 'شقق',    count: map.filter((u: any) => u.category === 'apartment' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'apartment').length, color: 'text-amber-500' },
-    ]);
+    ];
+    if (!isCurrentMohsen) {
+      baseStats.push(
+        { id: 'two-room', label: 'غرفتين',   count: map.filter((u: any) => u.category === 'two-room' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'two-room').length, color: 'text-purple-400' },
+        { id: 'apartment', label: 'شقق',    count: map.filter((u: any) => u.category === 'apartment' && !u.isOccupied).length, total: map.filter((u: any) => u.category === 'apartment').length, color: 'text-amber-500' },
+      );
+    }
+    setInventoryStats(baseStats);
 
     setAllBookings(bookings);
 

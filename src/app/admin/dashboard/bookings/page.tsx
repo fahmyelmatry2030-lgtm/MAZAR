@@ -82,8 +82,24 @@ export default function BookingsManagement() {
     }
     if (currentRole === 'Mohsen') {
       const units = await getSystemUnits();
-      const mazar12Ids = new Set(units.filter((unit: any) => unit.branch === 1 || unit.branch === 2).map((unit: any) => unit.id));
-      data = data.filter((booking: any) => mazar12Ids.has(booking.apartmentId));
+      const mazar12Ids = new Set(
+        units
+          .filter((unit: any) => (unit.id?.startsWith('b1-s') || unit.id?.startsWith('b2-s')) && (unit.branch === 1 || unit.branch === 2))
+          .map((unit: any) => unit.id)
+      );
+      data = data.filter((b: any) => {
+        const aptId = String(b.apartmentId || '').toLowerCase().trim();
+        const studio = String(b.studio || '').toLowerCase().trim();
+        if (aptId.startsWith('apt-') || aptId.startsWith('ext-') || aptId.startsWith('p-s') || aptId.includes('tworoom')) return false;
+        if (studio.includes('شقة') || studio.includes('غرفتين') || studio.includes('شاليه') || studio.includes('مزار 3') || studio.includes('3 غرف') || studio.includes('ثلاث') || studio.includes('زكي رستم') || studio.includes('سيتي ستارز') || studio.includes('عباس')) return false;
+        if (aptId && mazar12Ids.has(aptId)) return true;
+        const match = studio.match(/(?:استوديو|studio)\s*(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          return num >= 1 && num <= 24;
+        }
+        return false;
+      });
     }
     
     setBookings(data);
@@ -109,7 +125,7 @@ export default function BookingsManagement() {
               units = units.filter((a: any) => a.branch === 3);
             }
             if (currentRole === 'Mohsen') {
-              units = units.filter((a: any) => a.branch === 1 || a.branch === 2);
+              units = units.filter((a: any) => (a.id?.startsWith('b1-s') || a.id?.startsWith('b2-s')) && (a.branch === 1 || a.branch === 2));
             }
 
             const approved = allBookings.filter((b: any) => b.status === 'approved' && b.id !== selectedBooking.id);

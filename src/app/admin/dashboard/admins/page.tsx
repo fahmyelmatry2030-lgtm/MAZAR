@@ -128,9 +128,11 @@ export default function AdminsManagementPage() {
                     <span className={`text-[10px] px-3.5 py-1.5 rounded-full font-black border ${
                       admin.role === 'Super Admin' ? 'bg-[#C1A68D]/10 text-[#C1A68D] border-[#C1A68D]/20' : 
                       admin.role === 'مدير الوحدات' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                      admin.role === 'Mohsen' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      admin.role === 'Aura' || admin.role === 'Partner' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                       'bg-green-50 text-green-600 border-green-100'
                     }`}>
-                      {admin.role}
+                      {admin.role === 'Mohsen' ? 'شريك مزار 1 و 2 (محسن)' : admin.role === 'Aura' || admin.role === 'Partner' ? 'شريك مزار 3' : admin.role}
                     </span>
                   </td>
                   <td className="p-8 font-mono text-[#7A7061] text-center" dir="ltr">{admin.username}</td>
@@ -180,6 +182,7 @@ export default function AdminsManagementPage() {
                   <option value="Super Admin">مدير عام (وصول تام لكل شيء)</option>
                   <option value="مدير الحجوزات">مدير حجوزات (لا يمكنه تعديل الوحدات أو التقارير)</option>
                   <option value="مدير الوحدات">مدير وحدات (لا يمكنه رؤية الحجوزات والتقارير)</option>
+                  <option value="Mohsen">شريك مزار 1 و 2 (حساب محسن - مزار 1 و 2 فقط)</option>
                   <option value="Aura">شريك مزار 3 (حساب Aura - رؤية مزار 3 فقط)</option>
                 </select>
               </div>

@@ -378,7 +378,7 @@
   },
   {
     "id": "apt-2",
-    "branch": 4,
+    "branch": 5,
     "type": "apartment",
     "title": {
       "ar": "شقة فاخرة 2 - سيتي ستارز",
@@ -391,7 +391,7 @@
   },
   {
     "id": "apt-3",
-    "branch": 4,
+    "branch": 6,
     "type": "apartment",
     "title": {
       "ar": "شقة فاخرة 3 - عباس الرئيسي",

@@ -111,6 +111,24 @@ const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
   return null;
 };
 
+const isMohsenBookingMatch = (b: any, units: any[]) => {
+  const aptId = String(b?.apartmentId || b?.apartment_id || '').toLowerCase().trim();
+  const studio = String(b?.studio || '').toLowerCase().trim();
+  if (aptId.startsWith('apt-') || aptId.startsWith('ext-') || aptId.startsWith('p-s') || aptId.includes('tworoom')) return false;
+  if (studio.includes('شقة') || studio.includes('غرفتين') || studio.includes('شاليه') || studio.includes('مزار 3') || studio.includes('3 غرف') || studio.includes('ثلاث') || studio.includes('زكي رستم') || studio.includes('سيتي ستارز') || studio.includes('عباس')) return false;
+  const u = units.find((unit: any) => unit.id === b.apartmentId);
+  if (u) {
+    const uId = String(u.id || '').toLowerCase();
+    return (uId.startsWith('b1-s') || uId.startsWith('b2-s')) && (u.branch === 1 || u.branch === 2);
+  }
+  const match = studio.match(/(?:استوديو|studio)\s*(\d+)/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    return num >= 1 && num <= 24;
+  }
+  return false;
+};
+
 export default function FinancePage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -184,7 +202,7 @@ export default function FinancePage() {
         if (isAkoura) {
           return u?.branch === 3 || String(b.apartmentId).startsWith('p-s');
         }
-        if (isMohsen) return u?.branch === 1 || u?.branch === 2;
+        if (isMohsen) return isMohsenBookingMatch(b, units);
         return true;
       });
 
@@ -234,9 +252,8 @@ export default function FinancePage() {
       if (b.status !== 'approved' && b.status !== 'مؤكد') return false;
       const parsed = parseDateYM(b.checkIn);
       if (!parsed || parsed.month !== selectedMonth || parsed.year !== selectedYear) return false;
-      if (!isMohsen) return true;
-      const unit = units.find((candidate: any) => candidate.id === b.apartmentId);
-      return unit?.branch === 1 || unit?.branch === 2;
+      if (isMohsen) return isMohsenBookingMatch(b, units);
+      return true;
     });
   }, [bookings, selectedMonth, selectedYear, units, isMohsen]);
 
@@ -300,10 +317,7 @@ export default function FinancePage() {
   // ════════════════════════════════════════════════
   //  SECTION 1: مزار(1) + مزار(2) — استوديوهات 1-24
   // ════════════════════════════════════════════════
-  const mazar12Bookings = monthlyBookings.filter(b => {
-    const u = units.find(u => u.id === b.apartmentId);
-    return u?.type === 'studio' && (u?.branch === 1 || u?.branch === 2);
-  });
+  const mazar12Bookings = monthlyBookings.filter(b => isMohsenBookingMatch(b, units));
 
   const mazar12Revenue = mazar12Bookings.reduce((sum, b) => sum + parseFloat(b.totalAmount || 0), 0);
   const mazar12Commissions = mazar12Bookings.reduce((sum, b) => sum + parseFloat(b.commission || 0), 0);
