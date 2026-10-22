@@ -450,11 +450,13 @@ function ReportsContent() {
       }
       let safeUnits = (u || []).filter((unit: any) => unit && unit.id);
       
-      // Filter for Akoura (only show Mazar 3 units)
+      // Filter for Akoura (only show Mazar 3 units) or Mohsen (only show Mazar 1 & 2 studios)
       if (typeof window !== 'undefined') {
         const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
         if (info?.role === 'Akoura') {
           safeUnits = safeUnits.filter((unit: any) => unit.branch === 3);
+        } else if (info?.role === 'Mohsen') {
+          safeUnits = safeUnits.filter((unit: any) => (String(unit.id).startsWith('b1-s') || String(unit.id).startsWith('b2-s')) && (unit.branch === 1 || unit.branch === 2));
         }
       }
       

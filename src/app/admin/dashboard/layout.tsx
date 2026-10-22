@@ -99,7 +99,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       const restrictedForUnits = ['/admin/dashboard/bookings', '/admin/dashboard/reports', '/admin/dashboard/admins'];
       const restrictedForAdmin = ['/admin/dashboard/finance'];
       const moderatorAllowed = ['/admin/dashboard', '/admin/dashboard/bookings', '/admin/dashboard/units', '/admin/dashboard/custody'];
-      const mohsenAllowed = ['/admin/dashboard', '/admin/dashboard/finance'];
+      const mohsenAllowed = ['/admin/dashboard', '/admin/dashboard/finance', '/admin/dashboard/reports'];
       const restrictedForAkoura = [
         '/admin/dashboard/units',
         '/admin/dashboard/hr/staff',
@@ -221,7 +221,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     { name: 'قاعدة العملاء', href: '/admin/dashboard/customers', icon: '📞', roles: ['Owner', 'Admin', 'Super Admin', 'Akoura', 'Aura'] },
     { name: 'الموظفين', href: '/admin/dashboard/hr/staff', icon: '👥', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'إدارة المحتوى', href: '/admin/dashboard/content', icon: '📝', roles: ['Owner', 'Admin', 'Super Admin'] },
-    { name: 'المصروفات', href: '/admin/dashboard/reports', icon: '💰', roles: ['Owner', 'Admin', 'Super Admin', 'Akoura', 'Aura'] },
+    { name: 'المصروفات', href: '/admin/dashboard/reports', icon: '💰', roles: ['Owner', 'Admin', 'Super Admin', 'Mohsen', 'Akoura', 'Aura'] },
     { name: 'الخزنة', href: '/admin/dashboard/treasury', icon: '🔐', roles: ['Owner', 'Admin'] },
     { name: 'قائمة المهام', href: '/admin/dashboard/tasks', icon: '📋', roles: ['Owner', 'Admin', 'Super Admin', 'Moderator'] },
     { name: 'كشف الحساب الشهري', href: '/admin/dashboard/finance', icon: '🏛️', roles: ['Owner', 'Mohsen', 'Super Admin', 'Akoura', 'Aura'] },

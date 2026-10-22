@@ -34,6 +34,7 @@ export default function FinancialSummaryTab({
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
+  const isMohsen = adminRole === 'Mohsen';
 
   // Robust Date Parser supporting YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, ISO strings
   const parseDateYearMonth = (dateStr: any): { year: number; month: number } | null => {
@@ -102,6 +103,9 @@ export default function FinancialSummaryTab({
         if (isAkoura) {
           return u?.branch === 3 || String(b.apartmentId).startsWith('p-s');
         }
+        if (isMohsen) {
+          return (u?.branch === 1 || u?.branch === 2 || !u?.branch) && (String(b.apartmentId).startsWith('b1-s') || String(b.apartmentId).startsWith('b2-s'));
+        }
         return true;
       });
 
@@ -114,6 +118,10 @@ export default function FinancialSummaryTab({
 
         if (isAkoura) {
           return e.branch === 3 || e.branch === '3' || String(e.unitId || '').startsWith('p-s');
+        }
+        if (isMohsen) {
+          const b = parseInt(e.branch) || 12;
+          return b === 1 || b === 2 || b === 12;
         }
         return true;
       });
@@ -141,7 +149,7 @@ export default function FinancialSummaryTab({
     }
 
     return result;
-  }, [bookings, expenses, units, selectedYear, isAkoura]);
+  }, [bookings, expenses, units, selectedYear, isAkoura, isMohsen]);
 
   // Filter bookings: only approved, matching month/year
   const filteredBookings = useMemo(() => {
@@ -158,9 +166,12 @@ export default function FinancialSummaryTab({
       if (isAkoura) {
         return u?.branch === 3 || String(b.apartmentId).startsWith('p-s');
       }
+      if (isMohsen) {
+        return (u?.branch === 1 || u?.branch === 2 || !u?.branch) && (String(b.apartmentId).startsWith('b1-s') || String(b.apartmentId).startsWith('b2-s'));
+      }
       return true;
     });
-  }, [bookings, units, selectedMonth, selectedYear, isAkoura]);
+  }, [bookings, units, selectedMonth, selectedYear, isAkoura, isMohsen]);
 
   // Filter expenses by selected month/year
   const filteredExpenses = useMemo(() => {
@@ -174,9 +185,13 @@ export default function FinancialSummaryTab({
       if (isAkoura) {
         return e.branch === 3 || e.branch === '3' || String(e.unitId || '').startsWith('p-s');
       }
+      if (isMohsen) {
+        const b = parseInt(e.branch) || 12;
+        return b === 1 || b === 2 || b === 12;
+      }
       return true;
     });
-  }, [expenses, selectedMonth, selectedYear, isAkoura]);
+  }, [expenses, selectedMonth, selectedYear, isAkoura, isMohsen]);
 
   // ── Calculation Helper ──
   const calculateEntityData = (entityKey: 'mazar12' | 'mazar3' | 'apt-1' | 'apt-2' | 'apt-3') => {
@@ -231,13 +246,15 @@ export default function FinancialSummaryTab({
   // Grand Totals
   const totalRevenue = useMemo(() => {
     if (isAkoura) return mazar3Data.revenue;
+    if (isMohsen) return mazar12Data.revenue;
     return mazar12Data.revenue + mazar3Data.revenue + apt1Data.revenue + apt2Data.revenue + apt3Data.revenue;
-  }, [isAkoura, mazar12Data, mazar3Data, apt1Data, apt2Data, apt3Data]);
+  }, [isAkoura, isMohsen, mazar12Data, mazar3Data, apt1Data, apt2Data, apt3Data]);
 
   const totalExpenses = useMemo(() => {
     if (isAkoura) return mazar3Data.expenses;
+    if (isMohsen) return mazar12Data.expenses;
     return mazar12Data.expenses + mazar3Data.expenses + apt1Data.expenses + apt2Data.expenses + apt3Data.expenses;
-  }, [isAkoura, mazar12Data, mazar3Data, apt1Data, apt2Data, apt3Data]);
+  }, [isAkoura, isMohsen, mazar12Data, mazar3Data, apt1Data, apt2Data, apt3Data]);
 
   const netProfit = totalRevenue - totalExpenses;
 
@@ -377,7 +394,17 @@ export default function FinancialSummaryTab({
               </tr>
             </thead>
             <tbody className="text-sm font-bold divide-y divide-[#EAE4D9]/30 text-center">
-              {!isAkoura ? (
+              {isMohsen ? (
+                /* Mohsen View: Only Mazar 1 & 2 */
+                <tr className="hover:bg-[#FDFBF7] transition-colors">
+                  <td className="px-8 py-5 bg-[#FDFBF7]/40 font-black text-right">مزار 1 و 2</td>
+                  <td className="px-8 py-5 text-green-600 font-black">{mazar12Data.revenue.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-red-600 font-black">-{mazar12Data.expenses.toLocaleString()}</td>
+                  <td className={`px-8 py-5 font-black ${mazar12Data.netProfit >= 0 ? 'text-green-700' : 'text-red-500'}`}>
+                    {mazar12Data.netProfit.toLocaleString()}
+                  </td>
+                </tr>
+              ) : !isAkoura ? (
                 <>
                   {/* Mazar 1 & 2 */}
                   <tr className="hover:bg-[#FDFBF7] transition-colors">

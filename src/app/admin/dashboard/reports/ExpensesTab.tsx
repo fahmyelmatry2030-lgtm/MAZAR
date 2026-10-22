@@ -159,11 +159,15 @@ export default function ExpensesTab() {
       setCurrentUsername(info.username || '');
       if (info.role === 'Akoura' || info.role === 'Aura') {
         setNewExpense(prev => ({ ...prev, branch: '3' }));
+      } else if (info.role === 'Mohsen') {
+        setNewExpense(prev => ({ ...prev, branch: '12' }));
+        setSelectedBranch('12');
       }
     }
   }, []);
 
   const isAkoura = adminRole === 'Akoura' || adminRole === 'Aura';
+  const isMohsen = adminRole === 'Mohsen';
   // الاعتماد متاح حصرياً لمؤمن ومدحت فقط فقط
   const isOwner = useMemo(() => {
     const raw = typeof window !== 'undefined' ? (sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo')) : null;
@@ -190,10 +194,14 @@ export default function ExpensesTab() {
   // Sync branch filter with form branch field
   useEffect(() => {
     if (isAkoura) return; // Akoura always uses branch 3
+    if (isMohsen) {
+      setNewExpense(prev => ({ ...prev, branch: '12' }));
+      return;
+    }
     if (selectedBranch !== 'all') {
       setNewExpense(prev => ({ ...prev, branch: selectedBranch }));
     }
-  }, [selectedBranch, isAkoura]);
+  }, [selectedBranch, isAkoura, isMohsen]);
 
   const getBranchLabel = (branch: any) => {
     const b = parseInt(branch);
@@ -214,6 +222,8 @@ export default function ExpensesTab() {
         const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
         if (info?.role === 'Akoura') {
           cleanData = cleanData.filter((e: any) => e.branch === 3);
+        } else if (info?.role === 'Mohsen') {
+          cleanData = cleanData.filter((e: any) => [1, 2, 12].includes(Number(e.branch) || 12));
         }
       }
       setExpenses(cleanData);
@@ -303,7 +313,7 @@ export default function ExpensesTab() {
         amount: amount,
         description: newExpense.description.trim(),
         date: dateToSave,
-        branch: parseInt(newExpense.branch) || 12,
+        branch: isMohsen ? 12 : (parseInt(newExpense.branch) || 12),
         from_entity: newExpense.from_entity.trim(),
         to_entity: newExpense.to_entity.trim(),
         ordered_by: newExpense.ordered_by.trim(),
@@ -316,7 +326,7 @@ export default function ExpensesTab() {
         amount: '',
         description: '',
         date: getDefaultDate(),
-        branch: '12',
+        branch: isMohsen ? '12' : (isAkoura ? '3' : '12'),
         from_entity: '',
         to_entity: '',
         ordered_by: '',
@@ -496,7 +506,7 @@ export default function ExpensesTab() {
       {/* Filters Bar & Section Tabs */}
       <div className="space-y-4">
         {/* Branch Circle Tabs (مطابقة لتقسيمة الكشكول) */}
-        {!isAkoura && (
+        {!isAkoura && !isMohsen && (
           <div className="flex flex-wrap items-center gap-2.5 bg-white/90 p-3.5 rounded-3xl border border-[#EAE4D9] shadow-sm">
             <span className="text-[11px] font-black text-mazar-coffee px-2">الأقسام:</span>
             {[
@@ -526,11 +536,18 @@ export default function ExpensesTab() {
           </div>
         )}
 
+        {isMohsen && (
+          <div className="flex items-center gap-2.5 bg-amber-50/60 border border-amber-200/80 p-3.5 rounded-3xl shadow-sm text-xs font-black text-amber-900">
+            <span>🏢 القسم المحدد:</span>
+            <span className="bg-mazar-coffee text-mazar-gold px-4 py-1.5 rounded-full shadow-xs">مزار 1 و 2</span>
+          </div>
+        )}
+
         <div className="flex flex-wrap justify-between items-center gap-4 bg-white/80 p-4 rounded-2xl border border-[#EAE4D9] shadow-sm">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black text-[#2A2723]">القسم المختار:</span>
             <span className="text-xs font-black text-mazar-gold bg-mazar-coffee/10 px-3 py-1 rounded-xl">
-              {selectedBranch === 'all' ? 'عرض جميع الأقسام' : getBranchLabel(selectedBranch)}
+              {isMohsen ? 'مزار 1 و 2' : (selectedBranch === 'all' ? 'عرض جميع الأقسام' : getBranchLabel(selectedBranch))}
             </span>
           </div>
 
@@ -586,12 +603,16 @@ export default function ExpensesTab() {
             </div>
             <div className="space-y-3 group">
               <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-40 group-focus-within:opacity-100 transition-opacity">الفرع / القسم</label>
-              <select disabled={isAkoura} value={newExpense.branch} onChange={e => setNewExpense({...newExpense, branch: e.target.value})} className="w-full bg-transparent border-b-2 border-gray-100 px-0 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all cursor-pointer">
+              <select disabled={isAkoura || isMohsen} value={isMohsen ? '12' : newExpense.branch} onChange={e => setNewExpense({...newExpense, branch: e.target.value})} className="w-full bg-transparent border-b-2 border-gray-100 px-0 py-4 text-sm font-bold outline-none focus:border-mazar-gold transition-all cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed">
                 <option value="12">مزار 1 و 2</option>
-                <option value="3">مزار 3</option>
-                <option value="4">شقة زكي رستم</option>
-                <option value="5">شقة سيتي</option>
-                <option value="6">شقة عباس الرئيسي</option>
+                {!isMohsen && (
+                  <>
+                    <option value="3">مزار 3</option>
+                    <option value="4">شقة زكي رستم</option>
+                    <option value="5">شقة سيتي</option>
+                    <option value="6">شقة عباس الرئيسي</option>
+                  </>
+                )}
               </select>
             </div>
             <div className="space-y-3 group">
@@ -1033,16 +1054,20 @@ export default function ExpensesTab() {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-mazar-coffee uppercase tracking-widest opacity-70">الفرع / القسم</label>
                   <select
-                    disabled={isAkoura}
-                    value={editingExpense.branch || '12'}
+                    disabled={isAkoura || isMohsen}
+                    value={isMohsen ? '12' : (editingExpense.branch || '12')}
                     onChange={e => setEditingExpense({...editingExpense, branch: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm font-bold outline-none focus:border-mazar-gold focus:bg-white transition-all disabled:opacity-75 disabled:cursor-not-allowed"
                   >
                     <option value="12">مزار 1 و 2</option>
-                    <option value="3">مزار 3</option>
-                    <option value="4">شقة زكي رستم</option>
-                    <option value="5">شقة سيتي</option>
-                    <option value="6">شقة عباس الرئيسي</option>
+                    {!isMohsen && (
+                      <>
+                        <option value="3">مزار 3</option>
+                        <option value="4">شقة زكي رستم</option>
+                        <option value="5">شقة سيتي</option>
+                        <option value="6">شقة عباس الرئيسي</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
