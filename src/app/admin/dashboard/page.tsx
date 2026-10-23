@@ -8,7 +8,7 @@ import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, get
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, getCustomerEffectiveNote, setCustomerProfileNotesCache } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, getCustomerEffectiveNote, setCustomerProfileNotesCache } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
@@ -1211,13 +1211,41 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                     return (
                       <div key={`in-${i}`} className="bg-[#1F1C18] p-4 rounded-xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-emerald-500/40 transition-all">
                         <div className="space-y-1">
-                          <button
-                            onClick={() => openCustomerProfile(b.name, b.phone)}
-                            className="text-base font-black text-white hover:text-[#C1A68D] transition-colors text-right flex items-center gap-1.5"
-                          >
-                            <User size={16} className="text-[#C1A68D]" />
-                            <span>{b.name}</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openCustomerProfile(b.name, b.phone, 'history')}
+                              className="text-base font-black text-white hover:text-[#C1A68D] transition-colors text-right flex items-center gap-1.5"
+                            >
+                              <User size={16} className="text-[#C1A68D]" />
+                              <span>{b.name}</span>
+                            </button>
+                            {hasCustomerProfileNote(b.phone, b.name) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCustomerProfile(b.name, b.phone, 'notes');
+                                }}
+                                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-black shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer text-[10px] border border-amber-500 shrink-0"
+                                title={`ملاحظة عميل: ${getCustomerProfileNote(b.phone, b.name)}`}
+                              >
+                                <span>⭐</span>
+                                <span>ملاحظة</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCustomerProfile(b.name, b.phone, 'notes');
+                                }}
+                                className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-[10px] border border-white/10 shrink-0 transition-all"
+                                title="فتح ملف وملاحظات العميل"
+                              >
+                                👤
+                              </button>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 text-xs text-gray-300 font-bold flex-wrap">
                             <span>🏠 الوحدة: <strong className="text-amber-400">{formatUnitName(b.studio || b.apartmentId)}</strong></span>
                             <span>📅 الفترة: <strong className="text-blue-300">{b.checkIn} ← {b.checkOut}</strong></span>
@@ -1267,13 +1295,41 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                     return (
                       <div key={`out-${i}`} className="bg-[#1F1C18] p-4 rounded-xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-rose-500/40 transition-all">
                         <div className="space-y-1">
-                          <button
-                            onClick={() => openCustomerProfile(b.name, b.phone)}
-                            className="text-base font-black text-white hover:text-[#C1A68D] transition-colors text-right flex items-center gap-1.5"
-                          >
-                            <User size={16} className="text-[#C1A68D]" />
-                            <span>{b.name}</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openCustomerProfile(b.name, b.phone, 'history')}
+                              className="text-base font-black text-white hover:text-[#C1A68D] transition-colors text-right flex items-center gap-1.5"
+                            >
+                              <User size={16} className="text-[#C1A68D]" />
+                              <span>{b.name}</span>
+                            </button>
+                            {hasCustomerProfileNote(b.phone, b.name) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCustomerProfile(b.name, b.phone, 'notes');
+                                }}
+                                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-black shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer text-[10px] border border-amber-500 shrink-0"
+                                title={`ملاحظة عميل: ${getCustomerProfileNote(b.phone, b.name)}`}
+                              >
+                                <span>⭐</span>
+                                <span>ملاحظة</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCustomerProfile(b.name, b.phone, 'notes');
+                                }}
+                                className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-[10px] border border-white/10 shrink-0 transition-all"
+                                title="فتح ملف وملاحظات العميل"
+                              >
+                                👤
+                              </button>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 text-xs text-gray-300 font-bold flex-wrap">
                             <span>🏠 الوحدة: <strong className="text-amber-400">{formatUnitName(b.studio || b.apartmentId)}</strong></span>
                             <span>📅 خروج: <strong className="text-rose-300">{b.checkOut}</strong></span>
@@ -1765,14 +1821,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛫 {apt.leavingGuest}
                                   </button>
-                                  {hasAnyMeaningfulNote(apt.leavingNotes, apt.leavingPhone) && (
+                                  {hasCustomerProfileNote(apt.leavingPhone, apt.leavingGuest) && (
                                     <button
                                       type="button"
                                       onClick={() => openCustomerProfile(apt.leavingGuest, apt.leavingPhone, 'notes')}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0"
-                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لعرض الملاحظة"
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0 border border-amber-500"
+                                      title={`ملاحظة عميل: ${getCustomerProfileNote(apt.leavingPhone, apt.leavingGuest)}`}
                                     >
-                                      🔍
+                                      ⭐
                                     </button>
                                   )}
                                 </div>
@@ -1783,14 +1839,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   >
                                     🛬 {apt.arrivingGuest}
                                   </button>
-                                  {hasAnyMeaningfulNote(apt.arrivingNotes, apt.arrivingPhone) && (
+                                  {hasCustomerProfileNote(apt.arrivingPhone, apt.arrivingGuest) && (
                                     <button
                                       type="button"
                                       onClick={() => openCustomerProfile(apt.arrivingGuest, apt.arrivingPhone, 'notes')}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0"
-                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لعرض الملاحظة"
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0 border border-amber-500"
+                                      title={`ملاحظة عميل: ${getCustomerProfileNote(apt.arrivingPhone, apt.arrivingGuest)}`}
                                     >
-                                      🔍
+                                      ⭐
                                     </button>
                                   )}
                                 </div>
@@ -1804,14 +1860,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   <User size={15} className="text-[#C1A68D] shrink-0" />
                                   <span>{apt.guest}</span>
                                 </button>
-                                {hasAnyMeaningfulNote(apt.notes, apt.phone) && (
+                                {hasCustomerProfileNote(apt.phone, apt.guest) && (
                                   <button
                                     type="button"
                                     onClick={() => openCustomerProfile(apt.guest, apt.phone, 'notes')}
-                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[11px] font-black shrink-0"
-                                    title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لعرض الملاحظة"
+                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[11px] font-black shrink-0 border border-amber-500"
+                                    title={`ملاحظة عميل: ${getCustomerProfileNote(apt.phone, apt.guest)}`}
                                   >
-                                    🔍
+                                    ⭐
                                   </button>
                                 )}
                               </div>

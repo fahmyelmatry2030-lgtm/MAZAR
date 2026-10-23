@@ -181,17 +181,107 @@ export function cleanManualNotes(notesStr: string | null | undefined): string {
 // In-memory cache for customer profile notes to allow sync across components & devices
 let globalCustomerProfileNotes: Record<string, string> = {};
 
+/**
+ * استخراج كافة أشكال وتنسيقات رقم الهاتف الممكنة (محلي، دولي، مع 0، بدون 0، واتساب)
+ * لضمان العثور على الملاحظة مهما كان تنسيق الرقم المسجل في الحجز
+ */
+export function getPhoneVariants(phone?: string | null): string[] {
+  if (!phone) return [];
+  const raw = String(phone).trim();
+  if (!raw) return [];
+  const digits = raw.replace(/\D/g, '');
+  const variants = new Set<string>();
+  
+  variants.add(raw);
+  if (digits) {
+    variants.add(digits);
+    const wa = formatWhatsAppNumber(raw);
+    if (wa) variants.add(wa);
+
+    // لو الرقم مصري بصيغة 201xxxxxxxxx (12 رقم)
+    if (digits.startsWith('20') && digits.length === 12) {
+      variants.add('0' + digits.substring(2)); // 01xxxxxxxxx
+      variants.add(digits.substring(2));      // 1xxxxxxxxx
+    }
+    // لو الرقم يبدأ بـ 0020
+    if (digits.startsWith('0020') && digits.length === 14) {
+      variants.add('0' + digits.substring(4));
+      variants.add(digits.substring(4));
+      variants.add('20' + digits.substring(4));
+    }
+    // لو الرقم محلي مصري يبدأ بـ 01 (11 رقم)
+    if (digits.startsWith('01') && digits.length === 11) {
+      variants.add('20' + digits.substring(1)); // 201xxxxxxxxx
+      variants.add(digits.substring(1));       // 1xxxxxxxxx
+    }
+  }
+  return Array.from(variants);
+}
+
+/**
+ * مفتاح موحد للعميل بالاسم إذا كان رقم الهاتف غير متوفر
+ */
+export function normalizeCustomerNameKey(name?: string | null): string {
+  if (!name) return '';
+  const clean = String(name)
+    .trim()
+    .toLowerCase()
+    .replace(/^(أ|ا|إ|أ\.|د|م|مهندس|دكتور|استاذ|شيخ|حاج|حاجة)\s*/g, '')
+    .replace(/\s+/g, '_');
+  return clean ? `name_${clean}` : '';
+}
+
 export function setCustomerProfileNotesCache(notes: Record<string, string>) {
   if (!notes || typeof notes !== 'object') return;
-  globalCustomerProfileNotes = { ...notes };
+  
+  Object.entries(notes).forEach(([key, val]) => {
+    if (!val || typeof val !== 'string' || !val.trim()) return;
+    const trimmedVal = val.trim();
+    const variants = getPhoneVariants(key);
+    if (variants.length === 0) {
+      variants.push(key.trim());
+    }
+    variants.forEach(k => {
+      globalCustomerProfileNotes[k] = trimmedVal;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`customer_note_${k}`, trimmedVal);
+        } catch {}
+      }
+    });
+  });
+}
+
+/**
+ * حفظ ملاحظة العميل محلياً فوراً عبر كافة التنسيقات وتحديث الكاش وإطلاق إشعار التحديث
+ */
+export function saveCustomerProfileNoteLocally(phone?: string | null, name?: string | null, note?: string) {
+  const trimmed = (note || '').trim();
+  const keys = getPhoneVariants(phone);
+  const nameKey = normalizeCustomerNameKey(name);
+  if (nameKey) keys.push(nameKey);
+  if (keys.length === 0 && phone) keys.push(phone.trim());
+
+  keys.forEach(k => {
+    if (trimmed) {
+      globalCustomerProfileNotes[k] = trimmed;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`customer_note_${k}`, trimmed);
+        } catch {}
+      }
+    } else {
+      delete globalCustomerProfileNotes[k];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`customer_note_${k}`);
+        } catch {}
+      }
+    }
+  });
+
   if (typeof window !== 'undefined') {
-    try {
-      Object.entries(notes).forEach(([ph, nt]) => {
-        if (nt && typeof nt === 'string' && nt.trim()) {
-          localStorage.setItem(`customer_note_${ph.trim()}`, nt.trim());
-        }
-      });
-    } catch {}
+    window.dispatchEvent(new Event('customer_notes_updated'));
   }
 }
 
@@ -211,26 +301,36 @@ export function isBookingFinancialNote(text: string): boolean {
  * فحص ما إذا كان العميل مسجل له ملاحظة خاصة بالعميل في ملفه الشخصي فقط
  * (مفصول تماماً عن ملاحظات الحجز وملاحظات الفلوس)
  */
-export function hasCustomerProfileNote(phone?: string | null): boolean {
-  if (!phone) return false;
-  const note = getCustomerProfileNote(phone);
+export function hasCustomerProfileNote(phone?: string | null, name?: string | null): boolean {
+  const note = getCustomerProfileNote(phone, name);
   return Boolean(note && note.trim().length > 0 && !isBookingFinancialNote(note));
 }
 
 /**
- * جلب ملاحظة العميل المسجلة في ملفه الشخصي فقط
+ * جلب ملاحظة العميل المسجلة في ملفه الشخصي فقط باستخدام كافة تنسيقات الهاتف أو الاسم
  */
-export function getCustomerProfileNote(phone?: string | null): string {
-  if (!phone) return '';
-  const p = phone.trim();
-  const cached = globalCustomerProfileNotes[p];
-  if (cached && cached.trim().length > 0 && !isBookingFinancialNote(cached)) {
-    return cached.trim();
+export function getCustomerProfileNote(phone?: string | null, name?: string | null): string {
+  const keys = getPhoneVariants(phone);
+  const nameKey = normalizeCustomerNameKey(name);
+  if (nameKey) keys.push(nameKey);
+  if (keys.length === 0 && phone) keys.push(phone.trim());
+
+  for (const k of keys) {
+    const cached = globalCustomerProfileNotes[k];
+    if (cached && cached.trim().length > 0 && !isBookingFinancialNote(cached)) {
+      return cached.trim();
+    }
   }
-  if (typeof window === 'undefined') return '';
-  const note = localStorage.getItem(`customer_note_${p}`);
-  if (note && !isBookingFinancialNote(note)) {
-    return note.trim();
+
+  if (typeof window !== 'undefined') {
+    for (const k of keys) {
+      try {
+        const note = localStorage.getItem(`customer_note_${k}`);
+        if (note && !isBookingFinancialNote(note) && note.trim().length > 0) {
+          return note.trim();
+        }
+      } catch {}
+    }
   }
   return '';
 }
@@ -245,12 +345,12 @@ export function getBookingCleanNote(bookingNotes?: string | null): string {
 /**
  * للتوافق مع الأكواد السابقة:
  */
-export function getCustomerEffectiveNote(bookingNotes?: string | null, phone?: string | null): string {
+export function getCustomerEffectiveNote(bookingNotes?: string | null, phone?: string | null, name?: string | null): string {
   return cleanManualNotes(bookingNotes);
 }
 
-export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: string | null): boolean {
-  return hasCustomerProfileNote(phone);
+export function hasAnyMeaningfulNote(bookingNotes?: string | null, phone?: string | null, name?: string | null): boolean {
+  return hasCustomerProfileNote(phone, name);
 }
 
 /**

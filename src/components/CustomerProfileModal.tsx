@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { X, User, Phone, Calendar, History, Star, FileText, MessageSquare, Award, CheckCircle2, Home } from 'lucide-react';
-import { formatWhatsAppNumber, getCustomerProfileNote } from '@/lib/utils';
+import { X, User, Phone, Calendar, History, Star, FileText, MessageSquare, Award, CheckCircle2, Home, Check, Sparkles } from 'lucide-react';
+import { formatWhatsAppNumber, getCustomerProfileNote, saveCustomerProfileNoteLocally, normalizeCustomerNameKey } from '@/lib/utils';
 import { saveDbCustomerNote } from '@/lib/actions/db';
 
 interface CustomerProfileModalProps {
@@ -26,9 +26,12 @@ export default function CustomerProfileModal({
 }: CustomerProfileModalProps) {
   const [globalNote, setGlobalNote] = useState('');
   const [isEditingGlobalNote, setIsEditingGlobalNote] = useState(false);
+  const [activeTab, setActiveTab] = useState<'notes' | 'history'>('notes');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Normalize customer name and filter all matching bookings
-  const normalize = (s: string) => String(s || '').trim().toLowerCase().replace(/^(أ|ا|إ|أ\.|د|م|مهندس|دكتور|استاذ)\s*/g, '');
+  const normalize = (s: string) => String(s || '').trim().toLowerCase().replace(/^(أ|ا|إ|أ\.|د|م|مهندس|دكتور|استاذ|شيخ|حاج|حاجة)\s*/g, '');
   const targetName = customerName ? normalize(customerName) : '';
   const targetPhone = customerPhone?.trim();
 
@@ -49,35 +52,44 @@ export default function CustomerProfileModal({
 
   // Load permanent customer note (مفصول تماماً عن ملاحظات الحجوزات والفلوس)
   useEffect(() => {
-    const note = getCustomerProfileNote(phone);
+    if (!isOpen) return;
+    const note = getCustomerProfileNote(phone, customerName);
     setGlobalNote(note);
 
-    if (initialMode === 'notes' && !note) {
-      setIsEditingGlobalNote(true);
+    if (initialMode === 'notes') {
+      setActiveTab('notes');
+      if (!note) {
+        setIsEditingGlobalNote(true);
+      } else {
+        setIsEditingGlobalNote(false);
+      }
     } else {
+      setActiveTab('history');
       setIsEditingGlobalNote(false);
     }
-  }, [phone, isOpen, initialMode]);
+  }, [phone, customerName, isOpen, initialMode]);
 
   const handleSaveGlobalNote = async () => {
     const trimmed = globalNote.trim();
-    if (phone) {
-      const p = phone.trim();
-      if (typeof window !== 'undefined') {
-        if (trimmed) {
-          localStorage.setItem(`customer_note_${p}`, trimmed);
-        } else {
-          localStorage.removeItem(`customer_note_${p}`);
-        }
-      }
+    setIsSaving(true);
+
+    // 1. حفظ فوري في الكاش و LocalStorage لكافة صيغ الهاتف والاسم
+    saveCustomerProfileNoteLocally(phone, customerName, trimmed);
+
+    // 2. مزامنة مع قاعدة البيانات Supabase
+    const primaryKey = phone?.trim() || normalizeCustomerNameKey(customerName);
+    if (primaryKey) {
       try {
-        await saveDbCustomerNote(p, trimmed);
+        await saveDbCustomerNote(primaryKey, trimmed);
       } catch (e) {
         console.error('Failed to sync customer note to DB:', e);
       }
     }
+
+    setIsSaving(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
     setIsEditingGlobalNote(false);
-    window.dispatchEvent(new Event('customer_notes_updated'));
     if (onRefresh) onRefresh();
   };
 
@@ -88,61 +100,61 @@ export default function CustomerProfileModal({
   const isRepeatGuest = customerBookings.length >= 2;
 
   return (
-    <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" dir="rtl">
-      <div className="bg-[#1F1C18] border border-[#EAE4D9]/20 rounded-[2.5rem] max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
+    <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in" dir="rtl">
+      <div className="bg-[#1F1C18] border border-[#EAE4D9]/20 rounded-3xl sm:rounded-[2.5rem] max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[95vh] text-white">
         
         {/* Header Banner */}
-        <div className="bg-gradient-to-r from-[#2A2723] via-[#38332D] to-[#2A2723] p-6 border-b border-white/10 relative flex-shrink-0">
+        <div className="bg-gradient-to-r from-[#2A2723] via-[#38332D] to-[#2A2723] p-4 sm:p-6 border-b border-white/10 relative flex-shrink-0">
           <button
             onClick={onClose}
-            className="absolute top-6 left-6 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all"
+            className="absolute top-4 sm:top-6 left-4 sm:left-6 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all z-10"
           >
             <X size={18} />
           </button>
 
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#C1A68D] to-[#9E8268] flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4 pl-10">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#C1A68D] to-[#9E8268] flex items-center justify-center text-white font-black text-lg sm:text-xl shadow-lg shrink-0">
               {customerName.slice(0, 2)}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-black text-white">{customerName}</h2>
+                <h2 className="text-xl sm:text-2xl font-black text-white truncate">{customerName}</h2>
                 {isVip && (
-                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Star size={11} fill="currentColor" /> عميل VIP مميز
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                    <Star size={11} fill="currentColor" /> VIP
                   </span>
                 )}
                 {isRepeatGuest && !isVip && (
-                  <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <Award size={11} /> عميل متكرر ({customerBookings.length} حجوزات)
+                  <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                    <Award size={11} /> متكرر ({customerBookings.length})
                   </span>
                 )}
               </div>
-              <p className="text-xs text-[#C1A68D] font-bold mt-1">
-                سجل البيانات الموحد للعميل وكافة الحجوزات السابقة
+              <p className="text-[11px] sm:text-xs text-[#C1A68D] font-bold mt-0.5">
+                ملف العميل الموحد والملاحظات الدائمة
               </p>
             </div>
           </div>
         </div>
 
         {/* Quick Stats Grid */}
-        <div className="grid grid-cols-3 gap-3 p-6 bg-[#25221E] border-b border-white/5 text-center flex-shrink-0">
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">عدد الحجوزات</span>
-            <span className="text-xl font-black text-amber-400">{customerBookings.length} <span className="text-xs text-white/50">حجز</span></span>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 bg-[#25221E] border-b border-white/5 text-center flex-shrink-0">
+          <div className="bg-white/5 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-white/5">
+            <span className="text-[9px] sm:text-[10px] font-black text-gray-400 block mb-0.5">الحجوزات</span>
+            <span className="text-base sm:text-xl font-black text-amber-400">{customerBookings.length} <span className="text-[10px] text-white/50">حجز</span></span>
           </div>
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">إجمالي الليالي</span>
-            <span className="text-xl font-black text-blue-400">{totalNights} <span className="text-xs text-white/50">ليلة</span></span>
+          <div className="bg-white/5 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-white/5">
+            <span className="text-[9px] sm:text-[10px] font-black text-gray-400 block mb-0.5">الليالي</span>
+            <span className="text-base sm:text-xl font-black text-blue-400">{totalNights} <span className="text-[10px] text-white/50">ليلة</span></span>
           </div>
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">إجمالي الإيراد</span>
-            <span className="text-xl font-black text-emerald-400">{totalRevenue.toLocaleString()} <span className="text-xs text-white/50">ج.م</span></span>
+          <div className="bg-white/5 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-white/5">
+            <span className="text-[9px] sm:text-[10px] font-black text-gray-400 block mb-0.5">الإيراد</span>
+            <span className="text-base sm:text-xl font-black text-emerald-400">{totalRevenue.toLocaleString()} <span className="text-[10px] text-white/50">ج.م</span></span>
           </div>
         </div>
 
         {/* Contact Actions */}
-        <div className="px-6 py-4 bg-[#1F1C18] border-b border-white/5 flex items-center justify-between flex-wrap gap-3 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 bg-[#1F1C18] border-b border-white/5 flex items-center justify-between flex-wrap gap-2 flex-shrink-0">
           <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
             <Phone size={14} className="text-[#C1A68D]" />
             <span>الهاتف:</span>
@@ -158,7 +170,7 @@ export default function CustomerProfileModal({
                 {phone}
               </a>
             ) : (
-              <span>غير مسجل</span>
+              <span className="text-gray-500">غير مسجل</span>
             )}
           </div>
           {phone && (
@@ -166,87 +178,136 @@ export default function CustomerProfileModal({
               href={`https://wa.me/${cleanPhone}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-md"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md shrink-0"
             >
-              <MessageSquare size={14} />
-              <span>محادثة واتساب متميزة</span>
+              <MessageSquare size={13} />
+              <span>واتساب</span>
             </a>
           )}
         </div>
 
-        {/* Two Column Layout: Notes on Right, Bookings on Left */}
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar-horizontal min-h-[300px]">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            
-            {/* Column Right (6 cols): Notes & Global Profile Info */}
-            <div className="md:col-span-6 space-y-5">
+        {/* Tab Controls (Clear & Touch-friendly on Mobile & PC) */}
+        <div className="flex border-b border-white/10 bg-[#171513] px-3 sm:px-6 pt-2 flex-shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('notes')}
+            className={`flex items-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-black border-b-2 transition-all rounded-t-xl ${
+              activeTab === 'notes'
+                ? 'border-amber-400 text-amber-300 bg-amber-400/10'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <FileText size={15} />
+            <span>ملاحظات العميل الدائمة</span>
+            {globalNote ? (
+              <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            ) : null}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-black border-b-2 transition-all rounded-t-xl ${
+              activeTab === 'history'
+                ? 'border-[#C1A68D] text-[#C1A68D] bg-white/5'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <History size={15} />
+            <span>سجل الحجوزات ({customerBookings.length})</span>
+          </button>
+        </div>
+
+        {/* Tab Content Body */}
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar-horizontal min-h-[280px]">
+          {activeTab === 'notes' ? (
+            /* 📝 PERMANENT CUSTOMER NOTES TAB */
+            <div className="max-w-3xl mx-auto space-y-4">
               
-              {/* 📝 Permanent Customer Profile Notes (Extensive) */}
-              <div className="bg-[#2A2723] border-2 border-[#C1A68D]/40 rounded-3xl p-6 space-y-4 shadow-xl relative">
-                <div className="absolute top-0 left-0 bg-[#C1A68D] text-[#1F1C18] text-[9px] font-black px-3 py-1 rounded-bl-2xl rounded-tr-sm uppercase tracking-wider">
-                  ملف العميل الدائم الموحد
+              {/* Notice Banner */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 sm:p-4 text-xs text-amber-200/90 flex items-start gap-2.5">
+                <span className="text-base shrink-0">💡</span>
+                <div className="leading-relaxed">
+                  <strong className="text-amber-300 block mb-0.5">ملاحظات العميل الدائمة (العلامة الصفراء ⭐):</strong>
+                  هذه الملاحظات خاصة بملف العميل وتظهر معه في كل حجوزاته السابقة والمستقبلية، ومفصولة تماماً عن ملاحظات المكان أو تفاصيل الحجز الفردي.
                 </div>
-                
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <span className="text-sm font-black text-[#C1A68D] flex items-center gap-2 mt-1">
+              </div>
+
+              {/* Feedback Success */}
+              {saveSuccess && (
+                <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-xl p-3 text-xs text-emerald-300 font-black flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 size={16} />
+                  <span>تم حفظ وتحديث ملاحظة العميل بنجاح! ستظهر العلامة الصفراء بجانب اسمه فوراً.</span>
+                </div>
+              )}
+
+              {/* Note Editor Card */}
+              <div className="bg-[#2A2723] border-2 border-amber-500/40 rounded-3xl p-4 sm:p-6 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <span className="text-sm font-black text-amber-400 flex items-center gap-2">
                     <FileText size={18} />
-                    <span>ملاحظات العميل الدائمة (باستفاضة)</span>
+                    <span>ملاحظات العميل الدائمة (فايل العميل)</span>
                   </span>
-                  {!isEditingGlobalNote && phone && (
+                  {!isEditingGlobalNote && (
                     <button
                       onClick={() => setIsEditingGlobalNote(true)}
-                      className="text-xs text-[#C1A68D] hover:text-white underline font-black"
+                      className="text-xs bg-amber-400 hover:bg-amber-300 text-stone-950 font-black px-3.5 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
                     >
-                      تعديل الملاحظة ✏️
+                      <span>تعديل الملاحظة</span>
+                      <span>✏️</span>
                     </button>
                   )}
                 </div>
 
                 {isEditingGlobalNote ? (
-                  <div className="space-y-3 mt-2">
+                  <div className="space-y-3">
                     <textarea
-                      rows={12}
+                      rows={8}
                       value={globalNote}
                       onChange={(e) => setGlobalNote(e.target.value)}
-                      placeholder="اكتب ملاحظات باستفاضة عن العميل هنا (مثلاً: يفضل الطوابق العليا، يفضل الهدوء، العميل دقيق في المواعيد، لديه طلبات متكررة، إلخ)..."
-                      className="w-full bg-[#1E1B18] border-2 border-[#C1A68D] rounded-2xl p-4 text-sm text-white outline-none font-bold resize-none leading-relaxed focus:ring-2 focus:ring-[#C1A68D]/30"
+                      placeholder="اكتب ملاحظات باستفاضة عن العميل هنا (مثلاً: يفضل الطوابق العليا، يفضل الهدوء، العميل دقيق في المواعيد، لديه طلبات متكررة، انطباع عام عن العميل)..."
+                      className="w-full bg-[#1A1815] border-2 border-amber-500/60 rounded-2xl p-4 text-sm text-white outline-none font-bold resize-none leading-relaxed focus:ring-2 focus:ring-amber-400/40 placeholder-stone-500"
                     />
                     <div className="flex items-center gap-2 justify-end">
                       <button
-                        onClick={() => { setIsEditingGlobalNote(false); setGlobalNote(localStorage.getItem(`customer_note_${phone}`) || ''); }}
-                        className="px-4 py-2 rounded-xl text-xs bg-white/10 text-gray-300 hover:bg-white/20 font-bold"
+                        onClick={() => {
+                          setIsEditingGlobalNote(false);
+                          setGlobalNote(getCustomerProfileNote(phone, customerName));
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs bg-white/10 text-gray-300 hover:bg-white/20 font-bold transition-all"
+                        disabled={isSaving}
                       >
                         إلغاء
                       </button>
                       <button
                         onClick={handleSaveGlobalNote}
-                        className="px-5 py-2 rounded-xl text-xs font-black bg-[#C1A68D] text-[#1F1C18] hover:bg-[#d5baa0] transition-all flex items-center gap-1.5 shadow-md"
+                        disabled={isSaving}
+                        className="px-6 py-2.5 rounded-xl text-xs font-black bg-amber-400 hover:bg-amber-300 text-stone-950 transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
                       >
-                        حفظ الملاحظة الدائمة 💾
+                        {isSaving ? <span>جارٍ الحفظ...</span> : <><span>حفظ الملاحظة الدائمة</span><span>💾</span></>}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-black/35 p-5 rounded-2xl border border-white/5 min-h-[320px] flex flex-col justify-between">
+                  <div className="bg-black/35 p-5 rounded-2xl border border-white/5 min-h-[160px] flex flex-col justify-between">
                     <p className="text-sm text-amber-100 font-bold leading-relaxed whitespace-pre-wrap">
-                      {globalNote ? globalNote : '💬 لا توجد ملاحظات عامة مسجلة في ملف هذا العميل حالياً. اضغط على "تعديل الملاحظة" في الأعلى للبدء بالكتابة باستفاضة.'}
+                      {globalNote ? globalNote : '💬 لا توجد ملاحظات مسجلة في ملف هذا العميل حالياً. اضغط على "تعديل الملاحظة" في الأعلى للبدء بكتابة ملاحظات تخص العميل.'}
                     </p>
                   </div>
                 )}
               </div>
-
             </div>
-
-            {/* Column Left (6 cols): Bookings Timeline */}
-            <div className="md:col-span-6 space-y-4">
+          ) : (
+            /* 📋 BOOKINGS TIMELINE TAB */
+            <div className="space-y-4">
               <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                 <History size={14} className="text-[#C1A68D]" />
                 <span>سجل الحجوزات والتفاصيل ({customerBookings.length})</span>
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {customerBookings.length === 0 ? (
-                  <div className="text-center py-10 text-gray-500 text-xs font-bold">لا يوجد سجلات حجوزات سابقة لهذا العميل</div>
+                  <div className="col-span-2 text-center py-10 text-gray-500 text-xs font-bold">لا يوجد سجلات حجوزات سابقة لهذا العميل</div>
                 ) : (
                   customerBookings.map((b: any, index: number) => (
                     <div key={b.id || index} className="bg-[#25221E] border border-white/10 rounded-2xl p-4 transition-all hover:border-[#C1A68D]/40 space-y-3">
@@ -270,13 +331,13 @@ export default function CustomerProfileModal({
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] bg-black/20 p-3 rounded-xl text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-black/20 p-2.5 rounded-xl text-center">
                         <div>
-                          <span className="text-gray-400 text-[9px] block">من تاريخ</span>
+                          <span className="text-gray-400 text-[9px] block">من</span>
                           <span className="font-bold text-blue-300">{b.checkIn}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400 text-[9px] block">إلى تاريخ</span>
+                          <span className="text-gray-400 text-[9px] block">إلى</span>
                           <span className="font-bold text-rose-300">{b.checkOut}</span>
                         </div>
                         <div>
@@ -284,13 +345,13 @@ export default function CustomerProfileModal({
                           <span className="font-bold text-amber-300">{b.numberOfDays || '—'} أيام</span>
                         </div>
                         <div>
-                          <span className="text-gray-400 text-[9px] block">المبلغ الإجمالي</span>
+                          <span className="text-gray-400 text-[9px] block">المبلغ</span>
                           <span className="font-black text-emerald-400">{b.totalAmount ? `${b.totalAmount} ج.م` : '—'}</span>
                         </div>
                       </div>
 
                       {/* Shift Lead Approver Badge */}
-                      <div className="flex items-center justify-between text-[11px] bg-blue-500/10 border border-blue-500/20 px-3.5 py-2.5 rounded-xl text-blue-300 font-bold mt-2">
+                      <div className="flex items-center justify-between text-[11px] bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-xl text-blue-300 font-bold">
                         <span className="flex items-center gap-1.5">
                           <span>🛡️ اعتمد بواسطة:</span>
                           <strong className="text-white font-black">{(() => {
@@ -299,15 +360,15 @@ export default function CustomerProfileModal({
                             }
                             const match = String(b.notes || '').match(/\[اعتماد:\s*([^\]]+)\]/i);
                             if (match && match[1]) return match[1].trim();
-                            return 'قائد الشيفت (المشرف)';
+                            return 'قائد الشيفت';
                           })()}</strong>
                         </span>
                         {b.paymentMethod && <span className="text-emerald-400 font-black">💳 {b.paymentMethod}</span>}
                       </div>
 
-                      {b.notes && b.id !== latestBooking.id && (
+                      {b.notes && (
                         <div className="bg-black/10 p-2.5 rounded-xl border border-white/5 text-[11px] text-gray-400 font-medium">
-                          <span className="text-[#C1A68D] font-bold">ملاحظة الحجز السابق:</span> {b.notes}
+                          <span className="text-[#C1A68D] font-bold">ملاحظة الحجز:</span> {b.notes}
                         </div>
                       )}
                     </div>
@@ -315,15 +376,14 @@ export default function CustomerProfileModal({
                 )}
               </div>
             </div>
-
-          </div>
+          )}
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-[#1A1816] border-t border-white/10 text-center flex-shrink-0">
+        <div className="p-3 sm:p-4 bg-[#1A1816] border-t border-white/10 text-center flex-shrink-0">
           <button
             onClick={onClose}
-            className="bg-[#2A2723] hover:bg-[#38332D] text-white text-xs font-black px-8 py-3 rounded-2xl transition-all border border-white/10"
+            className="bg-[#2A2723] hover:bg-[#38332D] text-white text-xs font-black px-8 py-2.5 rounded-xl sm:rounded-2xl transition-all border border-white/10"
           >
             إغلاق النافذة
           </button>

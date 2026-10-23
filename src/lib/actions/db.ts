@@ -2267,11 +2267,29 @@ export async function saveDbCustomerNote(phone: string, note: string): Promise<b
     const cleanPhone = phone.trim();
     const currentNotes = await getDbCustomerNotes();
     const trimmed = (note || '').trim();
-    if (trimmed) {
-      currentNotes[cleanPhone] = trimmed;
-    } else {
-      delete currentNotes[cleanPhone];
+
+    // استخراج كافة صيغ الهاتف لضمان التوافق التام بين 010 و 2010 والواتساب
+    const keysToUpdate = new Set<string>([cleanPhone]);
+    const wa = formatWhatsAppNumber(cleanPhone);
+    if (wa) keysToUpdate.add(wa);
+
+    const digits = cleanPhone.replace(/\D/g, '');
+    if (digits.startsWith('01') && digits.length === 11) {
+      keysToUpdate.add('20' + digits.substring(1));
+      keysToUpdate.add(digits.substring(1));
+    } else if (digits.startsWith('20') && digits.length === 12) {
+      keysToUpdate.add('0' + digits.substring(2));
+      keysToUpdate.add(digits.substring(2));
     }
+
+    keysToUpdate.forEach(k => {
+      if (trimmed) {
+        currentNotes[k] = trimmed;
+      } else {
+        delete currentNotes[k];
+      }
+    });
+
     const { error } = await supabase
       .from('translations')
       .upsert({ id: 102, data: currentNotes, updated_at: new Date().toISOString() });

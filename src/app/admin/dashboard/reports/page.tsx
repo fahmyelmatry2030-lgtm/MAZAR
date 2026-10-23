@@ -14,7 +14,7 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber, hasAnyMeaningfulNote, cleanManualNotes, setCustomerProfileNotesCache } from '@/lib/utils';
+import { formatWhatsAppNumber, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, cleanManualNotes, setCustomerProfileNotesCache } from '@/lib/utils';
 import { getDbCustomerNotes } from '@/lib/actions/db';
 
 type PaymentSplitItem = {
@@ -340,6 +340,13 @@ function ReportsContent() {
 
   const [selectedBrokerFilter, setSelectedBrokerFilter] = useState<string>('all');
   const [reportSearchTerm, setReportSearchTerm] = useState<string>('');
+  const [notesVersion, setNotesVersion] = useState(0);
+
+  useEffect(() => {
+    const handleNotesUpdate = () => setNotesVersion(v => v + 1);
+    window.addEventListener('customer_notes_updated', handleNotesUpdate);
+    return () => window.removeEventListener('customer_notes_updated', handleNotesUpdate);
+  }, []);
 
   // URL PARAM SYNC (for dynamic updates without full reload)
   useEffect(() => {
@@ -2307,27 +2314,42 @@ function ReportsContent() {
                             ) : <span className="text-[#D5CBB8]">—</span>}
                           </td>
                           
-                          {/* EDITABLE: Name */}
-                          <td className="px-0 py-0 border-l border-[#EAE4D9]/20 relative group/name flex items-center justify-between">
+                          {/* EDITABLE: Name + Customer Profile & Notes Button */}
+                          <td className="px-1 py-0 border-l border-[#EAE4D9]/20" style={{ minWidth: '150px' }}>
                             {row.hasData ? (
-                              <>
-                                <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black flex-1" readOnly={row.isCarriedOver} />
-                                <div className="flex items-center gap-1 ml-1 shrink-0">
-                                  {hasAnyMeaningfulNote(row.notes, row.phone) && (
+                              <div className="flex items-center justify-between gap-1 w-full">
+                                <div className="flex-1 min-w-0">
+                                  <EditableCell value={row.name} bookingId={row.id} field="name" onSave={handleCellSave} className="text-[#1a1714] font-black truncate" readOnly={row.isCarriedOver} />
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {hasCustomerProfileNote(row.phone, row.name) ? (
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setProfileModal({ isOpen: true, name: row.name, phone: row.phone, mode: 'notes' });
                                       }}
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[10px] font-black shrink-0"
-                                      title="يوجد ملاحظة مسجلة على هذا العميل — اضغط لعرض الملاحظة"
+                                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-black shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer text-[10px] border border-amber-500 shrink-0"
+                                      title={`ملاحظة عميل: ${getCustomerProfileNote(row.phone, row.name)} — اضغط للعرض والتعديل`}
                                     >
-                                      🔍
+                                      <span>⭐</span>
+                                      <span className="hidden sm:inline">ملاحظة</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProfileModal({ isOpen: true, name: row.name, phone: row.phone, mode: 'notes' });
+                                      }}
+                                      className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-600 hover:text-stone-900 border border-stone-200 shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer text-[11px] shrink-0"
+                                      title="فتح ملف وملاحظات العميل"
+                                    >
+                                      👤
                                     </button>
                                   )}
                                 </div>
-                              </>
+                              </div>
                             ) : <span className="text-[#D5CBB8]">—</span>}
                           </td>
 
