@@ -141,15 +141,17 @@ function EditableCell({
   className?: string;
   readOnly?: boolean;
 }) {
+  const safeInitial = value === undefined || value === null ? '' : String(value);
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(String(value));
+  const [editValue, setEditValue] = useState(safeInitial);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ ALL hooks must be called before any early return (React Rules of Hooks)
   useEffect(() => {
-    setEditValue(String(value));
-  }, [value]);
+    if (!editing) {
+      setEditValue(value === undefined || value === null ? '' : String(value));
+    }
+  }, [value, editing]);
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -163,12 +165,17 @@ function EditableCell({
   }
 
   const handleSave = async () => {
+    const trimmedVal = editValue.trim();
     setEditing(false);
-    const newVal = type === 'number' ? Number(editValue) || 0 : editValue;
-    if (String(newVal) !== String(value)) {
+    const newVal = type === 'number' ? (Number(trimmedVal) || 0) : trimmedVal;
+    const oldVal = type === 'number' ? (Number(value) || 0) : (value === undefined || value === null ? '' : String(value).trim());
+    if (String(newVal) !== String(oldVal)) {
       setSaving(true);
-      await onSave(bookingId, field, newVal);
-      setSaving(false);
+      try {
+        await onSave(bookingId, field, newVal);
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -181,7 +188,17 @@ function EditableCell({
           value={editValue}
           onChange={e => setEditValue(e.target.value)}
           onBlur={handleSave}
-          onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSave();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setEditValue(value === undefined || value === null ? '' : String(value));
+              setEditing(false);
+            }
+          }}
           className="w-full bg-yellow-50 border-2 border-[#C1A68D] rounded px-2 py-1 text-[11px] font-black text-[#2A2723] outline-none text-center shadow-inner"
           style={{ minWidth: '60px' }}
         />
@@ -595,8 +612,23 @@ function ReportsContent() {
       }
 
       if (field === 'notes') {
-        updates.notes = value !== undefined && value !== null ? String(value).trim() : '';
+        const rawCurrent = String(currentBooking.notes || '');
+        const bookingNumTag = rawCurrent.match(/\[رقم(?:_الحجز)?:\s*\d+\]/i);
+        const newText = value !== undefined && value !== null ? String(value).trim() : '';
+        if (bookingNumTag && !newText.includes(bookingNumTag[0])) {
+          updates.notes = `${bookingNumTag[0]} ${newText}`.trim();
+        } else {
+          updates.notes = newText;
+        }
       }
+
+      // Optimistic update of local bookings state
+      setBookings(prev => prev.map(b => {
+        if (String(b.id) === String(bookingId)) {
+          return { ...b, ...updates };
+        }
+        return b;
+      }));
 
       const freshData = await updateDbBookingStatus(bookingId, updates);
 

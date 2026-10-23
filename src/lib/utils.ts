@@ -160,34 +160,22 @@ export function formatTreasuryUnitName(rawIdOrName?: any): string {
 }
 
 /**
- * إزالة الوسوم النظامية والكلمات الروتينية (مثل: عقد، خالص، سداد، تم الدفع، إلخ)
- * واستخراج الملاحظة الحقيقية الفعلية فقط إن وجدت
+ * إزالة الوسوم النظامية التقنية فقط بين الأقواس المربعة [وسم: ...]
+ * واستخراج الملاحظة اليدوية الفعلية التي كتبها المستخدم دون حذف أي كلمات
  */
 export function cleanManualNotes(notesStr: string | null | undefined): string {
   if (!notesStr) return '';
   let cleaned = String(notesStr)
-    // إزالة الوسوم النظامية فقط بين الأقواس المربعة مثل [مدفوع: ...] [متبقي: ...] [حساب خالص]
-    .replace(/\[(?:مدفوع|متبقي|باقي|باقى|حساب\s*خالص|خالص|عمولة|عموله|الوسيط|مكتب|مسؤول|مسئول|طريقة|طريقة\s*الدفع|اعتماد)[^\]]*\]/gi, '')
-    .replace(/(?:مسؤول|مسئول)\s*الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
+    // إزالة الوسوم النظامية فقط بين الأقواس المربعة
+    .replace(/\[[^\]]+\]/g, '')
+    .replace(/(?:مسؤول|مسئول)_?الحجز\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/(?:الوسيط|مكتب)\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
-    .replace(/اعتماد\s*[:=\-]?\s*[^|\n\r,\]]+/gi, '')
     .replace(/\|\s*\|/g, '|')
-    .replace(/^[\s|+,.\-]+|[\s|+,.\-]+$/g, '')
+    .replace(/^[\s|+,.\-—/:]+|[\s|+,.\-—/:]+$/g, '')
     .trim();
 
   if (!cleaned || /^[\s|+,.\-—/:]+$/.test(cleaned)) return '';
-
-  // تصفية الكلمات الروتينية الإدارية التي ليست ملاحظات حقيقية عن العميل أو الحجز (بدون \b لدعم الحروف العربية)
-  const boilerplateRegex = /(?:^|[\s,.\-—/])(?:عمل\s*عقد|متبقي\s*عقد|عقد\s*فقط|بدون\s*عقد|عقد|الحساب\s*خالص|حساب\s*خالص|خالص|تم\s*الدفع|تم\s*السداد|سداد|مدفوع|مسدد|لا\s*يوجد|لايوجد|لا\s*توجد\s*ملاحظات|لا\s*توجد)(?=$|[\s,.\-—/])/gi;
-
-  let stripped = cleaned;
-  while (boilerplateRegex.test(stripped)) {
-    stripped = stripped.replace(boilerplateRegex, ' ').trim();
-  }
-  stripped = stripped.replace(/^[\s|+,.\-—/:]+|[\s|+,.\-—/:]+$/g, '').trim();
-
-  if (!stripped || /^[\s|+,.\-—/:]+$/.test(stripped)) return '';
-  return stripped;
+  return cleaned;
 }
 
 // In-memory cache for customer profile notes to allow sync across components & devices
