@@ -293,69 +293,59 @@ export default function HomeClient() {
 
 
       {/* ══════════════════════════════════════════════════════════════
-          HERO — بانوراما الهيدر الفندقية الفاخرة (متوافقة PC وموبايل)
+          HERO
       ══════════════════════════════════════════════════════════════ */}
       <section
         ref={heroRef}
-        className="relative w-full min-h-[65vh] md:min-h-[75vh] flex flex-col items-center justify-center text-center pt-16 pb-16 px-4 overflow-hidden"
+        className="relative w-full min-h-[50vh] flex flex-col items-center justify-center text-center pt-10 pb-14 px-4 overflow-hidden"
       >
-        {/* Background Image Container with Parallax & Luxury Overlays */}
-        <div 
-          className="absolute inset-0 w-full h-full -z-10 overflow-hidden"
-          style={{ transform: `translateY(${scrollY * 0.15}px)` }}
-        >
-          <img
-            src="/images/hero-header.jpg"
-            alt="مجمع مزار الفندقي"
-            className="w-full h-full object-cover object-center scale-105 transition-transform duration-1000 ease-out"
-          />
-          {/* Multi-stage Luxury Gradient Overlay for flawless contrast on Mobile & PC */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/65 to-[#FDFBF7]" />
-          <div className="absolute inset-0 bg-radial from-transparent via-black/40 to-black/80" />
+        {/* Decorative rings */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
+          <div className="w-[900px] h-[900px] rounded-full border-[3px] border-[#C1A68D]" />
+          <div className="absolute w-[600px] h-[600px] rounded-full border-[2px] border-[#C1A68D]" />
         </div>
 
-        {/* Decorative rings */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
-          <div className="w-[850px] h-[850px] rounded-full border border-[#C1A68D]/40" />
-          <div className="absolute w-[550px] h-[550px] rounded-full border border-[#C1A68D]/30" />
+        {/* Background watermark logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
+          <Logo size={500} imageClassName="w-[600px] h-auto" />
         </div>
 
         <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
-          {/* Tagline pill with Glassmorphism */}
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-[#C1A68D]/50 text-[#EAE4D9] text-[11px] md:text-xs font-black px-6 py-2.5 rounded-full uppercase tracking-widest mb-6 shadow-xl animate-fade-in">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#C1A68D] shadow-[0_0_8px_#C1A68D] animate-pulse"></span>
-            <span>مدينة نصر، القاهرة</span>
+          {/* Tagline pill */}
+          <div className="inline-flex items-center gap-2 bg-[#C1A68D]/10 border border-[#C1A68D]/30 text-[#C1A68D] text-[11px] font-black px-5 py-2 rounded-full uppercase tracking-widest mb-6 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-[#C1A68D] animate-pulse"></span>
+            مدينة نصر، القاهرة
           </div>
 
           {/* Main Headline */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tighter mb-4 drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)] animate-slide-up">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-[#2A2723] leading-none tracking-tighter mb-4 animate-slide-up">
             مجمع مزار
           </h1>
 
           {/* Sub-headline */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#E0CEBE] tracking-tight mb-4 max-w-3xl mx-auto leading-relaxed drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] animate-slide-up delay-100">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#5C554B] tracking-tight mb-4 max-w-3xl mx-auto leading-relaxed animate-slide-up delay-100">
             أكبر مجمع سكني فندقي في مدينة نصر
           </h2>
 
           {/* Descriptive text clarifying the location & luxury experience */}
-          <p className="text-sm sm:text-base md:text-lg text-stone-200 font-bold max-w-2xl mx-auto mb-8 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] px-2">
+          <p className="text-sm sm:text-base md:text-lg text-[#7A7061] font-bold max-w-2xl mx-auto mb-8 leading-relaxed px-2">
             إقامة فندقية متكاملة تجمع بين الفخامة والخصوصية والهدوء التام في قلب مدينة نصر، بالقرب من سيتي ستارز وأهم معالم ومطاعم العاصمة.
           </p>
 
           {/* Stats Box - مستطيل الوحدات الموسع والأشمل */}
-          <div className="bg-black/75 backdrop-blur-xl border border-white/25 rounded-3xl p-6 md:p-8 shadow-2xl animate-fade-in delay-200 max-w-4xl mx-auto w-[95%] md:w-full space-y-3.5">
+          <div className="bg-white/80 backdrop-blur-md border border-[#EAE4D9] rounded-3xl p-6 md:p-8 shadow-sm animate-fade-in delay-200 max-w-4xl mx-auto w-[95%] md:w-full space-y-3.5">
             <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <span className="bg-[#C1A68D] text-[#1A1815] font-black text-xs sm:text-sm md:text-base px-4 py-1.5 rounded-full shadow-md">
+              <span className="bg-[#2A2723] text-white font-black text-xs sm:text-sm md:text-base px-4 py-1.5 rounded-full shadow-sm">
                 🏢 2 فرع رئيسي + شقق فندقية خارجية
               </span>
-              <span className="bg-white/10 text-amber-200 border border-white/20 font-black text-xs sm:text-sm px-4 py-1.5 rounded-full">
+              <span className="bg-[#C1A68D]/15 text-[#8C6D4F] border border-[#C1A68D]/30 font-black text-xs sm:text-sm px-4 py-1.5 rounded-full">
                 🔑 أكثر من 30 وحدة فندقية مجهزة بالكامل
               </span>
             </div>
-            <p className="text-sm sm:text-base md:text-lg font-black text-white text-center leading-relaxed">
+            <p className="text-sm sm:text-base md:text-lg font-black text-[#2A2723] text-center leading-relaxed">
               ستوديو فندقي فاخر (سنجل / دبل / تريبل) • شقة غرفة وصالة • شقق فندقية غرفتين • شقق عائلية 3 غرف
             </p>
-            <p className="text-xs sm:text-sm text-stone-300 font-bold text-center">
+            <p className="text-xs sm:text-sm text-[#7A7061] font-bold text-center">
               مفروشة بالكامل بأرقى الديكورات وأحدث الأجهزة الفندقية والشاشات السمارت والتكييفات والمطابخ
             </p>
           </div>
