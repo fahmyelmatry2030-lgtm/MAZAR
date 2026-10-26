@@ -13,7 +13,10 @@ import {
   DocumentTextIcon, 
   BookOpenIcon, 
   CalendarDaysIcon, 
-  DevicePhoneMobileIcon 
+  DevicePhoneMobileIcon,
+  MapPinIcon,
+  SparklesIcon,
+  XMarkIcon
 } from '@heroicons/react/24/solid';
 
 // ─── Quick Nav Items ────────────────────────────────────────────────
@@ -23,6 +26,8 @@ const NAV_BOXES = [
   { icon: BookOpenIcon,  label: 'كيفية الحجز',    href: '/mazar/how-to-book',  color: 'from-violet-50 to-purple-50',  border: 'border-violet-200', text: 'text-violet-800' },
   { icon: CalendarDaysIcon, label: 'ابدأ الحجز الان',      href: '/mazar/book',         color: 'from-green-50 to-emerald-50',  border: 'border-green-200',  text: 'text-green-800'  },
   { icon: DevicePhoneMobileIcon, label: 'السوشيال ميديا', href: '/social',             color: 'from-indigo-50 to-blue-50',    border: 'border-indigo-200', text: 'text-indigo-800' },
+  { icon: MapPinIcon, label: 'مواقع مزار (اللوكيشن)', onClickType: 'locations', color: 'from-rose-50 to-red-50', border: 'border-rose-200', text: 'text-rose-800' },
+  { icon: SparklesIcon, label: 'محتويات الغرف الفندقية', onClickType: 'amenities', color: 'from-amber-50 to-yellow-50', border: 'border-amber-200', text: 'text-amber-800' },
 ];
 
 // ─── Branch 1 Images ────────────────────────────────────────────────
@@ -267,6 +272,8 @@ export default function HomeClient() {
   const { t, isRTL } = useLanguage();
   const heroRef = useRef<HTMLDivElement>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [showLocationsModal, setShowLocationsModal] = useState(false);
+  const [showAmenitiesModal, setShowAmenitiesModal] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
@@ -321,44 +328,83 @@ export default function HomeClient() {
           </div>
 
           {/* Main Headline */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tighter mb-5 drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)] animate-slide-up">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tighter mb-4 drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)] animate-slide-up">
             مجمع مزار
           </h1>
 
           {/* Sub-headline */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#E0CEBE] tracking-tight mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] animate-slide-up delay-100">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#E0CEBE] tracking-tight mb-4 max-w-3xl mx-auto leading-relaxed drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] animate-slide-up delay-100">
             أكبر مجمع سكني فندقي في مدينة نصر
           </h2>
 
-          {/* Stats row / Description with Dark Frosted Glass */}
-          <div className="inline-flex items-center justify-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-3xl px-6 md:px-12 py-5 shadow-2xl animate-fade-in delay-200 max-w-4xl mx-auto w-[92%] md:w-auto">
-            <span className="text-sm md:text-lg lg:text-xl font-black text-white leading-loose text-center">
-              2 فرع - اكثر من 30 وحدة متنوعة: <br className="sm:hidden" />
-              <span className="text-[#C1A68D] font-bold"> ستوديو - شقة غرفة واحدة - شقة غرفتين - شقة 3 غرف</span>
-            </span>
+          {/* Descriptive text clarifying the location & luxury experience */}
+          <p className="text-sm sm:text-base md:text-lg text-stone-200 font-bold max-w-2xl mx-auto mb-8 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] px-2">
+            إقامة فندقية متكاملة تجمع بين الفخامة والخصوصية والهدوء التام في قلب مدينة نصر، بالقرب من سيتي ستارز وأهم معالم ومطاعم العاصمة.
+          </p>
+
+          {/* Stats Box - مستطيل الوحدات الموسع والأشمل */}
+          <div className="bg-black/75 backdrop-blur-xl border border-white/25 rounded-3xl p-6 md:p-8 shadow-2xl animate-fade-in delay-200 max-w-4xl mx-auto w-[95%] md:w-full space-y-3.5">
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <span className="bg-[#C1A68D] text-[#1A1815] font-black text-xs sm:text-sm md:text-base px-4 py-1.5 rounded-full shadow-md">
+                🏢 2 فرع رئيسي + شقق فندقية خارجية
+              </span>
+              <span className="bg-white/10 text-amber-200 border border-white/20 font-black text-xs sm:text-sm px-4 py-1.5 rounded-full">
+                🔑 أكثر من 30 وحدة فندقية مجهزة بالكامل
+              </span>
+            </div>
+            <p className="text-sm sm:text-base md:text-lg font-black text-white text-center leading-relaxed">
+              ستوديو فندقي فاخر (سنجل / دبل / تريبل) • شقة غرفة وصالة • شقق فندقية غرفتين • شقق عائلية 3 غرف
+            </p>
+            <p className="text-xs sm:text-sm text-stone-300 font-bold text-center">
+              مفروشة بالكامل بأرقى الديكورات وأحدث الأجهزة الفندقية والشاشات السمارت والتكييفات والمطابخ
+            </p>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          QUICK NAV BOXES — المستطيلات التفاعلية
+          QUICK NAV BOXES — المستطيلات التفاعلية (7 مربعات)
       ══════════════════════════════════════════════════════════════ */}
       <section className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8">
         <div className="flex flex-wrap justify-center items-stretch gap-3 md:gap-4 w-full">
-          {NAV_BOXES.map((box) => (
-            <Link
-              key={box.label}
-              href={box.href}
-              className={`group flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${box.color} border ${box.border} rounded-2xl p-5 text-center transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95 w-[calc(50%-0.5rem)] sm:w-[calc(33.33%-0.75rem)] md:w-[170px] lg:flex-1 lg:max-w-[220px]`}
-            >
-              <div className="transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1">
-                <box.icon className="w-16 h-16 drop-shadow-md mb-2" />
-              </div>
-              <span className={`text-sm md:text-base font-black ${box.text} leading-tight`}>
-                {box.label}
-              </span>
-            </Link>
-          ))}
+          {NAV_BOXES.map((box: any) => {
+            const innerContent = (
+              <>
+                <div className="transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1">
+                  <box.icon className="w-14 h-14 md:w-16 md:h-16 drop-shadow-md mb-2" />
+                </div>
+                <span className={`text-xs md:text-sm lg:text-base font-black ${box.text} leading-tight`}>
+                  {box.label}
+                </span>
+              </>
+            );
+
+            if (box.onClickType) {
+              return (
+                <button
+                  key={box.label}
+                  type="button"
+                  onClick={() => {
+                    if (box.onClickType === 'locations') setShowLocationsModal(true);
+                    if (box.onClickType === 'amenities') setShowAmenitiesModal(true);
+                  }}
+                  className={`group flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${box.color} border ${box.border} rounded-2xl p-4 md:p-5 text-center transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95 cursor-pointer w-[calc(50%-0.5rem)] sm:w-[calc(33.33%-0.75rem)] md:w-[155px] lg:flex-1 lg:max-w-[200px]`}
+                >
+                  {innerContent}
+                </button>
+              );
+            }
+
+            return (
+              <Link
+                key={box.label}
+                href={box.href}
+                className={`group flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${box.color} border ${box.border} rounded-2xl p-4 md:p-5 text-center transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95 w-[calc(50%-0.5rem)] sm:w-[calc(33.33%-0.75rem)] md:w-[155px] lg:flex-1 lg:max-w-[200px]`}
+              >
+                {innerContent}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -372,7 +418,7 @@ export default function HomeClient() {
       {/* ══════════════════════════════════════════════════════════════
           BROWSE UNITS — تصفح وحدات المزار الفندقية
       ══════════════════════════════════════════════════════════════ */}
-      <section className="w-full max-w-7xl mx-auto px-4 md:px-6 py-16 space-y-12" dir="rtl">
+      <section id="browse-units" className="w-full max-w-7xl mx-auto px-4 md:px-6 py-16 space-y-12" dir="rtl">
 
         {/* Section Header */}
         <div className="text-center space-y-3">
@@ -458,6 +504,226 @@ export default function HomeClient() {
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════════════
+          MODALS — نافذة مواقع مزار ومحتويات الغرف
+      ══════════════════════════════════════════════════════════════ */}
+
+      {/* 1. نافذة مواقع مزار (اللوكيشن والخرائط) */}
+      {showLocationsModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+          <div className="bg-[#1C1A17] border border-[#C1A68D]/40 rounded-3xl max-w-2xl w-full p-6 text-white max-h-[90vh] overflow-y-auto shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl">
+                  📍
+                </span>
+                <div>
+                  <h3 className="text-xl font-black text-white">مواقع وفروع مزار في مدينة نصر</h3>
+                  <p className="text-xs text-[#C1A68D] font-bold mt-0.5">اضغط على أي فرع لفتح موقعه المباشر على Google Maps</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocationsModal(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              {/* فرع 1 */}
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#C1A68D]/50 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#C1A68D] text-[#1A1815] text-[10px] font-black px-2.5 py-0.5 rounded-full">الفرع الرئيسي</span>
+                    <h4 className="font-black text-base text-white">مزار 1 — الفرع الأول</h4>
+                  </div>
+                  <p className="text-xs text-gray-300 font-bold">مدينة نصر، القاهرة • 12 استوديو فندقي فاخر</p>
+                </div>
+                <a
+                  href="https://maps.google.com/?q=Mazar+Nasr+City+Cairo+Branch+1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+                >
+                  <span>📍 فتح في Google Maps</span>
+                </a>
+              </div>
+
+              {/* فرع 2 */}
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#C1A68D]/50 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#8B7355] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full">فرع بريميوم</span>
+                    <h4 className="font-black text-base text-white">مزار 2 — الفرع الثاني</h4>
+                  </div>
+                  <p className="text-xs text-gray-300 font-bold">مدينة نصر، القاهرة • 18 وحدة فندقية (استوديوهات وشقق غرفتين)</p>
+                </div>
+                <a
+                  href="https://maps.google.com/?q=Mazar+Nasr+City+Cairo+Branch+2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+                >
+                  <span>📍 فتح في Google Maps</span>
+                </a>
+              </div>
+
+              {/* شقة 1 */}
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#C1A68D]/50 transition-all">
+                <div className="space-y-1">
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-500/30">شقة فندقية فاخرة</span>
+                  <h4 className="font-black text-base text-white">شقة 1 — زكي رستم</h4>
+                  <p className="text-xs text-gray-300 font-bold">عمارة 7أ زكي رستم - متفرع من حسنين هيكل وعباس العقاد - بجوار قهوة مصر</p>
+                </div>
+                <a
+                  href="https://maps.google.com/?q=7A+Zaki+Rostom+Abbas+El+Akkad+Nasr+City+Cairo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+                >
+                  <span>📍 فتح في Google Maps</span>
+                </a>
+              </div>
+
+              {/* شقة 2 */}
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#C1A68D]/50 transition-all">
+                <div className="space-y-1">
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-500/30">شقة تطل على سيتي ستارز</span>
+                  <h4 className="font-black text-base text-white">شقة 2 — سيتي ستارز</h4>
+                  <p className="text-xs text-gray-300 font-bold">عمائر المدفعية - تطل على مول سيتي ستارز مباشرة</p>
+                </div>
+                <a
+                  href="https://maps.google.com/?q=City+Stars+Nasr+City+Cairo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+                >
+                  <span>📍 فتح في Google Maps</span>
+                </a>
+              </div>
+
+              {/* شقة 3 */}
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#C1A68D]/50 transition-all">
+                <div className="space-y-1">
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-500/30">شقة فندقية عائلية</span>
+                  <h4 className="font-black text-base text-white">شقة 3 — عباس الرئيسي</h4>
+                  <p className="text-xs text-gray-300 font-bold">شارع محمد مصطفى حمام - متفرع من شارع عباس العقاد الرئيسي</p>
+                </div>
+                <a
+                  href="https://maps.google.com/?q=Mohamed+Mostafa+Hamam+Abbas+El+Akkad+Nasr+City+Cairo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+                >
+                  <span>📍 فتح في Google Maps</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLocationsModal(false);
+                  document.getElementById('browse-units')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="bg-[#C1A68D] hover:bg-[#A68D74] text-[#1A1815] font-black text-xs px-6 py-2.5 rounded-xl transition-all shadow"
+              >
+                تصفح صور وتفاصيل الوحدات بالصفحة ↓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. نافذة محتويات وتجهيزات الغرف الفندقية */}
+      {showAmenitiesModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+          <div className="bg-[#1C1A17] border border-amber-500/30 rounded-3xl max-w-3xl w-full p-6 text-white max-h-[90vh] overflow-y-auto shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl">
+                  ✨
+                </span>
+                <div>
+                  <h3 className="text-xl font-black text-white">محتويات وتجهيزات الغرف الفندقية</h3>
+                  <p className="text-xs text-[#C1A68D] font-bold mt-0.5">كافة وحدات مزار مجهزة بالكامل ومفروشة بأعلى المعايير الفندقية</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAmenitiesModal(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">🛏️</div>
+                <h4 className="font-black text-sm text-amber-200">مراتب ومفروشات فندقية معقمة</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">مراتب طبية مريحة جداً، وبياضات وملايات قطنية 100% معقمة ومخدات فندقية ناعمة تضمن لك نوم عميق ومريح.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">❄️</div>
+                <h4 className="font-black text-sm text-blue-200">تكييفات هواء حديثة مستقلة</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">تكييفات كاريير وشارب حديثة وباردة في كل غرفة مع ريموت كنترول للتحكم الكامل وضمان الهدوء التام.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">📺</div>
+                <h4 className="font-black text-sm text-purple-200">شاشات ذكية Smart TV</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">شاشات مسطحة حديثة عالية الدقة تدعم تطبيق نتفليكس، يوتيوب، والقنوات التلفزيونية الفضائية لمشاهدة ممتعة.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">📶</div>
+                <h4 className="font-black text-sm text-emerald-200">إنترنت Wi-Fi فائق السرعة</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">شبكة إنترنت لاسلكية خاصة وسريعة وغير محدودة في كل وحدة تناسب العمل عن بُعد والبث المباشر.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">🍳</div>
+                <h4 className="font-black text-sm text-orange-200">ميني كيتشن متكامل الأجهزة</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">مجهز بثلاجة، ميكروويف، غلاية كهربائية (كاتل)، طقم أطباق وكاسات، ومستلزمات عمل الشاي والقهوة.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">🚿</div>
+                <h4 className="font-black text-sm text-cyan-200">حمام فندقي خاص متكامل</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">كابينة شاور زجاجية، مياه ساخنة فورية، طقم مناشف بيضاء معقمة، ومستلزمات عناية شخصية.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">🧹</div>
+                <h4 className="font-black text-sm text-teal-200">خدمة نظافة وتطهير دوري</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">تعقيم كامل للوحدة قبل التسكين، مع إمكانية طلب نظافة وتغيير المفارش أثناء الإقامة حسب رغبتك.</p>
+              </div>
+
+              <div className="bg-[#25221E] border border-white/10 rounded-2xl p-4 space-y-1.5">
+                <div className="text-2xl mb-1">🛡️</div>
+                <h4 className="font-black text-sm text-rose-200">أمان وخصوصية تامة 24 ساعة</h4>
+                <p className="text-xs text-gray-300 leading-relaxed">بيئة سكنية عائلية هادئة، كاميرات مراقبة للمبنى من الخارج ومداخل مؤمنة لضمان أمان النزلاء الكامل.</p>
+              </div>
+            </div>
+
+            <div className="pt-2 text-center">
+              <Link
+                href="/mazar/book"
+                onClick={() => setShowAmenitiesModal(false)}
+                className="bg-[#C1A68D] hover:bg-[#A68D74] text-[#1A1815] font-black text-xs px-8 py-3 rounded-xl transition-all shadow inline-block"
+              >
+                احجز إقامتك الفاخرة الآن ←
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </main>
