@@ -286,48 +286,55 @@ export default function HomeClient() {
 
 
       {/* ══════════════════════════════════════════════════════════════
-          HERO — العنوان الكبير
+          HERO — بانوراما الهيدر الفندقية الفاخرة (متوافقة PC وموبايل)
       ══════════════════════════════════════════════════════════════ */}
       <section
         ref={heroRef}
-        className="relative w-full min-h-[60vh] flex flex-col items-center justify-center text-center pt-12 pb-8 px-4 overflow-hidden"
-        style={{ transform: `translateY(${scrollY * 0.2}px)` }}
+        className="relative w-full min-h-[65vh] md:min-h-[75vh] flex flex-col items-center justify-center text-center pt-16 pb-16 px-4 overflow-hidden"
       >
+        {/* Background Image Container with Parallax & Luxury Overlays */}
+        <div 
+          className="absolute inset-0 w-full h-full -z-10 overflow-hidden"
+          style={{ transform: `translateY(${scrollY * 0.15}px)` }}
+        >
+          <img
+            src="/images/hero-header.jpg"
+            alt="مجمع مزار الفندقي"
+            className="w-full h-full object-cover object-center scale-105 transition-transform duration-1000 ease-out"
+          />
+          {/* Multi-stage Luxury Gradient Overlay for flawless contrast on Mobile & PC */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/65 to-[#FDFBF7]" />
+          <div className="absolute inset-0 bg-radial from-transparent via-black/40 to-black/80" />
+        </div>
+
         {/* Decorative rings */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
-          <div className="w-[900px] h-[900px] rounded-full border-[3px] border-[#C1A68D]" />
-          <div className="absolute w-[600px] h-[600px] rounded-full border-[2px] border-[#C1A68D]" />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+          <div className="w-[850px] h-[850px] rounded-full border border-[#C1A68D]/40" />
+          <div className="absolute w-[550px] h-[550px] rounded-full border border-[#C1A68D]/30" />
         </div>
 
-        {/* Background watermark logo */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
-          <Logo size={500} imageClassName="w-[600px] h-auto" />
-        </div>
-
-        <div className="relative z-10 max-w-5xl mx-auto">
-          {/* Tagline pill */}
-          <div className="inline-flex items-center gap-2 bg-[#C1A68D]/10 border border-[#C1A68D]/30 text-[#C1A68D] text-[11px] font-black px-5 py-2 rounded-full uppercase tracking-widest mb-6 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#C1A68D] animate-pulse"></span>
-            مدينة نصر، القاهرة
+        <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
+          {/* Tagline pill with Glassmorphism */}
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-[#C1A68D]/50 text-[#EAE4D9] text-[11px] md:text-xs font-black px-6 py-2.5 rounded-full uppercase tracking-widest mb-6 shadow-xl animate-fade-in">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#C1A68D] shadow-[0_0_8px_#C1A68D] animate-pulse"></span>
+            <span>مدينة نصر، القاهرة</span>
           </div>
 
           {/* Main Headline */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-[#2A2723] leading-none tracking-tighter mb-6 animate-slide-up">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tighter mb-5 drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)] animate-slide-up">
             مجمع مزار
           </h1>
 
           {/* Sub-headline */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#5C554B] tracking-tight mb-10 max-w-3xl mx-auto leading-relaxed animate-slide-up delay-100">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#E0CEBE] tracking-tight mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] animate-slide-up delay-100">
             أكبر مجمع سكني فندقي في مدينة نصر
           </h2>
 
-
-
-          {/* Stats row / Description */}
-          <div className="inline-flex items-center justify-center bg-white/80 backdrop-blur-md border border-[#EAE4D9] rounded-3xl px-6 md:px-12 py-5 shadow-sm animate-fade-in delay-200 max-w-4xl mx-auto w-[90%] md:w-auto">
-            <span className="text-sm md:text-lg lg:text-xl font-black text-[#2A2723] leading-loose text-center">
+          {/* Stats row / Description with Dark Frosted Glass */}
+          <div className="inline-flex items-center justify-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-3xl px-6 md:px-12 py-5 shadow-2xl animate-fade-in delay-200 max-w-4xl mx-auto w-[92%] md:w-auto">
+            <span className="text-sm md:text-lg lg:text-xl font-black text-white leading-loose text-center">
               2 فرع - اكثر من 30 وحدة متنوعة: <br className="sm:hidden" />
-              <span className="text-[#C1A68D]">ستوديو - شقة غرفة واحدة - شقة غرفتين - شقة 3 غرف</span>
+              <span className="text-[#C1A68D] font-bold"> ستوديو - شقة غرفة واحدة - شقة غرفتين - شقة 3 غرف</span>
             </span>
           </div>
         </div>
