@@ -7,7 +7,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import Calendar from '@/components/Calendar';
 import { useLanguage } from '@/lib/LanguageContext';
 import { processAndUploadReceipt, processAndUploadDocument } from '@/lib/uploadHelper';
-import { resolveUnitVideo } from '@/lib/utils';
+import { resolveUnitVideo, formatDateDMY } from '@/lib/utils';
 import PaymentInfoBox from '@/components/PaymentInfoBox';
 
 
@@ -59,7 +59,7 @@ export default function BookingPage() {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
     if (parts.length !== 3) return dateStr;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return formatDateDMY(dateStr);
   };
 
   const getSafeUnitPrice = (unit: any): number => {
@@ -394,11 +394,11 @@ export default function BookingPage() {
             <div className="flex justify-center gap-6 mt-4">
               <div className="text-center">
                 <p className="text-[9px] font-bold text-gray-400 uppercase">{isRTL ? 'من' : 'From'}</p>
-                <p className="text-xs font-black">{formatDate(checkIn)}</p>
+                <p className="text-xs font-black" dir="ltr">{formatDate(checkIn)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[9px] font-bold text-gray-400 uppercase">{isRTL ? 'إلى' : 'To'}</p>
-                <p className="text-xs font-black">{formatDate(checkOut)}</p>
+                <p className="text-xs font-black" dir="ltr">{formatDate(checkOut)}</p>
               </div>
             </div>
           </div>
@@ -1131,7 +1131,7 @@ export default function BookingPage() {
                         <div className="bg-[#2A2723] p-5 md:p-6 rounded-3xl text-white space-y-4 shadow-lg">
                           <div className="flex justify-between items-center opacity-60 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
                             <span>{isRTL ? 'تفاصيل الحجز' : 'Selection Detail'}</span>
-                            <span>{formatDate(checkIn)} → {formatDate(checkOut)}</span>
+                            <span dir="ltr">{formatDate(checkIn)} → {formatDate(checkOut)}</span>
                           </div>
                           <div className="flex items-center justify-between pb-3 border-b border-white/10">
                             <p className="text-base md:text-lg font-bold">{selUnit?.title?.[language] || selectedUnitId}</p>

@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
 import { processAndUploadReceipt, processAndUploadDocument } from '@/lib/uploadHelper';
-import { resolveUnitVideo } from '@/lib/utils';
+import { resolveUnitVideo, formatDateDMY } from '@/lib/utils';
 import PaymentInfoBox from '@/components/PaymentInfoBox';
 import Image from 'next/image';
 import UnitImageLightbox from '@/components/UnitImageLightbox';
@@ -20,7 +20,7 @@ const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return formatDateDMY(dateStr);
 };
 
 const getTodayStr = () => new Date().toISOString().split('T')[0];

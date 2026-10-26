@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { getFreshDbBookings, deleteDbBookingsByPhone, saveDbCustomerNote } from '@/lib/actions/db';
-import { formatWhatsAppNumber, getCustomerProfileNote } from '@/lib/utils';
+import { formatWhatsAppNumber, getCustomerProfileNote, formatDateDMY } from '@/lib/utils';
 import {
   X, Search, Download, Phone, MessageSquare, Trash2,
   Star, Calendar, Home, TrendingUp, Clock, FileText,
@@ -50,7 +50,7 @@ function getAvatarColor(name: string) {
 
 function fmt(date: string) {
   if (!date) return '—';
-  return new Date(date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateDMY(date);
 }
 
 function fmtMoney(n: number) {
@@ -337,7 +337,7 @@ function CustomerModal({
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#7A7061] font-bold pr-9">
-                          <span>📅 {fmt(b.checkIn)} ← {fmt(b.checkOut)}</span>
+                          <span dir="ltr">📅 {fmt(b.checkIn)} ← {fmt(b.checkOut)}</span>
                           {b.numberOfDays && <span className="bg-violet-50 text-violet-600 px-2 py-0.5 rounded-lg">🌙 {b.numberOfDays} ليلة</span>}
                           {b.guestsCount  && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg">👥 {b.guestsCount} أشخاص</span>}
                         </div>

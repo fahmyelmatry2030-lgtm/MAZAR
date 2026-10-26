@@ -14,7 +14,7 @@ import { Pencil, Trash2, Plus, Wallet, CreditCard, Banknote, Sparkles, MessageSq
 import ExpensesTab from './ExpensesTab';
 import FinancialSummaryTab from './FinancialSummaryTab';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
-import { formatWhatsAppNumber, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, cleanManualNotes, setCustomerProfileNotesCache } from '@/lib/utils';
+import { formatWhatsAppNumber, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, cleanManualNotes, setCustomerProfileNotesCache, formatDateDMY, parseDateDMY } from '@/lib/utils';
 import { getDbCustomerNotes } from '@/lib/actions/db';
 
 type PaymentSplitItem = {
@@ -109,18 +109,11 @@ const LAYOUT_VERSION = 'v2.0.0'; // Auto-increment this to force-clear client ca
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 const formatDate = (dateStr: any) => {
-  if (typeof dateStr !== 'string') return '';
-  if (!dateStr || !dateStr.includes('-')) return dateStr;
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
+  return formatDateDMY(dateStr);
 };
 
 const parseDate = (displayStr: any) => {
-  if (typeof displayStr !== 'string') return '';
-  if (!displayStr || !displayStr.includes('/')) return displayStr;
-  const [d, m, y] = displayStr.split('/');
-  if (y && m && d) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-  return displayStr;
+  return parseDateDMY(displayStr);
 };
 
 // Editable cell component
@@ -141,6 +134,7 @@ function EditableCell({
   className?: string;
   readOnly?: boolean;
 }) {
+  const isDateField = field === 'checkIn' || field === 'checkOut' || field === 'date' || field === 'bookingDate';
   const safeInitial = value === undefined || value === null ? '' : String(value);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(safeInitial);
@@ -161,7 +155,7 @@ function EditableCell({
   }, [editing]);
 
   if (readOnly) {
-    return <div className={`px-2 py-3 ${className}`}>{value || '—'}</div>;
+    return <div className={`px-2 py-3 ${className}`} dir={isDateField ? 'ltr' : undefined}>{value || '—'}</div>;
   }
 
   const handleSave = async () => {
@@ -185,6 +179,7 @@ function EditableCell({
         <input
           ref={inputRef}
           type={type}
+          dir={isDateField ? 'ltr' : undefined}
           value={editValue}
           onChange={e => setEditValue(e.target.value)}
           onBlur={handleSave}
@@ -210,6 +205,7 @@ function EditableCell({
   return (
     <div
       onClick={() => setEditing(true)}
+      dir={isDateField ? 'ltr' : undefined}
       className={`group cursor-text hover:bg-white/50 px-2 py-1.5 rounded-lg transition-all block w-full min-h-[32px] relative ${saving ? 'opacity-50 animate-pulse' : ''} ${className}`}
       title="اضغط للتعديل"
     >
@@ -254,7 +250,14 @@ const AdminDatePicker = ({ label, value, onChange, icon, color }: any) => {
     <div className={`bg-white p-3 md:p-4 rounded-[20px] border border-[#EAE4D9]/50 shadow-sm relative overflow-visible ${color === 'red' ? 'shadow-red-500/5' : 'shadow-[#C1A68D]/5'}`}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-lg md:text-xl">{icon}</span>
-        <h3 className={`text-[10px] md:text-xs font-black uppercase tracking-widest ${color === 'red' ? 'text-[#E63946]' : 'text-[#C1A68D]'}`}>{label}</h3>
+        <div className="flex items-center gap-2">
+          {day && month && year && (
+            <span className="text-[10px] font-mono font-black bg-[#F7F5F0] text-[#2A2723] px-2 py-0.5 rounded-md border border-[#EAE4D9]" dir="ltr">
+              {day}/{month}/{year}
+            </span>
+          )}
+          <h3 className={`text-[10px] md:text-xs font-black uppercase tracking-widest ${color === 'red' ? 'text-[#E63946]' : 'text-[#C1A68D]'}`}>{label}</h3>
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="space-y-1 text-center">
@@ -2257,8 +2260,8 @@ function ReportsContent() {
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الجنسية</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">رقم الهوية</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الهاتف</th>
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">دخول</th>
-                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">خروج</th>
+                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">دخول (يوم/شهر/سنة)</th>
+                      <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">خروج (يوم/شهر/سنة)</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الأيام</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">سعر الليلة</th>
                       <th className="px-3 py-4 border-l border-[#3a3730] whitespace-nowrap">الإجمالي</th>

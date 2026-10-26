@@ -8,7 +8,7 @@ import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, get
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
-import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, getCustomerEffectiveNote, setCustomerProfileNotesCache } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, cleanManualNotes, hasAnyMeaningfulNote, hasCustomerProfileNote, getCustomerProfileNote, getCustomerEffectiveNote, setCustomerProfileNotesCache, formatDateDMY } from '@/lib/utils';
 
 const CONFIRMED_STATUSES = ['مؤكد', 'approved', 'مؤكد/دخول', 'مغادر/تنظيف', 'مغادر/تم'];
 const PENDING_STATUSES = ['جديد', 'قيد المراجعة', 'pending', 'رد جديد'];
@@ -945,7 +945,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           href={`https://wa.me/${cleanP}?text=${encodeURIComponent(
                             `أهلاً بك أستاذ ${req.name}، بخصوص طلب حجزك في مزار للوحدة (${
                               selectedWebUnits[req.id]?.studio || req.studio || req.apartmentId || ''
-                            }) للفترة من ${req.checkIn || req.check_in} إلى ${req.checkOut || req.check_out}...`
+                            }) للفترة من ${formatDateDMY(req.checkIn || req.check_in)} إلى ${formatDateDMY(req.checkOut || req.check_out)}...`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -1029,7 +1029,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
 
                     <div className="flex justify-between bg-[#1C2541] p-2.5 rounded-xl border border-blue-500/20">
                       <span className="text-blue-300/80">📅 فترة الإقامة:</span>
-                      <span className="text-cyan-300 font-black">{req.checkIn || req.check_in} ➔ {req.checkOut || req.check_out}</span>
+                      <span className="text-cyan-300 font-black" dir="ltr">{formatDateDMY(req.checkIn || req.check_in)} ➔ {formatDateDMY(req.checkOut || req.check_out)}</span>
                     </div>
                     {req.totalAmount && (
                       <div className="flex justify-between bg-[#1C2541] p-2.5 rounded-xl border border-blue-500/20">
@@ -1052,7 +1052,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                         href={`https://wa.me/${cleanP}?text=${encodeURIComponent(
                           `أهلاً بك أستاذ ${req.name}، بخصوص طلب حجزك في مزار للوحدة (${
                             selectedWebUnits[req.id]?.studio || req.studio
-                          }) للفترة من ${req.checkIn || req.check_in} إلى ${req.checkOut || req.check_out}...`
+                          }) للفترة من ${formatDateDMY(req.checkIn || req.check_in)} إلى ${formatDateDMY(req.checkOut || req.check_out)}...`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -1105,8 +1105,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-300 font-bold">
                 <span>📅 الفترة:</span>
-                <strong className="text-cyan-300 font-mono">
-                  {newBookingToast.checkIn || newBookingToast.check_in} ← {newBookingToast.checkOut || newBookingToast.check_out}
+                <strong className="text-cyan-300 font-mono" dir="ltr">
+                  {formatDateDMY(newBookingToast.checkIn || newBookingToast.check_in)} ← {formatDateDMY(newBookingToast.checkOut || newBookingToast.check_out)}
                 </strong>
               </div>
               {newBookingToast.phone && (
@@ -1248,7 +1248,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           </div>
                           <div className="flex items-center gap-3 text-xs text-gray-300 font-bold flex-wrap">
                             <span>🏠 الوحدة: <strong className="text-amber-400">{formatUnitName(b.studio || b.apartmentId)}</strong></span>
-                            <span>📅 الفترة: <strong className="text-blue-300">{b.checkIn} ← {b.checkOut}</strong></span>
+                            <span>📅 الفترة: <strong className="text-blue-300" dir="ltr">{formatDateDMY(b.checkIn)} ← {formatDateDMY(b.checkOut)}</strong></span>
                           </div>
                         </div>
 
@@ -1948,7 +1948,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                       <div 
                                         key={b.id || idx} 
                                         className="bg-white/90 border border-gray-200 px-2 py-0.5 rounded text-gray-700 flex items-center justify-between gap-1 shadow-2xs"
-                                        title={`حجز ${idx + 1}: ${b.name || 'ضيف'} (${b.checkIn} ➔ ${b.checkOut})`}
+                                        title={`حجز ${idx + 1}: ${b.name || 'ضيف'} (${formatDateDMY(b.checkIn)} ➔ ${formatDateDMY(b.checkOut)})`}
                                       >
                                         <span className="text-[#C1A68D] font-black">#{idx + 1}</span>
                                         <span>{formatMiniDate(b.checkIn)} ➔ {formatMiniDate(b.checkOut)}</span>

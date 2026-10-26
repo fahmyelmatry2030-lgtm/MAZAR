@@ -421,4 +421,72 @@ export function resolveUnitVideo(unit: any): string | null {
   return null;
 }
 
+/**
+ * تنسيق التاريخ بنظام يوم/شهر/سنة (DD/MM/YYYY)
+ * يضمن عرض التاريخ بالترتيب الصحيح (اليوم أولاً ثم الشهر ثم السنة) مع الحفاظ على الاتجاه
+ */
+export function formatDateDMY(dateInput?: string | null): string {
+  if (!dateInput) return '—';
+  const str = String(dateInput).trim();
+  if (!str) return '—';
+
+  // If already in DD/MM/YYYY (e.g. 25/10/2026)
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const [d, m, y] = str.split('/');
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  // If contains T or space (ISO or datetime string)
+  const baseDate = str.includes('T') ? str.split('T')[0] : (str.includes(' ') ? str.split(' ')[0] : str);
+
+  // If YYYY-MM-DD
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(baseDate)) {
+    const [y, m, d] = baseDate.split('-');
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  // If DD-MM-YYYY
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(baseDate)) {
+    const [d, m, y] = baseDate.split('-');
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  // If YYYY/MM/DD
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(baseDate)) {
+    const [y, m, d] = baseDate.split('/');
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  // Try Date parse
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch {}
+
+  return str;
+}
+
+/**
+ * تحويل تاريخ مدخل من يوم/شهر/سنة إلى YYYY-MM-DD لقواعد البيانات
+ */
+export function parseDateDMY(displayStr?: string | null): string {
+  if (!displayStr) return '';
+  const s = String(displayStr).trim();
+  if (!s) return '';
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+    const [d, m, y] = s.split(/[\/\-]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(s)) {
+    const [y, m, d] = s.split(/[\/\-]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return s;
+}
+
 

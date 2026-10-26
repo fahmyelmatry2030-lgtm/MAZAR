@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getSystemUnits, updateBookingStatus, getBookings, deleteBooking } from '@/lib/data-init';
-import { formatWhatsAppNumber, formatUnitName } from '@/lib/utils';
+import { formatWhatsAppNumber, formatUnitName, formatDateDMY } from '@/lib/utils';
 import { CheckCircle, Trash2, Smartphone } from 'lucide-react';
 import ReceiptImageModal from '@/components/ReceiptImageModal';
 
@@ -256,7 +256,7 @@ export default function BookingsManagement() {
 
   const openWhatsAppChat = (booking: any) => {
     const cleanPhone = formatWhatsAppNumber(booking.phone);
-    const msg = `مرحباً أ/ *${booking.name}*،\nبخصوص طلب الحجز الخاص بكم بمجمع مزار للوحدة (*${booking.studio}*) من فترة *${booking.checkIn}* إلى *${booking.checkOut}*.\n\n_نود إبلاغكم بـ..._`;
+    const msg = `مرحباً أ/ *${booking.name}*،\nبخصوص طلب الحجز الخاص بكم بمجمع مزار للوحدة (*${booking.studio}*) من فترة *${formatDateDMY(booking.checkIn)}* إلى *${formatDateDMY(booking.checkOut)}*.\n\n_نود إبلاغكم بـ..._`;
     window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -406,8 +406,8 @@ export default function BookingsManagement() {
                         </div>
                       </td>
                       <td className="px-6 py-6 font-black">
-                        <div className="text-[#2A2723] mb-1.5"><span className="text-[#7A7061] text-[9px] ml-2 opacity-50">من:</span> {booking.checkIn}</div>
-                        <div className="text-[#2A2723]"><span className="text-[#7A7061] text-[9px] ml-2 opacity-50">إلى:</span> {booking.checkOut}</div>
+                        <div className="text-[#2A2723] mb-1.5" dir="ltr"><span className="text-[#7A7061] text-[9px] mr-1 opacity-50">من:</span> {formatDateDMY(booking.checkIn)}</div>
+                        <div className="text-[#2A2723]" dir="ltr"><span className="text-[#7A7061] text-[9px] mr-1 opacity-50">إلى:</span> {formatDateDMY(booking.checkOut)}</div>
                       </td>
                       <td className="px-6 py-6">
                         <div className="bg-[#C1A68D]/10 text-[#C1A68D] px-3.5 py-2 rounded-xl text-[10px] font-black inline-block border border-[#C1A68D]/20">
@@ -562,7 +562,7 @@ export default function BookingsManagement() {
                      <div className="space-y-2 opacity-60 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center gap-3 text-white">
                            <span className="text-xs">📅</span>
-                           <span className="text-[10px] font-black tracking-tighter">دخول: {b.checkIn} ➔ خروج: {b.checkOut}</span>
+                           <span className="text-[10px] font-black tracking-tighter" dir="ltr">دخول: {formatDateDMY(b.checkIn)} ➔ خروج: {formatDateDMY(b.checkOut)}</span>
                         </div>
                      </div>
 

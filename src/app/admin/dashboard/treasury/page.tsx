@@ -11,7 +11,7 @@ import {
   updateDbBookingStatus,
   updateDbTreasuryTransfer,
 } from '@/lib/actions/db';
-import { formatTreasuryUnitName } from '@/lib/utils';
+import { formatTreasuryUnitName, formatDateDMY } from '@/lib/utils';
 import {
   ArrowLeftRight,
   ArrowDownLeft,
@@ -2127,7 +2127,7 @@ export default function TreasuryPage() {
                           <div className="text-[11px] text-[#C1A68D] font-black flex items-center gap-1">
                             <span>🏠 {formatTreasuryUnitName(bookingObj.studio || bookingObj.apartmentId)}</span>
                             {bookingObj.checkIn && (
-                              <span className="text-[10px] text-gray-500 font-mono font-normal">({bookingObj.checkIn})</span>
+                              <span className="text-[10px] text-gray-500 font-mono font-normal">({formatDateDMY(bookingObj.checkIn)})</span>
                             )}
                           </div>
                         </>
@@ -2345,7 +2345,7 @@ export default function TreasuryPage() {
                             <div className="text-[11px] text-[#C1A68D] font-black flex items-center gap-1.5">
                               <span>🏠 {formatTreasuryUnitName(bookingObj.studio || bookingObj.apartmentId)}</span>
                               {bookingObj.checkIn && (
-                                <span className="text-[10px] text-gray-500 font-mono font-normal">({bookingObj.checkIn})</span>
+                                <span className="text-[10px] text-gray-500 font-mono font-normal">({formatDateDMY(bookingObj.checkIn)})</span>
                               )}
                             </div>
                           </div>
@@ -3182,7 +3182,7 @@ export default function TreasuryPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#EAE4D9]/60">
                       <span className="text-[10px] text-[#7A7061] block font-bold mb-0.5">الدخول ⬅️ الخروج:</span>
-                      <span className="font-bold text-[#2A2723] text-[11px] block">{b.checkIn} ⬅️ {b.checkOut}</span>
+                      <span className="font-bold text-[#2A2723] text-[11px] block" dir="ltr">{formatDateDMY(b.checkIn)} ⬅️ {formatDateDMY(b.checkOut)}</span>
                     </div>
                     <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#EAE4D9]/60">
                       <span className="text-[10px] text-[#7A7061] block font-bold mb-0.5">إجمالي الحجز:</span>
@@ -3290,7 +3290,7 @@ export default function TreasuryPage() {
                         <div className="text-[10px] text-[#7A7061] font-mono">{b.phone || '—'}</div>
                       </td>
                       <td className="p-4 text-[#C1A68D] font-black">{formatTreasuryUnitName(b.apartmentId || b.studio)}</td>
-                      <td className="p-4 text-[#7A7061] text-[11px]">{b.checkIn} ⬅️ {b.checkOut}</td>
+                      <td className="p-4 text-[#7A7061] text-[11px]" dir="ltr">{formatDateDMY(b.checkIn)} ⬅️ {formatDateDMY(b.checkOut)}</td>
                       <td className="p-4 font-black text-[#2A2723]">{money(Number(b.totalAmount) || 0)}</td>
                       <td className="p-4 bg-emerald-50/30 font-black text-emerald-700 text-sm">
                         {money(b.calculatedPaid)}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Calendar, History, Star, FileText, MessageSquare, Award, CheckCircle2, Home, Check, Sparkles } from 'lucide-react';
-import { formatWhatsAppNumber, getCustomerProfileNote, saveCustomerProfileNoteLocally, normalizeCustomerNameKey } from '@/lib/utils';
+import { formatWhatsAppNumber, getCustomerProfileNote, saveCustomerProfileNoteLocally, normalizeCustomerNameKey, formatDateDMY } from '@/lib/utils';
 import { saveDbCustomerNote } from '@/lib/actions/db';
 
 interface CustomerProfileModalProps {
@@ -333,12 +333,12 @@ export default function CustomerProfileModal({
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-black/20 p-2.5 rounded-xl text-center">
                         <div>
-                          <span className="text-gray-400 text-[9px] block">من</span>
-                          <span className="font-bold text-blue-300">{b.checkIn}</span>
+                          <span className="text-gray-400 text-[9px] block">من (دخول)</span>
+                          <span className="font-bold text-blue-300" dir="ltr">{formatDateDMY(b.checkIn)}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400 text-[9px] block">إلى</span>
-                          <span className="font-bold text-rose-300">{b.checkOut}</span>
+                          <span className="text-gray-400 text-[9px] block">إلى (خروج)</span>
+                          <span className="font-bold text-rose-300" dir="ltr">{formatDateDMY(b.checkOut)}</span>
                         </div>
                         <div>
                           <span className="text-gray-400 text-[9px] block">الليالي</span>
