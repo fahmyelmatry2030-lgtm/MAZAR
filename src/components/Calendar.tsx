@@ -1,136 +1,197 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface CalendarProps {
-  checkIn: string;
-  checkOut: string;
+  checkIn: string; // YYYY-MM-DD
+  checkOut: string; // YYYY-MM-DD
   activeTab: 'checkIn' | 'checkOut';
   onSelect: (checkIn: string, checkOut: string) => void;
   bookedDates?: string[];
 }
 
-export default function Calendar({ checkIn, checkOut, activeTab, onSelect, bookedDates = [] }: CalendarProps) {
+const AR_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
+
+const EN_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+// Week starts on Saturday for Egypt/Middle East
+const AR_DAYS = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+const EN_DAYS = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+export default function Calendar({
+  checkIn,
+  checkOut,
+  activeTab,
+  onSelect,
+  bookedDates = []
+}: CalendarProps) {
   const { isRTL, language } = useLanguage();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Initialize to check-in month if present, else today
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (checkIn) {
+      const parts = checkIn.split('-').map(Number);
+      if (parts.length === 3) return new Date(parts[0], parts[1] - 1, 1);
+    }
+    return new Date();
+  });
 
-  const months = {
-    ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
-    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-  };
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
 
-  const daysLabels = {
-    ar: ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'],
-    en: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-  };
+  // First day of month offset (Saturday = 0)
+  // JS getDay(): 0 = Sun, 1 = Mon, ..., 6 = Sat
+  // For Sat = 0: (getDay() + 1) % 7
+  const jsDay = new Date(year, month, 1).getDay();
+  const firstDayOffset = (jsDay + 1) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
-  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const prevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    setCurrentDate(new Date(year, month - 1, 1));
   };
 
   const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const toIso = (day: number) => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
   const handleDateClick = (day: number) => {
-    const selectedDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    const dateStr = selectedDate.toISOString().split('T')[0];
+    const clickedIso = toIso(day);
 
     if (activeTab === 'checkIn') {
-      // If picking check-in, set it and reset check-out if it's now invalid
-      if (checkOut && dateStr >= checkOut) {
-        onSelect(dateStr, '');
+      if (checkOut && clickedIso >= checkOut) {
+        onSelect(clickedIso, '');
       } else {
-        onSelect(dateStr, checkOut);
+        onSelect(clickedIso, checkOut);
       }
     } else {
-      // If picking check-out
-      if (dateStr <= checkIn) {
-        // If pick before check-in, treat it as new check-in
-        onSelect(dateStr, '');
+      // Selecting Check-Out
+      if (!checkIn || clickedIso <= checkIn) {
+        // If clicking before or without checkIn, treat as new checkIn
+        onSelect(clickedIso, '');
       } else {
-        onSelect(checkIn, dateStr);
+        onSelect(checkIn, clickedIso);
       }
     }
   };
 
-  const isSelected = (day: number) => {
-    const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
-    return dateStr === checkIn || dateStr === checkOut;
-  };
+  const isCheckInDay = (day: number) => toIso(day) === checkIn;
+  const isCheckOutDay = (day: number) => toIso(day) === checkOut;
 
   const isInRange = (day: number) => {
     if (!checkIn || !checkOut) return false;
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    return date > start && date < end;
+    const iso = toIso(day);
+    return iso > checkIn && iso < checkOut;
   };
 
   const isPast = (day: number) => {
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    return date < today;
+    const d = new Date(year, month, day);
+    d.setHours(0, 0, 0, 0);
+    return d < today;
   };
 
   const isBooked = (day: number) => {
-    const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
-    return bookedDates.includes(dateStr);
+    return bookedDates.includes(toIso(day));
   };
 
+  const daysLabels = isRTL ? AR_DAYS : EN_DAYS;
+  const monthTitle = isRTL ? `${AR_MONTHS[month]} ${year}` : `${EN_MONTHS[month]} ${year}`;
+
   return (
-    <div className={`w-full bg-[#FDFBF7] p-4 md:p-8 rounded-[30px] md:rounded-[40px] border border-[#EAE4D9] shadow-inner select-none ${isRTL ? 'text-right' : 'text-left'}`}>
-      <div className="flex justify-between items-center mb-6 md:mb-10 px-2">
-        <button onClick={prevMonth} className="w-10 h-10 md:w-12 md:h-12 rounded-full border border-[#EAE4D9] hover:bg-white flex items-center justify-center transition-all">
-          {isRTL ? '→' : '←'}
+    <div className="w-full bg-[#FAF8F5] p-5 sm:p-7 rounded-2xl border border-[#EAE5DC] select-none" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* Month Header */}
+      <div className="flex justify-between items-center mb-6">
+        <button
+          type="button"
+          onClick={isRTL ? nextMonth : prevMonth}
+          className="w-9 h-9 rounded-xl border border-[#EAE5DC] bg-white hover:bg-stone-100 flex items-center justify-center transition-all cursor-pointer shadow-xs text-[#1A1816]"
+          title={isRTL ? 'الشهر السابق' : 'Previous Month'}
+        >
+          {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
-        <h3 className="text-lg md:text-xl font-black text-[#2A2723]">
-          {months[language as keyof typeof months][currentMonth.getMonth()]} {currentMonth.getFullYear()}
+
+        <h3 className="text-base sm:text-lg font-black text-[#1A1816] tracking-wide">
+          {monthTitle}
         </h3>
-        <button onClick={nextMonth} className="w-10 h-10 md:w-12 md:h-12 rounded-full border border-[#EAE4D9] hover:bg-white flex items-center justify-center transition-all">
-          {isRTL ? '←' : '→'}
+
+        <button
+          type="button"
+          onClick={isRTL ? prevMonth : nextMonth}
+          className="w-9 h-9 rounded-xl border border-[#EAE5DC] bg-white hover:bg-stone-100 flex items-center justify-center transition-all cursor-pointer shadow-xs text-[#1A1816]"
+          title={isRTL ? 'الشهر التالي' : 'Next Month'}
+        >
+          {isRTL ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-y-2 md:gap-y-4 text-center">
-        {daysLabels[language as keyof typeof daysLabels].map((day, i) => (
-          <div key={i} className="text-[9px] md:text-[10px] font-black text-[#C1A68D] uppercase tracking-widest mb-2 md:mb-4">
-            {day}
+      {/* Weekday Labels */}
+      <div className="grid grid-cols-7 mb-3 text-center">
+        {daysLabels.map((lbl, i) => (
+          <div key={i} className="text-[11px] font-bold text-[#8C6B3E] uppercase tracking-wider py-1">
+            {lbl}
           </div>
         ))}
-        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} />
+      </div>
+
+      {/* Day Cells Grid */}
+      <div className="grid grid-cols-7 gap-y-1.5 text-center">
+        {/* Leading empty spaces */}
+        {Array.from({ length: firstDayOffset }).map((_, i) => (
+          <div key={`empty-${i}`} className="h-11 sm:h-12" />
         ))}
+
+        {/* Days of current month */}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
-          const selected = isSelected(day);
-          const inRange = isInRange(day);
+          const checkInActive = isCheckInDay(day);
+          const checkOutActive = isCheckOutDay(day);
+          const rangeActive = isInRange(day);
           const past = isPast(day);
+          const booked = isBooked(day);
+          const disabled = past || booked;
+
+          let cellStyle = 'bg-transparent text-[#1A1816] hover:bg-white hover:shadow-xs';
+          if (checkInActive || checkOutActive) {
+            cellStyle = 'bg-[#1A1816] text-white font-black shadow-md scale-105 z-10';
+          } else if (rangeActive) {
+            cellStyle = 'bg-[#9E7A4A]/20 text-[#1A1816] font-bold rounded-none';
+          } else if (disabled) {
+            cellStyle = 'text-stone-300 opacity-40 cursor-not-allowed line-through';
+          }
 
           return (
-            <div 
-              key={day} 
-              onClick={() => !past && !isBooked(day) && handleDateClick(day)}
-              className={`
-                relative h-12 md:h-14 flex flex-col items-center justify-center cursor-pointer text-xs md:text-sm font-bold transition-all duration-300
-                ${past ? 'opacity-20 cursor-not-allowed' : ''}
-                ${isBooked(day) ? 'cursor-not-allowed' : 'hover:scale-110'}
-                ${selected ? 'bg-[#2A2723] text-white rounded-full z-10 shadow-lg' : ''}
-                ${inRange ? 'bg-[#C1A68D]/10 text-[#C1A68D]' : ''}
-              `}
+            <div
+              key={day}
+              onClick={() => !disabled && handleDateClick(day)}
+              className={`relative h-11 sm:h-12 flex items-center justify-center rounded-xl text-sm font-bold transition-all ${cellStyle} ${
+                !disabled ? 'cursor-pointer' : ''
+              }`}
             >
-              <span className={isBooked(day) ? 'line-through opacity-30' : ''}>{day}</span>
-              
-              {isBooked(day) && !selected && (
-                <span className="absolute top-1 text-[6px] font-black text-red-500 uppercase tracking-tighter">Sold Out</span>
-              )}
+              <span>{day}</span>
 
-              {day === today.getDate() && currentMonth.getMonth() === today.getMonth() && !selected && !isBooked(day) && (
-                <div className="absolute bottom-2 w-1 h-1 bg-[#C1A68D] rounded-full" />
+              {/* Check-In / Check-Out Small Tag */}
+              {checkInActive && (
+                <span className="absolute -bottom-1 text-[8px] font-bold text-[#9E7A4A] bg-white px-1 rounded-sm shadow-xs border border-[#EAE5DC]">
+                  {isRTL ? 'وصول' : 'In'}
+                </span>
+              )}
+              {checkOutActive && (
+                <span className="absolute -bottom-1 text-[8px] font-bold text-rose-600 bg-white px-1 rounded-sm shadow-xs border border-[#EAE5DC]">
+                  {isRTL ? 'مغادرة' : 'Out'}
+                </span>
               )}
             </div>
           );

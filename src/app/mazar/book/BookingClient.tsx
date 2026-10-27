@@ -7,6 +7,7 @@ import Logo from '@/components/Logo';
 import Footer from '@/components/Footer';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import Calendar from '@/components/Calendar';
+import LuxuryDateInput from '@/components/LuxuryDateInput';
 import { useLanguage } from '@/lib/LanguageContext';
 import { processAndUploadReceipt, processAndUploadDocument } from '@/lib/uploadHelper';
 import { resolveUnitVideo, formatDateDMY } from '@/lib/utils';
@@ -39,20 +40,86 @@ import {
   Coffee,
   CheckCheck,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Bath,
+  Wind
 } from 'lucide-react';
+
+// ─── Real Photo Fallback Mapping ───
+export const getUnitPhotos = (unit: any): string[] => {
+  if (unit?.images && Array.isArray(unit.images) && unit.images.length > 0) {
+    return unit.images;
+  }
+  const id = String(unit?.id || '').toLowerCase();
+  if (id.startsWith('b1-s')) {
+    return [
+      '/images/mazar1/2026-1.jpeg',
+      '/images/mazar1/2026.jpeg',
+      '/images/mazar1/mazar1-hero.jpg',
+      '/images/mazar1/WhatsApp-Image-2025-12-15-at-12.39.24_989640c4.jpg',
+    ];
+  }
+  if (id.startsWith('b2-s')) {
+    return [
+      '/images/mazar2/20260218_015423.jpg',
+      '/images/mazar2/20260218_015425.jpg',
+      '/images/mazar2/20260218_023924.jpg',
+      '/images/mazar2/20260218_171702.jpg',
+    ];
+  }
+  if (id.startsWith('apt-')) {
+    const num = id.replace('apt-', '');
+    return [`/apartments/apt${num}.png`, '/apartments/apt1.png'];
+  }
+  return ['/images/mazar2/20260218_015423.jpg', '/images/mazar1/mazar1-hero.jpg'];
+};
+
+// ─── Unit Specifications Helper ───
+export const getUnitSpecs = (unit: any, isRTL: boolean) => {
+  const id = String(unit?.id || '').toLowerCase();
+  const title = String(unit?.title?.ar || unit?.title?.en || id).toLowerCase();
+
+  if (id.startsWith('apt-')) {
+    return {
+      capacity: isRTL ? 'حتى 6 أفراد' : 'Up to 6 Guests',
+      beds: isRTL ? '3 غرف نوم ماستر • صالة ومطبخ' : '3 Bedrooms • Living & Kitchen',
+      badge: isRTL ? 'شقة فندقية ملكية' : 'Royal Apartment',
+      branch: isRTL ? 'الفرع الأول - الحي السابع' : 'Branch 1 - 7th District'
+    };
+  }
+
+  if (title.includes('تريبل') || id.includes('triple') || ['b1-s4', 'b2-s2', 'b2-s3', 'b2-s4', 'b2-s7', 'b2-s9', 'b2-s10', 'b2-s11'].includes(id)) {
+    return {
+      capacity: isRTL ? 'حتى 3 نزلاء' : 'Up to 3 Guests',
+      beds: isRTL ? '1 سرير كينج ماستر + 1 سرير فردي' : '1 King Bed + 1 Single Bed',
+      badge: isRTL ? 'استوديو تريبل بريميوم' : 'Premium Triple Studio',
+      branch: unit?.branch === 1 ? (isRTL ? 'الفرع الأول - الحي السابع' : 'Branch 1') : (isRTL ? 'الفرع الثاني - النزهة' : 'Branch 2')
+    };
+  }
+
+  if (title.includes('دبل') || id.includes('double') || ['b1-s1', 'b1-s5', 'b1-s9', 'b1-s10', 'b1-s11', 'b1-s12', 'b2-s1', 'b2-s6', 'b2-s8', 'b2-s12'].includes(id)) {
+    return {
+      capacity: isRTL ? 'شخصين (زوجي)' : '2 Guests (Couple)',
+      beds: isRTL ? '1 سرير كينج ماستر كبير' : '1 Grand King Master Bed',
+      badge: isRTL ? 'استوديو دبل كينج' : 'King Double Studio',
+      branch: unit?.branch === 1 ? (isRTL ? 'الفرع الأول - الحي السابع' : 'Branch 1') : (isRTL ? 'الفرع الثاني - النزهة' : 'Branch 2')
+    };
+  }
+
+  return {
+    capacity: isRTL ? 'فرد أو فردين' : '1 - 2 Guests',
+    beds: isRTL ? '1 سرير فندقي كينج مريح' : '1 Comfortable Hotel Bed',
+    badge: isRTL ? 'استوديو سنجل تنفيذي' : 'Executive Studio',
+    branch: unit?.branch === 1 ? (isRTL ? 'الفرع الأول - الحي السابع' : 'Branch 1') : (isRTL ? 'الفرع الثاني - النزهة' : 'Branch 2')
+  };
+};
 
 export default function BookingPage() {
   const { t, isRTL, language } = useLanguage();
 
-  // ─── 4-Step Modern Booking Track ───
-  // 1: اختيار الجناح الفندقي (Suite Selection)
-  // 2: تواريخ الإقامة والليالي (Dates & Nights)
-  // 3: بيانات الضيف وإثبات الهوية (Guest Details & ID)
-  // 4: سداد العربون وتأكيد الحجز (Deposit & Confirmation)
   const [activeStep, setActiveStep] = useState<number>(1);
 
-  // Initialize with current date strings (YYYY-MM-DD)
+  // Dates handling (strictly DD/MM/YYYY visually, YYYY-MM-DD in state)
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getTomorrowStr = () => {
     const d = new Date();
@@ -68,8 +135,6 @@ export default function BookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState('');
-  const [quickViewUnit, setQuickViewUnit] = useState<any>(null);
-  const [quickViewActiveImage, setQuickViewActiveImage] = useState<string>('');
   const [allUnits, setAllUnits] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [unitFilter, setUnitFilter] = useState<'all' | 'studio' | 'apartment'>('all');
@@ -89,7 +154,6 @@ export default function BookingPage() {
   const [showRulesModal, setShowRulesModal] = useState(false);
 
   const stepContainerRef = useRef<HTMLDivElement>(null);
-
   const ADMIN_WHATSAPP = '201108109969';
 
   const copyToClipboard = (text: string, key: string) => {
@@ -123,58 +187,21 @@ export default function BookingPage() {
           setCheckOut(checkOutParam);
         }
 
-        // 1. Fetch all system units
         const res = await fetch('/api/units');
         const unitsData = res.ok ? await res.json() : [];
         const activeUnits = unitsData.filter((u: any) => u.status === 'متاح' || !u.status);
         setAllUnits(activeUnits);
         setAvailableUnits(activeUnits);
 
-        // 2. Fetch bookings for availability & booked dates
-        const bookingsRes = await fetch('/api/bookings', { cache: 'no-store' });
-        const allBookings = bookingsRes.ok ? await bookingsRes.json() : [];
-
-        // If unitParam is present, lock and fetch its booked dates
         if (unitParam) {
           setSelectedUnitId(unitParam);
-          const unitBooked = allBookings
-            .filter((b: any) => b.apartmentId === unitParam && !['cancelled', 'deleted', 'rejected', 'مرفوض', 'ملغي'].includes(b.status))
-            .flatMap((b: any) => {
-              const dates: string[] = [];
-              let current = new Date(b.checkIn);
-              const end = new Date(b.checkOut);
-              while (current < end) {
-                dates.push(current.toISOString().split('T')[0]);
-                current.setDate(current.getDate() + 1);
-              }
-              return dates;
-            });
-          setBookedDates(unitBooked);
-
           if (checkInParam && checkOutParam) {
             setActiveStep(3);
           } else {
             setActiveStep(2);
           }
-        } else if (checkInParam && checkOutParam) {
-          const available = activeUnits.filter((unit: any) => {
-            const hasOverlap = allBookings.some((b: any) => {
-              if (b.apartmentId !== unit.id) return false;
-              if (['cancelled', 'deleted', 'rejected', 'مرفوض', 'ملغي'].includes(b.status)) return false;
-              return (checkInParam < b.checkOut && checkOutParam > b.checkIn);
-            });
-            return !hasOverlap;
-          });
-          setAvailableUnits(available);
-          if (available.length > 0) {
-            setSelectedUnitId(available[0].id);
-          }
-          setActiveStep(1);
-        } else {
-          if (activeUnits.length > 0) {
-            setSelectedUnitId(activeUnits[0].id);
-          }
-          setActiveStep(1);
+        } else if (activeUnits.length > 0) {
+          setSelectedUnitId(activeUnits[0].id);
         }
       } catch (err) {
         console.error('Initialization failed:', err);
@@ -185,7 +212,7 @@ export default function BookingPage() {
     init();
   }, [isRTL]);
 
-  // Update booked dates when a unit is selected
+  // Update booked dates when a specific unit is selected
   useEffect(() => {
     if (selectedUnitId) {
       const fetchBooked = async () => {
@@ -222,11 +249,13 @@ export default function BookingPage() {
     }
   };
 
-  const handleProceedFromUnit = () => {
-    if (!selectedUnitId) {
+  const handleProceedFromUnit = (unitId?: string) => {
+    const idToUse = unitId || selectedUnitId;
+    if (!idToUse) {
       alert(isRTL ? 'يرجى اختيار الجناح الفندقي أولاً' : 'Please select a unit first');
       return;
     }
+    setSelectedUnitId(idToUse);
     setActiveStep(2);
     scrollToStepContainer();
   };
@@ -247,148 +276,116 @@ export default function BookingPage() {
   const handleProceedFromGuestInfo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert(isRTL ? 'يرجى إدخال اسم الضيف بالكامل' : 'Please enter full guest name');
+      alert(isRTL ? 'يرجى كتابة الاسم بالكامل' : 'Please enter your full name');
       return;
     }
-    if (!phone.trim()) {
-      alert(isRTL ? 'يرجى إدخال رقم الواتساب للتواصل' : 'Please enter WhatsApp number');
+    if (!phone.trim() || phone.trim().length < 8) {
+      alert(isRTL ? 'يرجى إدخال رقم هاتف صحيح للتواصل' : 'Please enter a valid phone number');
       return;
     }
     setActiveStep(4);
     scrollToStepContainer();
   };
 
+  // Quick duration chips helper
+  const setDurationNights = (n: number) => {
+    if (!checkIn) {
+      const today = getTodayStr();
+      setCheckIn(today);
+      const out = new Date(today);
+      out.setDate(out.getDate() + n);
+      setCheckOut(out.toISOString().split('T')[0]);
+    } else {
+      const out = new Date(checkIn);
+      out.setDate(out.getDate() + n);
+      setCheckOut(out.toISOString().split('T')[0]);
+    }
+  };
+
   // ─── Financial Calculations ───
-  // Business rule: The reservation is confirmed with a 1-night deposit.
   const selectedUnit = allUnits.find((u: any) => u.id === selectedUnitId) || availableUnits.find((u: any) => u.id === selectedUnitId);
   const start = new Date(checkIn).getTime();
   const end = new Date(checkOut).getTime();
   const nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
   const pricePerNight = getSafeUnitPrice(selectedUnit);
   const totalAmount = nights * pricePerNight;
-  const depositRequired = pricePerNight; // عربون ليلة واحدة
+  const depositRequired = pricePerNight; // Strict rule: 1-night deposit to confirm
   const remainingOnArrival = Math.max(0, totalAmount - depositRequired);
 
-  // Submit Final Booking
-  const handleSubmitBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !phone) {
-      alert(isRTL ? 'يرجى إدخال الاسم ورقم الهاتف' : 'Please enter name and phone');
-      setActiveStep(3);
-      return;
-    }
+  const selectedUnitPhotos = getUnitPhotos(selectedUnit);
+  const selectedUnitSpecs = getUnitSpecs(selectedUnit, isRTL);
+
+  // Filter units by tab
+  const filteredUnits = availableUnits.filter((u: any) => {
+    if (unitFilter === 'studio') return u.type === 'studio' || String(u.id).startsWith('b');
+    if (unitFilter === 'apartment') return u.type === 'apartment' || String(u.id).startsWith('apt-');
+    return true;
+  });
+
+  // ─── Submit Reservation ───
+  const handleSubmitBooking = async () => {
     if (!rulesAccepted) {
-      alert(isRTL ? 'يرجى قراءة وقبول شروط الإقامة للمتابعة' : 'Please accept house rules to proceed');
+      alert(isRTL ? 'يرجى الموافقة على شروط وقوانين الإقامة لمتابعة الحجز' : 'Please accept the house rules to confirm');
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
 
-    const methodLabel = paymentMethod === 'visa' 
-      ? 'بطاقة بنكية / فيزا' 
-      : paymentMethod === 'instapay_bank' 
-        ? 'إنستا باي / تحويل بنكي / فودافون كاش' 
-        : 'تأكيد مباشر عبر واتساب';
-
-    const notesParts: string[] = [];
-    if (receiptUrl) notesParts.push(`إيصال التحويل: ${receiptUrl}`);
-    if (idDocUrl) notesParts.push(`إثبات الشخصية: ${idDocUrl}`);
-    notesParts.push(`طريقة السداد: ${methodLabel}`);
-    notesParts.push(`عربون ليلة واحدة مطلوب: ${depositRequired} ج.م | متبقي عند الوصول: ${remainingOnArrival} ج.م`);
-
-    const fullNotes = `[طلب من الموقع] ${notesParts.join(' | ')}`;
-    const paymentSummary = `إجمالي الحجز: ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م) | عربون ليلة واحدة: ${depositRequired} ج.م | متبقي عند الوصول: ${remainingOnArrival} ج.م`;
-    const fullPaymentInfo = `${paymentSummary} | ${fullNotes}`;
-
-    const bookingData = {
+    const bookingPayload = {
       name,
       phone,
       checkIn,
       checkOut,
       numberOfDays: nights,
       pricePerNight,
-      totalAmount: totalAmount > 0 ? totalAmount : null,
-      paidAmount: receiptUrl ? depositRequired : 0,
-      remainingAmount: receiptUrl ? remainingOnArrival : totalAmount,
-      paymentStatus: 'باقي',
-      paymentMethod: paymentMethod === 'visa' ? 'فيزا' : (paymentMethod === 'instapay_bank' ? 'إنستا باي' : 'كاش'),
+      totalAmount,
+      depositAmount: depositRequired,
+      remainingAmount: remainingOnArrival,
       idNumber: idDocUrl || null,
       apartmentId: selectedUnitId,
+      branch: selectedUnit?.branch || 1,
+      paymentMethod,
+      receiptUrl: receiptUrl || null,
       dates: `${checkIn} - ${checkOut}`,
       guest: name,
       guestsCount: guestsCount,
-      studio: selectedUnit ? (selectedUnit.title?.[language] || selectedUnitId) : selectedUnitId,
-      paymentInfo: fullPaymentInfo,
-      notes: fullNotes,
-      source: 'website',
-      isWebsiteBooking: true,
-      clientStatus: 'انتظار',
+      notes: `حجز مباشر من الموقع الفندقي. طريقة السداد: ${paymentMethod}. العربون المطلوب: ${depositRequired} ج.م`
     };
 
     try {
-      const saveRes = await fetch('/api/bookings', {
+      const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingData),
+        body: JSON.stringify(bookingPayload),
       });
-      if (!saveRes.ok) throw new Error('Failed to save booking');
-      setIsSubmitting(false);
-      setIsSuccess(true);
 
-      // WhatsApp Notification for instant concierge matching
-      let paymentNotice = '';
-      if (receiptUrl) {
-        paymentNotice = `\n🧾 *إيصال تحويل العربون:* ${receiptUrl}\n✅ *حالة السداد:* تم إرفاق إيصال عربون الليلة (${depositRequired} ج.م)`;
-      } else if (paymentMethod === 'visa') {
-        paymentNotice = `\n💳 *طريقة الدفع:* فيزا (سداد عربون ليلة ${depositRequired} ج.م)`;
-      } else {
-        paymentNotice = `\n⚠️ *ملاحظة:* بانتظار إرسال إيصال عربون الليلة (${depositRequired} ج.م) عبر واتساب لتأكيد الحجز النهائي`;
+      if (!response.ok) {
+        throw new Error('فشل إرسال طلب الحجز، يرجى المحاولة مرة أخرى.');
       }
 
-      const adminMsg = `🔔 *طلب حجز جديد من موقع مزار!*\n\n` +
+      setIsSuccess(true);
+
+      // WhatsApp Concierge message
+      const textMsg =
+        `*طلب حجز فندقي جديد — مجمع مزار*\n\n` +
         `👤 *الاسم:* ${name}\n` +
-        `📱 *الموبايل:* ${phone}\n` +
+        `📱 *الهاتف:* ${phone}\n` +
         `👥 *عدد الضيوف:* ${guestsCount}\n` +
-        `🏠 *الوحدة:* ${selectedUnit ? (selectedUnit.title?.['ar'] || selectedUnitId) : selectedUnitId}\n` +
-        `📅 *الفترة:* من ${formatDateDMY(checkIn)} إلى ${formatDateDMY(checkOut)} (${nights} ليالي)\n` +
-        `💰 *إجمالي الإقامة:* ${totalAmount} ج.م (${nights} ليالي × ${pricePerNight} ج.م)\n` +
-        `🌟 *عربون تأكيد الحجز (ليلة واحدة):* ${depositRequired} ج.م\n` +
-        `💵 *المتبقي عند الوصول والاستلام:* ${remainingOnArrival} ج.م\n` +
-        `💳 *وسيلة السداد:* ${methodLabel}\n` +
-        (idDocUrl ? `🪪 *إثبات الشخصية:* ${idDocUrl}\n` : '') +
-        paymentNotice + `\n\nيرجى تأكيد الحجز معي وتجهيز كارت الدخول.`;
+        `🏨 *الجناح:* ${selectedUnit ? (selectedUnit.title?.[language] || selectedUnitId) : selectedUnitId}\n` +
+        `📅 *المواعيد:* من ${formatDateDMY(checkIn)} إلى ${formatDateDMY(checkOut)} (${nights} ليالي)\n` +
+        `💵 *إجمالي الاستضافة:* ${totalAmount.toLocaleString()} ج.م (${nights} ليالي × ${pricePerNight.toLocaleString()} ج.م)\n` +
+        `💳 *عربون التأكيد (ليلة واحدة):* ${depositRequired.toLocaleString()} ج.م\n` +
+        `🏨 *المتبقي عند الوصول:* ${remainingOnArrival.toLocaleString()} ج.م\n` +
+        `📝 *طريقة الدفع:* ${paymentMethod === 'instapay_bank' ? 'تحويل بنكي / إنستاباي' : paymentMethod === 'visa' ? 'بطاقة فيزا' : 'الدفع عند الوصول'}\n` +
+        (receiptUrl ? `📎 *إشعار التحويل:* ${receiptUrl}\n` : '') +
+        (idDocUrl ? `🪪 *إثبات الهوية:* ${idDocUrl}\n` : '');
 
-      const waUrl = `https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}&text=${encodeURIComponent(adminMsg)}`;
-      window.location.href = waUrl;
-
-    } catch (err) {
-      console.error(err);
+      window.open(`https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}&text=${encodeURIComponent(textMsg)}`, '_blank');
+    } catch (err: any) {
+      setError(err.message || 'حدث خطأ غير متوقع');
+    } finally {
       setIsSubmitting(false);
-      setError(isRTL ? 'حدث خطأ أثناء حفظ الطلب. يرجى المحاولة مرة أخرى.' : 'Error saving request. Please try again.');
-    }
-  };
-
-  // Filtered Units
-  const filteredUnits = allUnits.filter((u: any) => {
-    if (unitFilter === 'studio') return u.type === 'studio';
-    if (unitFilter === 'apartment') return u.type === 'apartment';
-    return true;
-  });
-
-  // Helper date labels for preview
-  const formatFriendlyDate = (dateStr: string) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr + 'T12:00:00');
-      return d.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
-    } catch {
-      return formatDateDMY(dateStr);
     }
   };
 
@@ -409,7 +406,7 @@ export default function BookingPage() {
           </p>
 
           <div className="bg-[#FAF8F5] p-6 rounded-2xl border border-[#EAE5DC] text-center space-y-4 mb-8">
-            <div className="text-sm font-black text-[#1A1816]">{selectedUnit?.title?.[language] || selectedUnitId}</div>
+            <div className="text-base font-black text-[#1A1816]">{selectedUnit?.title?.[language] || selectedUnitId}</div>
             
             <div className="flex justify-between items-center text-xs font-semibold text-[#7A7265] border-t border-b border-[#EAE5DC] py-3">
               <div>
@@ -439,7 +436,7 @@ export default function BookingPage() {
               href={`https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 bg-[#1A1816] hover:bg-black text-white font-bold py-3.5 px-6 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+              className="flex-1 bg-[#1A1816] hover:bg-black text-white font-bold py-3.5 px-6 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>{isRTL ? 'متابعة الحجز على واتساب' : 'Continue on WhatsApp'}</span>
               <ExternalLink className="w-4 h-4" />
@@ -460,12 +457,12 @@ export default function BookingPage() {
     <main className="min-h-screen bg-[#FAF8F5] text-[#1A1816] selection:bg-[#9E7A4A] selection:text-white font-sans antialiased" dir={isRTL ? 'rtl' : 'ltr'}>
 
       {/* ══════════════════════════════════════════════════════════════
-          STICKY LUXURY HEADER (ثابت وراقي على الموبايل والـ PC دائماً)
+          STICKY LUXURY HEADER (ثابت وراقي دائماً أعلى الشاشة)
       ══════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-50 w-full bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-[#EAE5DC] transition-all">
+      <header className="sticky top-0 z-50 w-full bg-[#FAF8F5]/95 backdrop-blur-xl border-b border-[#EAE5DC] transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
           
-          {/* Brand Logo & Prominent Title */}
+          {/* Brand Logo & Title */}
           <Link href="/" className="flex items-center gap-3.5 group shrink-0">
             <div className="transition-transform duration-300 group-hover:scale-105">
               <Logo size={46} mdSize={54} />
@@ -480,68 +477,70 @@ export default function BookingPage() {
                   Hotel Suites
                 </span>
               </div>
-              <span className="text-[11px] font-medium text-[#7A7265] hidden sm:block">
+              <span className="text-[11px] text-[#7A7265] font-medium hidden sm:block">
                 أجنحة وشقق فندقية فاخرة • مدينة نصر
               </span>
             </div>
           </Link>
 
-          {/* Nav Links (Desktop) */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-[#5C554B]">
-            <Link href="/" className="hover:text-[#1A1816] transition-colors">{t.common.home}</Link>
-            <Link href="/mazar/units/studios" className="hover:text-[#1A1816] transition-colors">{isRTL ? 'الأجنحة الفندقية' : 'Suites'}</Link>
-            <Link href="/mazar/about" className="hover:text-[#1A1816] transition-colors">{t.common.about}</Link>
-            <Link href="/mazar/rules" className="hover:text-[#1A1816] transition-colors">{t.common.rules}</Link>
-            <Link href="/mazar/how-to-book" className="hover:text-[#1A1816] transition-colors">{t.common.howToBook}</Link>
-          </nav>
+          {/* Quick Nav & WhatsApp Concierge */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            <nav className="hidden lg:flex items-center gap-6 text-xs font-bold text-[#5C554B]">
+              <Link href="/" className="hover:text-[#1A1816] transition-colors">{isRTL ? 'الرئيسية' : 'Home'}</Link>
+              <Link href="/mazar/units/studios" className="hover:text-[#1A1816] transition-colors">الأجنحة الفندقية</Link>
+              <Link href="/mazar/about" className="hover:text-[#1A1816] transition-colors">عن المكان</Link>
+              <Link href="/mazar/rules" className="hover:text-[#1A1816] transition-colors">قوانين المكان</Link>
+              <Link href="/mazar/how-to-book" className="hover:text-[#1A1816] transition-colors">طريقة الحجز</Link>
+            </nav>
 
-          {/* Quick Actions (WhatsApp & Language) */}
-          <div className="flex items-center gap-3">
             <a
               href={`https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#1A1816] hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs"
-              title="تواصل مباشر واتساب"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#1A1816] text-[#FAF8F5] text-xs font-bold hover:bg-black transition-all shadow-xs"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-mono tracking-wider font-bold">01108109969</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+              <span className="font-mono text-[11px]" dir="ltr">01108109969</span>
             </a>
+
             <LanguageSwitcher />
           </div>
         </div>
       </header>
 
       {/* ══════════════════════════════════════════════════════════════
-          MAIN BOOKING ENGINE CONTAINER
+          MAIN BOOKING FLOW CONTAINER
       ══════════════════════════════════════════════════════════════ */}
-      <div ref={stepContainerRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" ref={stepContainerRef}>
 
-        {/* ─── Breadcrumb Progress Stepper (Minimalist Luxury) ─── */}
-        <section className="mb-8 md:mb-12">
-          <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] max-w-4xl mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {/* ─── Minimalist Stepper Track ─── */}
+        <section className="mb-8 sm:mb-12">
+          <div className="bg-white p-2.5 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_10px_rgba(0,0,0,0.02)] max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
               {[
-                { step: 1, title: isRTL ? 'الوحدة الفندقية' : 'Select Suite', icon: Building2 },
-                { step: 2, title: isRTL ? 'مواعيد الإقامة' : 'Stay Dates', icon: CalendarIcon },
-                { step: 3, title: isRTL ? 'بيانات الضيف' : 'Guest & ID', icon: User },
-                { step: 4, title: isRTL ? 'تأكيد الحجز والعربون' : 'Deposit & Confirm', icon: CreditCard },
+                { step: 1, title: isRTL ? 'الوحدة الفندقية' : 'Suite', icon: Building2 },
+                { step: 2, title: isRTL ? 'مواعيد الإقامة' : 'Dates', icon: CalendarIcon },
+                { step: 3, title: isRTL ? 'بيانات الضيف' : 'Guest', icon: User },
+                { step: 4, title: isRTL ? 'تأكيد الحجز والعربون' : 'Deposit', icon: CreditCard },
               ].map((item) => {
                 const isActive = activeStep === item.step;
                 const isPassed = activeStep > item.step;
-                const IconComponent = item.icon;
 
                 return (
                   <button
                     key={item.step}
                     type="button"
-                    onClick={() => setActiveStep(item.step)}
-                    className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl transition-all text-right w-full ${
+                    onClick={() => {
+                      if (item.step < activeStep || (item.step === 2 && selectedUnitId)) {
+                        setActiveStep(item.step);
+                      }
+                    }}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all text-right ${
                       isActive
                         ? 'bg-[#1A1816] text-white shadow-sm'
                         : isPassed
-                        ? 'bg-[#FAF8F5] text-[#1A1816] hover:bg-stone-100'
-                        : 'text-stone-400 hover:text-stone-700'
+                        ? 'bg-[#FAF8F5] text-[#1A1816] hover:bg-stone-100 cursor-pointer'
+                        : 'text-stone-400'
                     }`}
                   >
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
@@ -563,15 +562,15 @@ export default function BookingPage() {
           </div>
         </section>
 
-        {/* ─── 2-Column Luxury Split Layout ─── */}
+        {/* ─── 2-Column Split Layout ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
           {/* ══════════════════════════════════════════════════════════════
-              LEFT/MAIN COLUMN: ACTIVE STEP CONTENT (8 of 12 cols)
+              MAIN ACTIVE STEP COLUMN (8 of 12 cols)
           ══════════════════════════════════════════════════════════════ */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-8">
 
-            {/* ─── STEP 1: اختيار الوحدة ─── */}
+            {/* ─── STEP 1: اختيار الجناح الفندقي ─── */}
             {activeStep === 1 && (
               <div className="space-y-6 animate-fade-in">
                 {/* Header & Filter Bar */}
@@ -592,36 +591,38 @@ export default function BookingPage() {
                       <button
                         type="button"
                         onClick={() => setUnitFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${unitFilter === 'all' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${unitFilter === 'all' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
                       >
                         {isRTL ? 'الكل' : 'All'}
                       </button>
                       <button
                         type="button"
                         onClick={() => setUnitFilter('studio')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${unitFilter === 'studio' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${unitFilter === 'studio' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
                       >
                         {isRTL ? 'استوديوهات' : 'Studios'}
                       </button>
                       <button
                         type="button"
                         onClick={() => setUnitFilter('apartment')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${unitFilter === 'apartment' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${unitFilter === 'apartment' ? 'bg-white text-[#1A1816] shadow-xs' : 'text-stone-500 hover:text-stone-800'}`}
                       >
                         {isRTL ? 'شقق فاخرة' : 'Apartments'}
                       </button>
                     </div>
                   </div>
                   <p className="text-xs text-[#7A7265] leading-relaxed">
-                    {isRTL ? 'جميع الوحدات مفروشة بأرقى الديكورات الفندقية ومجهزة بشاشات سمارت، تكييفات مركزية، ومطابخ متكاملة في قلب مدينة نصر.' : 'All units feature luxury furnishings, smart TVs, climate control, and full kitchens in prime Nasr City.'}
+                    {isRTL ? 'أجنحة فندقية مفروشة بأرقى الديكورات العصرية ومجهزة بتكييفات مركزية، شاشات سمارت 55 بوصة، ومطابخ خاصة في قلب مدينة نصر.' : 'Premium hotel suites with climate control, 55" smart TVs, and kitchenettes in prime Nasr City.'}
                   </p>
                 </div>
 
-                {/* Suites Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Suites Grid (High-End Boutique Hotel Cards) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {filteredUnits.map((u: any) => {
                     const isSelected = selectedUnitId === u.id;
                     const price = getSafeUnitPrice(u);
+                    const photos = getUnitPhotos(u);
+                    const specs = getUnitSpecs(u, isRTL);
 
                     return (
                       <div
@@ -629,87 +630,99 @@ export default function BookingPage() {
                         onClick={() => setSelectedUnitId(u.id)}
                         className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden cursor-pointer flex flex-col justify-between group ${
                           isSelected
-                            ? 'border-[#1A1816] ring-2 ring-[#1A1816]/10 shadow-md'
-                            : 'border-[#EAE5DC] hover:border-stone-400 hover:shadow-sm'
+                            ? 'border-[#1A1816] ring-2 ring-[#1A1816]/10 shadow-lg'
+                            : 'border-[#EAE5DC] hover:border-[#9E7A4A] hover:shadow-md'
                         }`}
                       >
-                        {/* Photo */}
+                        {/* Real Photo with subtle zoom */}
                         <div className="relative aspect-[16/10] bg-stone-100 overflow-hidden">
-                          {u.images && u.images[0] ? (
-                            <img
-                              src={u.images[0]}
-                              alt={u.title?.[language] || u.id}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-stone-300">
-                              <Building2 className="w-12 h-12 stroke-[1]" />
-                            </div>
-                          )}
+                          <img
+                            src={photos[0]}
+                            alt={u.title?.[language] || u.id}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          />
 
-                          <div className="absolute top-3 right-3 bg-[#1A1816]/80 backdrop-blur-md text-white px-2.5 py-1 rounded-md text-[11px] font-mono font-bold">
-                            {u.id}
+                          {/* Category Badge */}
+                          <div className="absolute top-3 right-3 bg-[#1A1816]/85 backdrop-blur-md text-[#FAF8F5] px-3 py-1 rounded-lg text-[11px] font-bold shadow-xs">
+                            {specs.badge}
                           </div>
 
+                          {/* Selected Checkmark */}
                           {isSelected && (
-                            <div className="absolute top-3 left-3 bg-[#1A1816] text-[#FAF8F5] px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 shadow-md">
-                              <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-400" />
-                              <span>{isRTL ? 'محدد' : 'Selected'}</span>
+                            <div className="absolute top-3 left-3 bg-[#9E7A4A] text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>{isRTL ? 'الجناح المختار' : 'Selected'}</span>
                             </div>
                           )}
 
-                          <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-md text-[#1A1816] px-2.5 py-0.5 rounded text-[10px] font-bold">
-                            {u.type === 'studio' ? (isRTL ? 'جناح استوديو' : 'Studio') : (isRTL ? 'شقة فندقية فاخرة' : 'Hotel Apartment')}
+                          {/* Branch Location Badge */}
+                          <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-[#1A1816] px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                            <MapPin className="w-3 h-3 text-[#9E7A4A]" />
+                            <span>{specs.branch}</span>
                           </div>
                         </div>
 
-                        {/* Info Body */}
+                        {/* Card Info Body */}
                         <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
                           <div>
-                            <h3 className="font-black text-base text-[#1A1816] group-hover:text-[#9E7A4A] transition-colors">
-                              {u.title?.[language] || u.id}
-                            </h3>
-                            <p className="text-xs text-[#7A7265] mt-1.5 line-clamp-2 leading-relaxed">
-                              {u.description?.[language] || 'إقامة فندقية متكاملة بأعلى معايير الخصوصية والرفاهية.'}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-black text-lg text-[#1A1816] group-hover:text-[#9E7A4A] transition-colors">
+                                {u.title?.[language] || u.id}
+                              </h3>
+                            </div>
+                            
+                            {/* Capacity & Bed Info */}
+                            <div className="mt-2 space-y-1.5 text-xs text-[#5C554B]">
+                              <div className="flex items-center gap-2 font-semibold">
+                                <Users className="w-3.5 h-3.5 text-[#9E7A4A] shrink-0" />
+                                <span>{specs.capacity}</span>
+                                <span className="text-stone-300">•</span>
+                                <Bed className="w-3.5 h-3.5 text-[#9E7A4A] shrink-0" />
+                                <span>{specs.beds}</span>
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Amenities Micro-Badges */}
-                          <div className="flex flex-wrap gap-2 text-[10px] text-stone-600 font-medium">
+                          {/* Amenities Badges */}
+                          <div className="flex flex-wrap gap-1.5 text-[10px] text-stone-600 font-medium">
                             <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE5DC]">
-                              <Bed className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'سرير فندقي' : 'Bed'}
+                              <Bath className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'حمام رخامي خاص' : 'Private Bath'}
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE4D9]">
-                              <Wifi className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'واي فاي' : 'WiFi'}
+                            <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE5DC]">
+                              <Wind className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'تكييف مركزي' : 'AC'}
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE4D9]">
-                              <Tv className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'سمارت TV' : 'Smart TV'}
+                            <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE5DC]">
+                              <Tv className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'شاشة سمارت' : 'Smart TV'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-[#FAF8F5] px-2 py-1 rounded-md border border-[#EAE5DC]">
+                              <Wifi className="w-3 h-3 text-[#9E7A4A]" /> {isRTL ? 'واي فاي مجاني' : 'WiFi'}
                             </span>
                           </div>
 
-                          {/* Price & Action */}
+                          {/* Price & Primary CTA */}
                           <div className="pt-3 border-t border-[#EAE5DC] flex items-center justify-between">
                             <div>
-                              <span className="text-[10px] text-stone-400 block font-semibold">{isRTL ? 'السعر لليلة' : 'Rate per night'}</span>
-                              <div className="text-base font-black text-[#1A1816]">
-                                {price.toLocaleString()} <span className="text-[11px] font-normal text-stone-500">ج.م</span>
+                              <div className="text-lg font-black text-[#1A1816]">
+                                {price.toLocaleString()} <span className="text-xs font-normal text-stone-500">ج.م / ليلة</span>
                               </div>
+                              <span className="text-[10px] text-emerald-700 font-semibold block">
+                                {isRTL ? 'عربون التأكيد: ليلة واحدة فقط' : '1-night deposit to confirm'}
+                              </span>
                             </div>
 
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedUnitId(u.id);
-                                handleProceedFromUnit();
+                                handleProceedFromUnit(u.id);
                               }}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                              className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'bg-[#1A1816] text-white shadow-xs'
+                                  ? 'bg-[#1A1816] text-white shadow-sm'
                                   : 'bg-[#FAF8F5] hover:bg-[#1A1816] hover:text-white text-[#1A1816] border border-[#EAE5DC]'
                               }`}
                             >
-                              {isSelected ? (isRTL ? 'المتابعة ➔' : 'Proceed ➔') : (isRTL ? 'اختيار' : 'Select')}
+                              {isSelected ? (isRTL ? 'تأكيد ومتابعة ➔' : 'Proceed ➔') : (isRTL ? 'اختيار الجناح' : 'Select')}
                             </button>
                           </div>
                         </div>
@@ -718,13 +731,13 @@ export default function BookingPage() {
                   })}
                 </div>
 
-                {/* Bottom Continue */}
+                {/* Bottom Continue Button */}
                 {selectedUnitId && (
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-4">
                     <button
                       type="button"
-                      onClick={handleProceedFromUnit}
-                      className="w-full sm:w-auto bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                      onClick={() => handleProceedFromUnit()}
+                      className="w-full sm:w-auto bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>{isRTL ? 'تأكيد الجناح والمتابعة لمواعيد الإقامة ➔' : 'Confirm Suite & Continue to Dates ➔'}</span>
                     </button>
@@ -733,7 +746,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            {/* ─── STEP 2: مواعيد الإقامة ─── */}
+            {/* ─── STEP 2: مواعيد الإقامة (تنسيق يوم/شهر/سنة + تقويم راقٍ) ─── */}
             {activeStep === 2 && (
               <div className="space-y-6 animate-fade-in">
                 {/* Header */}
@@ -743,77 +756,98 @@ export default function BookingPage() {
                     <span>{isRTL ? 'الخطوة الثانية • مواعيد الإقامة' : 'Step 2 • Stay Dates'}</span>
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-[#1A1816] tracking-tight">
-                    {isRTL ? 'حدد تاريخ الوصول والمغادرة' : 'Select Arrival & Departure Dates'}
+                    {isRTL ? 'حدد موعد الوصول وموعد المغادرة' : 'Select Check-in and Check-out Dates'}
                   </h2>
                   <p className="text-xs text-[#7A7265] leading-relaxed">
-                    {isRTL ? 'يمكنك تحديد التواريخ عبر النقر المباشر على التقويم الفندقي أدناه، ويتم احتساب عدد الليالي تلقائياً بدقة.' : 'Pick dates directly on the luxury calendar below. Nights and total stay are calculated automatically.'}
+                    {isRTL 
+                      ? 'يمكنك كتابة التاريخ مباشرة بتنسيق (يوم / شهر / سنة) أو النقر على أي يوم من التقويم الفندقي أدناه.'
+                      : 'Enter dates as DD / MM / YYYY or tap directly on the calendar below.'}
                   </p>
                 </div>
 
-                {/* Modern Date Indicator Bar */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Check-In Card */}
-                  <div
-                    onClick={() => setStep1Focus('checkIn')}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer ${
-                      step1Focus === 'checkIn'
-                        ? 'bg-white border-[#1A1816] shadow-sm ring-1 ring-[#1A1816]/10'
-                        : 'bg-white border-[#EAE5DC] hover:border-stone-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-[#9E7A4A] uppercase tracking-wider flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {isRTL ? 'تاريخ الوصول (دخول)' : 'Check-In'}
-                      </span>
-                      <span className="text-[10px] bg-[#FAF8F5] text-stone-500 px-2 py-0.5 rounded border border-[#EAE5DC] font-mono">
-                        14:00 {isRTL ? 'ظهراً' : 'PM'}
-                      </span>
+                {/* Luxury Date Inputs (Day / Month / Year Guaranteed) */}
+                <div className="bg-white p-6 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Check In Input */}
+                    <div className="space-y-1">
+                      <LuxuryDateInput
+                        label={isRTL ? 'تاريخ الوصول (تسجيل الدخول - 14:00)' : 'Check-In Date (from 14:00)'}
+                        value={checkIn}
+                        min={getTodayStr()}
+                        onChange={(val) => {
+                          setCheckIn(val);
+                          setStep1Focus('checkOut');
+                          if (val && checkOut && new Date(checkOut) <= new Date(val)) {
+                            const next = new Date(val);
+                            next.setDate(next.getDate() + 1);
+                            setCheckOut(next.toISOString().split('T')[0]);
+                          }
+                        }}
+                        isRTL={isRTL}
+                      />
                     </div>
-                    <div className="text-lg font-black text-[#1A1816]">
-                      {formatFriendlyDate(checkIn)}
-                    </div>
-                    <div className="text-[11px] font-mono text-stone-400 mt-1" dir="ltr">
-                      {formatDateDMY(checkIn)}
+
+                    {/* Check Out Input */}
+                    <div className="space-y-1">
+                      <LuxuryDateInput
+                        label={isRTL ? 'تاريخ المغادرة (تسجيل الخروج - 12:00)' : 'Check-Out Date (until 12:00)'}
+                        value={checkOut}
+                        min={checkIn || getTodayStr()}
+                        onChange={(val) => {
+                          setCheckOut(val);
+                        }}
+                        isRTL={isRTL}
+                      />
                     </div>
                   </div>
 
-                  {/* Check-Out Card */}
-                  <div
-                    onClick={() => setStep1Focus('checkOut')}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer ${
-                      step1Focus === 'checkOut'
-                        ? 'bg-white border-[#1A1816] shadow-sm ring-1 ring-[#1A1816]/10'
-                        : 'bg-white border-[#EAE5DC] hover:border-stone-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {isRTL ? 'تاريخ المغادرة (خروج)' : 'Check-Out'}
+                  {/* Duration Banner & Quick Chips */}
+                  <div className="pt-4 border-t border-[#EAE5DC] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#9E7A4A]" />
+                      <span className="text-sm font-black text-[#1A1816]">
+                        {isRTL ? 'مدة الإقامة المحسوبة:' : 'Calculated Duration:'}
                       </span>
-                      <span className="text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded border border-rose-100 font-mono">
-                        12:00 {isRTL ? 'ظهراً' : 'PM'}
+                      <span className="bg-[#FAF8F5] border border-[#EAE5DC] text-[#9E7A4A] font-bold px-3 py-1 rounded-lg text-xs font-mono">
+                        {nights} {nights === 1 ? (isRTL ? 'ليلة واحدة' : 'Night') : (isRTL ? 'ليالٍ' : 'Nights')}
                       </span>
                     </div>
-                    <div className="text-lg font-black text-[#1A1816]">
-                      {formatFriendlyDate(checkOut)}
-                    </div>
-                    <div className="text-[11px] font-mono text-stone-400 mt-1" dir="ltr">
-                      {formatDateDMY(checkOut)}
+
+                    {/* Quick Duration Buttons */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                      <span className="text-[11px] text-stone-400">{isRTL ? 'خيارات سريعة:' : 'Quick:'}</span>
+                      {[
+                        { label: isRTL ? 'ليلة واحدة' : '1 Night', n: 1 },
+                        { label: isRTL ? 'ليلتين' : '2 Nights', n: 2 },
+                        { label: isRTL ? '3 ليالٍ' : '3 Nights', n: 3 },
+                        { label: isRTL ? 'أسبوع (7 ليالٍ)' : '7 Nights', n: 7 },
+                      ].map((item) => (
+                        <button
+                          key={item.n}
+                          type="button"
+                          onClick={() => setDurationNights(item.n)}
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] transition-all cursor-pointer ${
+                            nights === item.n
+                              ? 'bg-[#1A1816] text-white border-[#1A1816]'
+                              : 'bg-[#FAF8F5] text-[#5C554B] border-[#EAE5DC] hover:border-stone-400'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Modern Luxury Embedded Calendar */}
+                {/* Clean Luxury Calendar */}
                 <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
                   <div className="flex justify-between items-center text-xs font-bold text-[#7A7265] pb-2 border-b border-[#EAE5DC]">
                     <span className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#1A1816]" />
-                      <span>{step1Focus === 'checkIn' ? (isRTL ? 'اختر موعد الدخول من التقويم' : 'Select Check-in Date') : (isRTL ? 'اختر موعد الخروج من التقويم' : 'Select Check-out Date')}</span>
+                      <span>{step1Focus === 'checkIn' ? (isRTL ? 'اختر موعد الوصول من التقويم' : 'Select Check-in Date') : (isRTL ? 'اختر موعد المغادرة من التقويم' : 'Select Check-out Date')}</span>
                     </span>
                     <span className="text-[#9E7A4A] font-semibold">
-                      {nights} {isRTL ? 'ليالي إقامة' : 'Nights'}
+                      {isRTL ? 'أيام الأسبوع تبدأ من السبت' : 'Week starts on Saturday'}
                     </span>
                   </div>
 
@@ -835,7 +869,7 @@ export default function BookingPage() {
                   <button
                     type="button"
                     onClick={() => setActiveStep(1)}
-                    className="bg-white border border-[#EAE5DC] hover:border-[#1A1816] text-[#1A1816] font-bold px-6 py-3.5 rounded-xl text-xs transition-all"
+                    className="bg-white border border-[#EAE5DC] hover:border-[#1A1816] text-[#1A1816] font-bold px-6 py-3.5 rounded-xl text-xs transition-all cursor-pointer"
                   >
                     {isRTL ? '← تغيير الجناح' : '← Change Suite'}
                   </button>
@@ -843,7 +877,7 @@ export default function BookingPage() {
                   <button
                     type="button"
                     onClick={handleProceedFromDates}
-                    className="bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2"
+                    className="bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer"
                   >
                     <span>{isRTL ? 'تأكيد المواعيد والمتابعة للبيانات ➔' : 'Confirm Dates & Continue ➔'}</span>
                   </button>
@@ -858,322 +892,309 @@ export default function BookingPage() {
                 <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#9E7A4A] uppercase tracking-wider mb-1">
                     <User className="w-3.5 h-3.5" />
-                    <span>{isRTL ? 'الخطوة الثالثة • بيانات النزيل' : 'Step 3 • Guest Information'}</span>
+                    <span>{isRTL ? 'الخطوة الثالثة • بيانات النزيل الرئيسي' : 'Step 3 • Guest Information'}</span>
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-[#1A1816] tracking-tight">
-                    {isRTL ? 'بيانات الضيف وإثبات الشخصية' : 'Guest Information & Identification'}
+                    {isRTL ? 'بيانات الضيف وإثبات الشخصية' : 'Guest Details & Identification'}
                   </h2>
                   <p className="text-xs text-[#7A7265] leading-relaxed">
-                    {isRTL ? 'بيانات التواصل لتجهيز بطاقة الدخول الذكية وعقد الإقامة، مع إرفاق وثيقة الهوية المطلوبة نظامياً.' : 'Contact info to prepare your smart access pass and registration folio.'}
+                    {isRTL ? 'يرجى تسجيل بيانات النزيل بدقة لتجهيز كارت الدخول الإلكتروني للجناح.' : 'Please provide guest details to prepare the electronic suite keycard.'}
                   </p>
                 </div>
 
-                {/* Inputs Grid */}
                 <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
-                  {/* Row 1: Full Name & WhatsApp */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#1A1816]">
-                        {isRTL ? 'الاسم بالكامل (كما في بطاقة الهوية)' : 'Full Name (as in official ID)'}
-                        <span className="text-red-500 mr-1">*</span>
-                      </label>
+                  {/* Name Input */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#1A1816]">
+                      {isRTL ? 'الاسم بالكامل (كما في بطاقة الهوية / الجواز)' : 'Full Legal Name'} <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
                       <input
                         type="text"
                         required
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder={isRTL ? 'مثال: أ/ محمد أحمد الشريف' : 'e.g. John Doe'}
-                        className="w-full bg-[#FAF8F5] border border-[#EAE5DC] focus:border-[#1A1816] focus:bg-white rounded-xl px-4 py-3 outline-none font-bold text-sm text-[#1A1816] transition-all"
+                        placeholder={isRTL ? 'مثال: أحمد محمد علي' : 'e.g. John Doe'}
+                        className="w-full bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl px-4 py-3.5 text-sm font-semibold outline-none focus:border-[#1A1816] focus:bg-white transition-all text-[#1A1816]"
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#1A1816]">
-                        {isRTL ? 'رقم الواتساب للتواصل وتأكيد الحجز' : 'WhatsApp Mobile Number'}
-                        <span className="text-red-500 mr-1">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+20 10..."
-                        dir="ltr"
-                        className="w-full bg-[#FAF8F5] border border-[#EAE5DC] focus:border-[#1A1816] focus:bg-white rounded-xl px-4 py-3 outline-none font-mono font-bold text-sm text-[#1A1816] transition-all"
-                      />
+                      <User className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'left-4' : 'right-4'} w-4 h-4 text-stone-400`} />
                     </div>
                   </div>
 
-                  {/* Row 2: Guests Count */}
-                  <div className="space-y-2.5 pt-2 border-t border-[#EAE5DC]">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-[#1A1816] flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-[#9E7A4A]" />
-                        <span>{isRTL ? 'عدد النزلاء والمقيمين بالجناح' : 'Number of Guests'}</span>
-                      </label>
-                      <span className="text-[11px] text-[#7A7265] font-medium">
-                        {guestsCount} {isRTL ? 'ضيوف' : 'guests'}
-                      </span>
+                  {/* Phone Input */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#1A1816]">
+                      {isRTL ? 'رقم الهاتف / واتساب لتأكيد الحجز' : 'Phone / WhatsApp'} <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        required
+                        dir="ltr"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="01xxxxxxxxx"
+                        className="w-full bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl px-4 py-3.5 text-sm font-semibold outline-none focus:border-[#1A1816] focus:bg-white transition-all text-[#1A1816] font-mono text-right"
+                      />
+                      <Phone className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'left-4' : 'right-4'} w-4 h-4 text-stone-400`} />
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-6 gap-2">
+                  {/* Guests Count Selector */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#1A1816]">
+                      {isRTL ? 'عدد النزلاء المصاحبين' : 'Number of Guests'}
+                    </label>
+                    <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
                       {[1, 2, 3, 4, 5, 6].map((num) => (
                         <button
                           key={num}
                           type="button"
                           onClick={() => setGuestsCount(num)}
-                          className={`py-2.5 rounded-xl font-bold text-xs transition-all border ${
+                          className={`py-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                             guestsCount === num
                               ? 'bg-[#1A1816] text-white border-[#1A1816] shadow-xs'
                               : 'bg-[#FAF8F5] text-[#5C554B] border-[#EAE5DC] hover:border-stone-400'
                           }`}
                         >
-                          {num}
+                          {num} {num === 1 ? (isRTL ? 'فرد' : '') : (isRTL ? 'أفراد' : '')}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Row 3: ID Document Upload (Modern Luxury Upload Zone) */}
-                  <div className="space-y-2.5 pt-2 border-t border-[#EAE5DC]">
+                  {/* Upload National ID / Passport */}
+                  <div className="pt-4 border-t border-[#EAE5DC] space-y-2">
                     <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-[#1A1816] flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-[#9E7A4A]" />
-                        <span>{isRTL ? 'إثبات الهوية (بطاقة الرقم القومي أو جواز السفر)' : 'Official ID or Passport'}</span>
+                      <label className="block text-xs font-bold text-[#1A1816]">
+                        {isRTL ? 'إثبات الشخصية (بطاقة الرقم القومي أو جواز السفر)' : 'National ID or Passport'}
                       </label>
-                      <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-bold">
-                        {isRTL ? 'مطلوب نظامياً للإقامة' : 'Required'}
+                      <span className="text-[10px] text-stone-400 font-medium">
+                        {isRTL ? 'اختياري الآن ويمكن تقديمه عند الوصول' : 'Optional now'}
                       </span>
                     </div>
 
-                    <div className="border-2 border-dashed border-[#EAE5DC] hover:border-[#9E7A4A] bg-[#FAF8F5] rounded-2xl p-6 text-center transition-all">
-                      <div className="w-10 h-10 rounded-full bg-white shadow-xs border border-[#EAE5DC] flex items-center justify-center mx-auto mb-3 text-stone-600">
-                        <UploadCloud className="w-5 h-5 text-[#9E7A4A]" />
-                      </div>
-
-                      <div className="text-xs font-bold text-[#1A1816] mb-1">
-                        {isRTL ? 'اضغط لرفع صورة بطاقة الهوية أو جواز السفر' : 'Click to upload your ID or Passport photo'}
-                      </div>
-                      <p className="text-[11px] text-[#7A7265] mb-4">
-                        {isRTL ? 'صورة واضحة للمستند (JPG, PNG أو PDF)' : 'High resolution image or PDF'}
-                      </p>
-
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setIsUploadingIdDoc(true);
-                          setIdDocError(null);
-                          try {
-                            const url = await processAndUploadDocument(file);
-                            setIdDocUrl(url);
-                          } catch (err: any) {
-                            console.error('ID upload failed:', err);
-                            setIdDocError(err?.message || (isRTL ? 'فشل رفع المستند' : 'Upload failed'));
-                          } finally {
-                            setIsUploadingIdDoc(false);
-                          }
-                        }}
-                        className="text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1816] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer"
-                      />
-
-                      {isUploadingIdDoc && (
-                        <p className="text-xs font-bold text-amber-700 mt-3 animate-pulse">
-                          ⏳ {isRTL ? 'جاري رفع المستند بأمان...' : 'Uploading securely...'}
-                        </p>
-                      )}
-
-                      {idDocUrl && (
-                        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-800">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            <span>{isRTL ? 'تم رفع إثبات الهوية بنجاح' : 'ID document uploaded'}</span>
-                          </span>
-                          <a href={idDocUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
-                            {isRTL ? 'معاينة' : 'Preview'}
-                          </a>
+                    <div className="relative border-2 border-dashed border-[#EAE5DC] hover:border-[#9E7A4A] rounded-2xl p-6 bg-[#FAF8F5] transition-all text-center">
+                      {idDocUrl ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                          <span className="text-xs font-bold text-[#1A1816]">{isRTL ? 'تم رفع إثبات الهوية بنجاح' : 'ID uploaded successfully'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setIdDocUrl('')}
+                            className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                          >
+                            {isRTL ? 'حذف واستبدال' : 'Remove & replace'}
+                          </button>
                         </div>
-                      )}
+                      ) : (
+                        <div>
+                          <UploadCloud className="w-8 h-8 text-stone-400 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-[#1A1816] mb-1">
+                            {isRTL ? 'اضغط لرفع صورة إثبات الشخصية' : 'Click to upload ID photo'}
+                          </p>
+                          <p className="text-[10px] text-[#7A7265] mb-3">
+                            {isRTL ? 'صورة واضحة للوجهين (JPG, PNG أو PDF)' : 'High resolution image or PDF'}
+                          </p>
 
-                      {idDocError && (
-                        <p className="text-xs font-bold text-red-600 mt-2">⚠️ {idDocError}</p>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setIsUploadingIdDoc(true);
+                              setIdDocError(null);
+                              try {
+                                const url = await processAndUploadDocument(file);
+                                setIdDocUrl(url);
+                              } catch (err: any) {
+                                setIdDocError(err.message || 'فشل رفع الملف');
+                              } finally {
+                                setIsUploadingIdDoc(false);
+                              }
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          />
+
+                          {isUploadingIdDoc && (
+                            <div className="text-xs text-[#9E7A4A] font-bold flex items-center justify-center gap-2">
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>{isRTL ? 'جارٍ رفع الملف بأمان...' : 'Uploading...'}</span>
+                            </div>
+                          )}
+
+                          {idDocError && (
+                            <p className="text-xs text-rose-600 font-bold mt-2">{idDocError}</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Navigation Buttons */}
+                {/* Actions */}
                 <div className="flex justify-between items-center pt-2">
                   <button
                     type="button"
                     onClick={() => setActiveStep(2)}
-                    className="bg-white border border-[#EAE5DC] hover:border-[#1A1816] text-[#1A1816] font-bold px-6 py-3.5 rounded-xl text-xs transition-all"
+                    className="bg-white border border-[#EAE5DC] hover:border-[#1A1816] text-[#1A1816] font-bold px-6 py-3.5 rounded-xl text-xs transition-all cursor-pointer"
                   >
                     {isRTL ? '← تعديل المواعيد' : '← Edit Dates'}
                   </button>
 
                   <button
                     type="submit"
-                    className="bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2"
+                    className="bg-[#1A1816] hover:bg-black text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer"
                   >
-                    <span>{isRTL ? 'المتابعة لحساب الشركة وتأكيد الحجز ➔' : 'Proceed to Payment & Confirm ➔'}</span>
+                    <span>{isRTL ? 'المتابعة لخطوة العربون والحساب البنكي ➔' : 'Proceed to Payment ➔'}</span>
                   </button>
                 </div>
               </form>
             )}
 
-            {/* ─── STEP 4: سداد العربون وتأكيد الحجز ─── */}
+            {/* ─── STEP 4: تأكيد الحجز والعربون ─── */}
             {activeStep === 4 && (
               <div className="space-y-6 animate-fade-in">
                 {/* Header */}
                 <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#9E7A4A] uppercase tracking-wider mb-1">
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>{isRTL ? 'الخطوة الرابعة • تأكيد الحجز والعربون' : 'Step 4 • Deposit & Confirmation'}</span>
+                    <span>{isRTL ? 'الخطوة الرابعة • تأكيد الحجز وسداد العربون' : 'Step 4 • Deposit & Confirmation'}</span>
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-[#1A1816] tracking-tight">
-                    {isRTL ? 'سداد عربون ليلة واحدة لتأكيد الحجز' : '1-Night Confirmation Deposit'}
+                    {isRTL ? 'سداد عربون تأكيد الحجز' : 'Reservation Deposit'}
                   </h2>
                   <p className="text-xs text-[#7A7265] leading-relaxed">
                     {isRTL 
-                      ? 'وفقاً لسياسة مجمع مزار، يتم تأكيد حجز الجناح بسداد عربون ليلة واحدة فقط لحساب الشركة، والمبلغ المتبقي يُسدد عند الوصول والاستلام.' 
-                      : 'Per Mazar policy, your reservation is confirmed upon paying a 1-night deposit to the company account. Remainder is paid at check-in.'}
+                      ? 'وفقاً لسياسة مجمع مزار الفندقي، يُعتمد الحجز فورياً بسداد عربون ليلة واحدة فقط، ويُسدد المتبقي عند الوصول.'
+                      : 'Per Mazar policy, booking is secured by a 1-night deposit. Remainder due upon arrival.'}
                   </p>
                 </div>
 
-                {/* Financial Policy Notice */}
-                <div className="bg-[#1A1816] text-white p-6 rounded-2xl shadow-md space-y-4">
-                  <div className="flex justify-between items-center text-xs text-stone-300 pb-3 border-b border-white/10 font-bold">
-                    <span>{isRTL ? 'ملخص القيمة المالية للحجز' : 'Reservation Cost Folio'}</span>
-                    <span className="text-[#9E7A4A]">{nights} {isRTL ? 'ليالي إقامة' : 'Nights'}</span>
+                {/* Amount Banner */}
+                <div className="bg-[#1A1816] text-[#FAF8F5] p-6 sm:p-8 rounded-2xl shadow-lg space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+                    <div>
+                      <span className="text-xs text-[#C1A68D] font-bold block mb-1">
+                        {isRTL ? 'عربون تأكيد الحجز المطلوب الآن (ليلة واحدة)' : 'Confirmation Deposit (1 Night)'}
+                      </span>
+                      <div className="text-3xl sm:text-4xl font-black text-white font-mono">
+                        {depositRequired.toLocaleString()} <span className="text-base font-normal text-stone-300">ج.م</span>
+                      </div>
+                    </div>
+                    <div className="text-right sm:text-left bg-white/5 p-3 rounded-xl border border-white/10">
+                      <div className="text-[11px] text-stone-400">{isRTL ? 'إجمالي مدة الإقامة:' : 'Total Stay:'}</div>
+                      <div className="text-sm font-bold text-white font-mono">{totalAmount.toLocaleString()} ج.م</div>
+                      <div className="text-[11px] text-emerald-400 mt-0.5">{isRTL ? `المتبقي عند الوصول: ${remainingOnArrival.toLocaleString()} ج.م` : `Due on arrival: ${remainingOnArrival} EGP`}</div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                    <div className="bg-white/5 p-3.5 rounded-xl border border-white/10">
-                      <span className="text-[11px] text-stone-400 block mb-1 font-medium">{isRTL ? 'إجمالي الإقامة' : 'Total Stay'}</span>
-                      <span className="text-lg font-black text-white">{totalAmount.toLocaleString()} ج.م</span>
-                    </div>
-
-                    <div className="bg-[#9E7A4A]/20 p-3.5 rounded-xl border border-[#9E7A4A]/40">
-                      <span className="text-[11px] text-amber-200 block mb-1 font-bold">
-                        🌟 {isRTL ? 'عربون التأكيد (ليلة واحدة)' : 'Required Deposit'}
-                      </span>
-                      <span className="text-xl font-black text-amber-300">{depositRequired.toLocaleString()} ج.م</span>
-                    </div>
-
-                    <div className="bg-white/5 p-3.5 rounded-xl border border-white/10">
-                      <span className="text-[11px] text-stone-400 block mb-1 font-medium">{isRTL ? 'المتبقي عند الوصول' : 'Due at Check-in'}</span>
-                      <span className="text-lg font-black text-stone-200">{remainingOnArrival.toLocaleString()} ج.م</span>
-                    </div>
+                  <div className="flex items-center gap-2 text-xs text-stone-300">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{isRTL ? 'سداد رسمي مؤمّن ومربوط برقم الحجز الخاص بك لدى إدارة مزار.' : 'Secure payment linked to your reservation.'}</span>
                   </div>
                 </div>
 
-                {/* Payment Options (Segmented Tabs) */}
+                {/* Payment Methods */}
                 <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-[#1A1816]">
-                      {isRTL ? 'طريقة سداد عربون الحجز:' : 'Select Deposit Payment Method:'}
-                    </h3>
-                    <p className="text-xs text-[#7A7265]">
-                      {isRTL ? 'اختر الوسيلة الأنسب لك لسداد عربون ليلة واحدة' : 'Choose how you would like to pay the 1-night deposit'}
-                    </p>
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-[#1A1816]">
+                      {isRTL ? 'اختر طريقة سداد العربون المعتمدة:' : 'Select Payment Method:'}
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { id: 'instapay_bank', title: isRTL ? 'إنستاباي / تحويل بنكي' : 'InstaPay / Bank', badge: isRTL ? 'الموصى به' : 'Recommended' },
+                        { id: 'visa', title: isRTL ? 'بطاقة فيزا / ماستركارد' : 'Visa / MasterCard', badge: isRTL ? 'بوابة إلكترونية' : 'Online' },
+                        { id: 'whatsapp', title: isRTL ? 'التأكيد عبر واتساب' : 'WhatsApp Concierge', badge: isRTL ? 'تواصل فوري' : 'Direct' },
+                      ].map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => setPaymentMethod(m.id as any)}
+                          className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                            paymentMethod === m.id
+                              ? 'border-[#1A1816] bg-[#FAF8F5] ring-1 ring-[#1A1816]'
+                              : 'border-[#EAE5DC] hover:border-stone-400'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-bold text-[#9E7A4A] bg-[#FAF8F5] px-1.5 py-0.5 rounded border border-[#EAE5DC]">{m.badge}</span>
+                            <input
+                              type="radio"
+                              name="paymentMethod"
+                              checked={paymentMethod === m.id}
+                              onChange={() => {}}
+                              className="accent-[#1A1816]"
+                            />
+                          </div>
+                          <div className="font-black text-sm text-[#1A1816]">{m.title}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Segmented Controls */}
-                  <div className="grid grid-cols-3 gap-2 bg-[#FAF8F5] p-1.5 rounded-xl border border-[#EAE5DC]">
-                    {[
-                      { id: 'instapay_bank', label: isRTL ? 'إنستاباي / بنكي' : 'InstaPay / Bank' },
-                      { id: 'visa', label: isRTL ? 'بطاقة بنكية / فيزا' : 'Visa / Card' },
-                      { id: 'whatsapp', label: isRTL ? 'تأكيد واتساب' : 'WhatsApp' },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(tab.id as any)}
-                        className={`py-2.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
-                          paymentMethod === tab.id
-                            ? 'bg-white text-[#1A1816] shadow-xs'
-                            : 'text-stone-500 hover:text-stone-800'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Tab 1: InstaPay, Bank, Vodafone Cash */}
+                  {/* Bank Accounts Details (Apple-Card Clean Look) */}
                   {paymentMethod === 'instapay_bank' && (
-                    <div className="space-y-4 pt-1 animate-fade-in">
-                      <div className="text-xs text-stone-600 font-medium">
-                        {isRTL 
-                          ? `يرجى تحويل قيمة عربون الليلة (${depositRequired.toLocaleString()} ج.م) لأحد الحسابات التالية، ثم إرفاق إيصال التحويل:`
-                          : `Please transfer 1-night deposit (${depositRequired.toLocaleString()} EGP) to one of the following accounts:`}
+                    <div className="space-y-4 pt-4 border-t border-[#EAE5DC] animate-fade-in">
+                      <div className="text-xs font-bold text-[#1A1816] flex items-center justify-between">
+                        <span>{isRTL ? 'بيانات الحسابات الرسمية لإدارة مزار:' : 'Official Bank Details:'}</span>
+                        <span className="text-[11px] text-stone-400">{isRTL ? 'اضغط على أي رقم لنسخه فوراً' : 'Tap to copy'}</span>
                       </div>
 
-                      {/* Bank Accounts Luxury Cards */}
-                      <div className="space-y-3">
-                        {/* InstaPay Card */}
-                        <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EAE5DC] flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-xs font-bold text-[#1A1816] flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-blue-500" />
-                              <span>{isRTL ? 'إنستا باي (InstaPay)' : 'InstaPay'}</span>
-                            </div>
-                            <div className="text-[11px] text-[#7A7265] mt-0.5">
-                              {PAYMENT_DETAILS.instapay.accountName}
-                            </div>
-                          </div>
+                      {/* NBE Bank Card */}
+                      <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black text-[#1A1816]">البنك الأهلي المصري (NBE)</span>
+                          <span className="text-[10px] text-[#9E7A4A] font-bold">حساب رسمي</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-stone-500">اسم المستفيد:</span>
+                          <span className="font-bold text-[#1A1816]">مدحت عز الدين حسانين الجوهري</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs pt-1 border-t border-[#EAE5DC]">
+                          <span className="text-stone-500">رقم الحساب:</span>
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(PAYMENT_DETAILS.instapay.number, 'insta')}
-                            className="bg-white hover:bg-[#1A1816] hover:text-white text-[#1A1816] border border-[#EAE5DC] px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                            onClick={() => copyToClipboard('1683071192994900010', 'nbe')}
+                            className="flex items-center gap-1.5 font-mono font-bold text-[#1A1816] hover:text-[#9E7A4A] bg-white px-2.5 py-1 rounded-md border border-[#EAE5DC] transition-all cursor-pointer"
                           >
-                            <span>{copiedKey === 'insta' ? (isRTL ? 'تم النسخ ✓' : 'Copied ✓') : PAYMENT_DETAILS.instapay.number}</span>
-                            <Copy className="w-3 h-3 text-stone-400" />
+                            <span>1683071192994900010</span>
+                            {copiedKey === 'nbe' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
                           </button>
+                        </div>
+                      </div>
+
+                      {/* InstaPay & Vodafone Cash */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* InstaPay */}
+                        <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] space-y-2">
+                          <div className="text-xs font-black text-[#1A1816]">إنستاباي (InstaPay)</div>
+                          <div className="flex justify-between items-center text-xs pt-1 border-t border-[#EAE5DC]">
+                            <span className="text-stone-500">رقم التحويل:</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard('01005318003', 'instapay')}
+                              className="flex items-center gap-1.5 font-mono font-bold text-[#1A1816] hover:text-[#9E7A4A] bg-white px-2.5 py-1 rounded-md border border-[#EAE5DC] transition-all cursor-pointer"
+                            >
+                              <span>01005318003</span>
+                              {copiedKey === 'instapay' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Vodafone Cash */}
-                        <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EAE5DC] flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-xs font-bold text-[#1A1816] flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-rose-500" />
-                              <span>{isRTL ? 'محفظة فودافون كاش' : 'Vodafone Cash'}</span>
-                            </div>
-                            <div className="text-[11px] text-[#7A7265] mt-0.5">
-                              {PAYMENT_DETAILS.vodafoneCash.accountName}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(PAYMENT_DETAILS.vodafoneCash.number, 'voda')}
-                            className="bg-white hover:bg-[#1A1816] hover:text-white text-[#1A1816] border border-[#EAE5DC] px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-                          >
-                            <span>{copiedKey === 'voda' ? (isRTL ? 'تم النسخ ✓' : 'Copied ✓') : PAYMENT_DETAILS.vodafoneCash.number}</span>
-                            <Copy className="w-3 h-3 text-stone-400" />
-                          </button>
-                        </div>
-
-                        {/* National Bank of Egypt */}
-                        <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EAE5DC] space-y-2">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="text-xs font-bold text-[#1A1816]">
-                                {PAYMENT_DETAILS.bank.bankName}
-                              </div>
-                              <div className="text-[11px] text-[#7A7265]">
-                                {PAYMENT_DETAILS.bank.accountName}
-                              </div>
-                            </div>
+                        <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] space-y-2">
+                          <div className="text-xs font-black text-[#1A1816]">فودافون كاش (Vodafone Cash)</div>
+                          <div className="flex justify-between items-center text-xs pt-1 border-t border-[#EAE5DC]">
+                            <span className="text-stone-500">رقم المحفظة:</span>
                             <button
                               type="button"
-                              onClick={() => copyToClipboard(PAYMENT_DETAILS.bank.accountNumber, 'acc')}
-                              className="bg-white hover:bg-[#1A1816] hover:text-white text-[#1A1816] border border-[#EAE5DC] px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                              onClick={() => copyToClipboard('01021691745', 'vodafone')}
+                              className="flex items-center gap-1.5 font-mono font-bold text-[#1A1816] hover:text-[#9E7A4A] bg-white px-2.5 py-1 rounded-md border border-[#EAE5DC] transition-all cursor-pointer"
                             >
-                              <span>{copiedKey === 'acc' ? (isRTL ? 'تم النسخ ✓' : 'Copied ✓') : PAYMENT_DETAILS.bank.accountNumber}</span>
-                              <Copy className="w-3 h-3 text-stone-400" />
+                              <span>01021691745</span>
+                              {copiedKey === 'vodafone' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
                             </button>
                           </div>
                         </div>
@@ -1184,205 +1205,196 @@ export default function BookingPage() {
                         <label className="block text-xs font-bold text-[#1A1816]">
                           {isRTL ? 'إرفاق إيصال التحويل أو سكرين شوت السداد' : 'Attach Transfer Receipt (Image or PDF)'}
                         </label>
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setIsUploadingReceipt(true);
-                            setUploadError(null);
-                            try {
-                              const url = await processAndUploadReceipt(file);
-                              setReceiptUrl(url);
-                            } catch (err: any) {
-                              console.error('Receipt upload failed:', err);
-                              setUploadError(err?.message || (isRTL ? 'فشل رفع الإيصال' : 'Upload failed'));
-                            } finally {
-                              setIsUploadingReceipt(false);
-                            }
-                          }}
-                          className="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1A1816] file:text-white hover:file:bg-black file:cursor-pointer cursor-pointer bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE5DC]"
-                        />
-
-                        {isUploadingReceipt && (
-                          <p className="text-xs font-bold text-amber-700 animate-pulse">
-                            ⏳ {isRTL ? 'جاري رفع الإيصال...' : 'Uploading receipt...'}
-                          </p>
-                        )}
-
-                        {receiptUrl && (
-                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-800">
-                            <span className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                              <span>{isRTL ? 'تم إرفاق إيصال التحويل بنجاح' : 'Receipt attached'}</span>
-                            </span>
-                            <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
-                              {isRTL ? 'معاينة' : 'Preview'}
-                            </a>
-                          </div>
-                        )}
-
-                        {uploadError && (
-                          <p className="text-xs font-bold text-red-600">⚠️ {uploadError}</p>
-                        )}
+                        <div className="relative border-2 border-dashed border-[#EAE5DC] hover:border-[#9E7A4A] rounded-2xl p-5 bg-[#FAF8F5] transition-all text-center">
+                          {receiptUrl ? (
+                            <div className="flex flex-col items-center gap-1.5">
+                              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                              <span className="text-xs font-bold text-[#1A1816]">{isRTL ? 'تم إرفاق إيصال السداد بنجاح' : 'Receipt attached'}</span>
+                              <button
+                                type="button"
+                                onClick={() => setReceiptUrl('')}
+                                className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                              >
+                                {isRTL ? 'حذف واستبدال' : 'Remove & replace'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              <UploadCloud className="w-6 h-6 text-stone-400 mx-auto mb-1.5" />
+                              <p className="text-xs font-bold text-[#1A1816]">
+                                {isRTL ? 'انقر لرفع صورة إيصال التحويل' : 'Click to upload receipt'}
+                              </p>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setIsUploadingReceipt(true);
+                                  setUploadError(null);
+                                  try {
+                                    const url = await processAndUploadReceipt(file);
+                                    setReceiptUrl(url);
+                                  } catch (err: any) {
+                                    setUploadError(err.message || 'فشل رفع الملف');
+                                  } finally {
+                                    setIsUploadingReceipt(false);
+                                  }
+                                }}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              />
+                              {isUploadingReceipt && (
+                                <div className="text-xs text-[#9E7A4A] font-bold flex items-center justify-center gap-1.5 mt-2">
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>{isRTL ? 'جارٍ رفع الإيصال...' : 'Uploading receipt...'}</span>
+                                </div>
+                              )}
+                              {uploadError && <p className="text-xs text-rose-600 font-bold mt-1">{uploadError}</p>}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Tab 2: Visa Card Payment */}
+                  {/* Visa Option */}
                   {paymentMethod === 'visa' && (
-                    <div className="bg-[#FAF8F5] p-6 rounded-xl border border-[#EAE5DC] text-center space-y-3 animate-fade-in">
+                    <div className="p-5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-center space-y-2 animate-fade-in">
                       <CreditCard className="w-8 h-8 text-[#9E7A4A] mx-auto" />
-                      <h4 className="text-sm font-bold text-[#1A1816]">
-                        {isRTL ? 'الدفع الإلكتروني الآمن بالبطاقة البنكية' : 'Secure Online Card Payment'}
-                      </h4>
-                      <p className="text-xs text-[#7A7265] max-w-md mx-auto leading-relaxed">
+                      <div className="font-black text-sm text-[#1A1816]">{isRTL ? 'بوابة الدفع الإلكتروني الآمن' : 'Secure Online Payment'}</div>
+                      <p className="text-xs text-[#7A7265] max-w-md mx-auto">
                         {isRTL 
-                          ? `سيتم سداد عربون ليلة واحدة (${depositRequired.toLocaleString()} ج.م) لتأكيد الحجز الفوري. سيصلك رابط دفع مشفر ومباشر فور تأكيد الطلب.`
-                          : `A 1-night deposit (${depositRequired.toLocaleString()} EGP) will be processed via secure payment link.`}
+                          ? 'عند تأكيد الحجز، سيتم توجيهك بأمان لسداد عربون ليلة واحدة عبر بوابة الدفع البنكية وتصلك رسالة التأكيد فوراً.' 
+                          : 'You will be securely redirected to complete the 1-night deposit via gateway.'}
                       </p>
                     </div>
                   )}
 
-                  {/* Tab 3: Direct WhatsApp */}
-                  {paymentMethod === 'whatsapp' && (
-                    <div className="bg-emerald-50/50 p-6 rounded-xl border border-emerald-200 text-center space-y-3 animate-fade-in">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto text-lg font-bold">
-                        💬
-                      </div>
-                      <h4 className="text-sm font-bold text-emerald-950">
-                        {isRTL ? 'التأكيد المباشر عبر واتساب خدمة العملاء' : 'Instant Confirmation via WhatsApp'}
-                      </h4>
-                      <p className="text-xs text-emerald-900/80 max-w-md mx-auto leading-relaxed">
-                        {isRTL 
-                          ? 'يمكنك تأكيد الحجز الآن وسيقوم موظف الحجوزات بتنسيق تحويل العربون وتجهيز كارت الدخول الخاص بك.' 
-                          : 'Confirm your request now and our concierge team will handle your deposit and access arrangements.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Terms Agreement & Final Action */}
-                <form onSubmit={handleSubmitBooking} className="bg-white p-6 sm:p-8 rounded-2xl border border-[#EAE5DC] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
-                  {/* House Rules Checkbox */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => setShowRulesModal(true)}
-                        className="text-xs font-bold text-[#9E7A4A] hover:underline flex items-center gap-1.5"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>{isRTL ? 'قواعد وشروط الإقامة في مزار (اضغط للقراءة)' : 'Mazar House Rules (Click to view)'}</span>
-                      </button>
-                    </div>
-
-                    <label className="flex items-start gap-3 cursor-pointer p-4 bg-[#FAF8F5] rounded-xl border border-[#EAE5DC] hover:border-stone-400 transition-all">
+                  {/* House Rules Agreement */}
+                  <div className="pt-4 border-t border-[#EAE5DC] space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        required
                         checked={rulesAccepted}
                         onChange={(e) => setRulesAccepted(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 accent-[#1A1816] rounded cursor-pointer"
+                        className="w-4 h-4 mt-0.5 rounded border-[#EAE5DC] text-[#1A1816] focus:ring-[#1A1816] accent-[#1A1816]"
                       />
-                      <span className="text-xs text-[#5C554B] font-medium leading-relaxed">
+                      <span className="text-xs text-[#5C554B] leading-relaxed">
                         {isRTL ? (
-                          <>أقر بأني قرأت وأوافق على الالتزام الكامل بـ <span onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }} className="text-[#9E7A4A] underline font-bold">قواعد وشروط الإقامة</span> الخاصة بمجمع مزار الفندقي.</>
+                          <>
+                            أوافق وأتعهد بالالتزام بـ{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }}
+                              className="font-bold text-[#1A1816] underline hover:text-[#9E7A4A] cursor-pointer"
+                            >
+                              قوانين وشروط الإقامة لمجمع مزار
+                            </button>
+                            {' '}(ممنوع اصطحاب الحيوانات، الحفاظ على الهدوء، وتسجيل بيانات النزلاء طبقاً للقانون).
+                          </>
                         ) : (
-                          <>I agree to comply with the <span onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }} className="text-[#9E7A4A] underline font-bold">house rules and terms</span> of Mazar Hotel Suites.</>
+                          <>
+                            I agree to the{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setShowRulesModal(true); }}
+                              className="font-bold text-[#1A1816] underline cursor-pointer"
+                            >
+                              Mazar House Rules
+                            </button>
+                            {' '}(no pets, quiet hours, legal guest registration).
+                          </>
                         )}
                       </span>
                     </label>
                   </div>
+                </div>
 
-                  {/* Submit Button */}
-                  <div className="space-y-2 pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !rulesAccepted}
-                      className="w-full bg-[#1A1816] hover:bg-black text-white font-bold py-4 px-8 rounded-xl text-sm transition-all shadow-md active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      {isSubmitting ? (
-                        <span className="flex items-center gap-2">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>{isRTL ? 'جاري تأكيد الحجز...' : 'Processing reservation...'}</span>
-                        </span>
-                      ) : (
-                        <span>
-                          {isRTL ? `تأكيد حجز الجناح (عربون ليلة: ${depositRequired.toLocaleString()} ج.م)` : `Confirm Reservation (${depositRequired.toLocaleString()} EGP)`}
-                        </span>
-                      )}
-                    </button>
-
-                    <p className="text-center text-[11px] text-[#7A7265] font-medium">
-                      {isRTL ? 'سيتم اعتماد الحجز فورياً ومشاركتك كارت الدخول الإلكتروني' : 'Your reservation will be confirmed and electronic access details shared.'}
-                    </p>
+                {error && (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
                   </div>
+                )}
 
-                  {/* Back Link */}
-                  <div className="pt-2 border-t border-[#EAE5DC]">
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(3)}
-                      className="text-xs font-bold text-stone-500 hover:text-[#1A1816]"
-                    >
-                      {isRTL ? '← الرجوع لتعديل بيانات النزيل' : '← Back to Guest Info'}
-                    </button>
-                  </div>
-                </form>
+                {/* Final Submit Actions */}
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(3)}
+                    className="bg-white border border-[#EAE5DC] hover:border-[#1A1816] text-[#1A1816] font-bold px-6 py-3.5 rounded-xl text-xs transition-all cursor-pointer"
+                  >
+                    {isRTL ? '← تعديل بيانات الضيف' : '← Edit Guest Info'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !rulesAccepted}
+                    onClick={handleSubmitBooking}
+                    className={`bg-[#1A1816] hover:bg-black text-white font-black px-10 py-4 rounded-xl text-sm transition-all shadow-lg flex items-center gap-2 cursor-pointer ${
+                      isSubmitting || !rulesAccepted ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>{isRTL ? 'جارٍ تسجيل الحجز...' : 'Processing...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{isRTL ? 'تأكيد الحجز النهائي وإرسال الإشعار ➔' : 'Confirm & Complete Booking ➔'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
           {/* ══════════════════════════════════════════════════════════════
-              RIGHT/SIDEBAR COLUMN: STICKY LUXURY FOLIO CARD (4 of 12 cols)
+              RIGHT COLUMN: STICKY LUXURY FOLIO SUMMARY (4 of 12 cols)
           ══════════════════════════════════════════════════════════════ */}
           <div className="lg:col-span-5 xl:col-span-4 sticky top-28 space-y-4">
-            <div className="bg-white rounded-2xl border border-[#EAE5DC] shadow-[0_4px_24px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="bg-white rounded-2xl border border-[#EAE5DC] shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden">
               
-              {/* Folio Header */}
-              <div className="p-5 border-b border-[#EAE5DC] bg-[#FAF8F5] flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-black text-[#1A1816]">
-                  <Building2 className="w-4 h-4 text-[#9E7A4A]" />
-                  <span>{isRTL ? 'ملخص حجز الإقامة' : 'Stay Summary'}</span>
+              {/* Folio Top Header */}
+              <div className="p-5 border-b border-[#EAE5DC] bg-[#FAF8F5] flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#9E7A4A]" />
+                  <span className="text-xs font-black text-[#1A1816] uppercase tracking-wider">
+                    {isRTL ? 'ملخص حجز الإقامة' : 'Stay Folio'}
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold text-[#9E7A4A] bg-white px-2 py-0.5 rounded border border-[#EAE5DC] uppercase">
+                <span className="text-[10px] font-bold text-[#9E7A4A] bg-white px-2 py-0.5 rounded-md border border-[#EAE5DC]">
                   Mazar Suites
                 </span>
               </div>
 
-              {/* Suite Preview */}
               {selectedUnit ? (
                 <div className="p-5 space-y-4">
+                  {/* Selected Unit Thumbnail & Info */}
                   <div className="flex gap-3.5 items-center">
                     <div className="w-16 h-16 rounded-xl bg-stone-100 overflow-hidden shrink-0 border border-[#EAE5DC]">
-                      {selectedUnit.images && selectedUnit.images[0] ? (
-                        <img src={selectedUnit.images[0]} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-stone-300">
-                          <Building2 className="w-6 h-6 stroke-[1]" />
-                        </div>
-                      )}
+                      <img src={selectedUnitPhotos[0]} alt="" className="w-full h-full object-cover" />
                     </div>
-                    <div>
-                      <h4 className="font-black text-sm text-[#1A1816] leading-snug">
+                    <div className="min-w-0">
+                      <h4 className="font-black text-sm text-[#1A1816] truncate">
                         {selectedUnit.title?.[language] || selectedUnit.id}
                       </h4>
                       <p className="text-[11px] text-[#7A7265] mt-0.5">
-                        {selectedUnit.type === 'studio' ? (isRTL ? 'جناح استوديو فاخر' : 'Studio') : (isRTL ? 'شقة فندقية راقية' : 'Apartment')}
+                        {selectedUnitSpecs.badge}
                       </p>
                       <button
                         type="button"
                         onClick={() => setActiveStep(1)}
-                        className="text-[10px] font-bold text-[#9E7A4A] hover:underline mt-1"
+                        className="text-[10px] font-bold text-[#9E7A4A] hover:underline mt-1 cursor-pointer block"
                       >
-                        {isRTL ? 'تغيير الوحدة' : 'Change Suite'}
+                        {isRTL ? 'تغيير الجناح' : 'Change Suite'}
                       </button>
                     </div>
                   </div>
 
-                  {/* Dates Overview */}
+                  {/* Dates Overview (Strict Day/Month/Year Format) */}
                   <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#EAE5DC] space-y-2 text-xs">
                     <div className="flex justify-between items-center text-stone-600">
                       <span className="text-[11px] text-stone-400">{isRTL ? 'تاريخ الوصول:' : 'Check-in:'}</span>
@@ -1394,11 +1406,11 @@ export default function BookingPage() {
                     </div>
                     <div className="flex justify-between items-center text-stone-600 pt-1.5 border-t border-[#EAE5DC]">
                       <span className="text-[11px] text-stone-400">{isRTL ? 'عدد الليالي:' : 'Duration:'}</span>
-                      <span className="font-bold text-[#9E7A4A]">{nights} {isRTL ? 'ليالي' : 'nights'}</span>
+                      <span className="font-bold text-[#9E7A4A]">{nights} {nights === 1 ? (isRTL ? 'ليلة واحدة' : 'night') : (isRTL ? 'ليالٍ' : 'nights')}</span>
                     </div>
                   </div>
 
-                  {/* Financial Breakdown (عربون ليلة واحدة) */}
+                  {/* Financial Breakdown (Strict 1-Night Deposit Rule) */}
                   <div className="space-y-2.5 pt-2 text-xs">
                     <div className="flex justify-between items-center text-[#7A7265]">
                       <span>{isRTL ? 'سعر الليلة:' : 'Nightly rate:'}</span>
@@ -1431,7 +1443,7 @@ export default function BookingPage() {
                 </div>
               ) : (
                 <div className="p-8 text-center text-xs text-stone-400 font-medium">
-                  {isRTL ? 'يرجى اختيار الوحدة الفندقية أولاً' : 'Please select a suite to view folio'}
+                  {isRTL ? 'يرجى اختيار الجناح الفندقي أولاً' : 'Please select a suite to view folio'}
                 </div>
               )}
 
@@ -1458,96 +1470,67 @@ export default function BookingPage() {
                 href={`https://api.whatsapp.com/send?phone=${ADMIN_WHATSAPP}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-[#FAF8F5] hover:bg-[#1A1816] hover:text-white text-[#1A1816] border border-[#EAE5DC] px-3 py-1.5 rounded-lg font-bold text-xs transition-colors"
+                className="px-3.5 py-2 rounded-lg bg-[#FAF8F5] hover:bg-[#1A1816] hover:text-white text-[#1A1816] font-bold text-[11px] border border-[#EAE5DC] transition-all cursor-pointer"
               >
-                {isRTL ? 'محادثة فورية' : 'Chat Now'}
+                {isRTL ? 'محادثة فورية' : 'Chat'}
               </a>
             </div>
           </div>
-
         </div>
       </div>
 
       {/* ─── House Rules Modal ─── */}
       {showRulesModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" dir={isRTL ? 'rtl' : 'ltr'}>
-          <div className="bg-white max-w-lg w-full rounded-2xl border border-[#EAE5DC] shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAE5DC]">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto border border-[#EAE5DC] shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#EAE5DC] pb-4">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#9E7A4A]" />
-                <h3 className="text-base font-black text-[#1A1816]">
-                  {isRTL ? 'قواعد وشروط الإقامة بمجمع مزار' : 'Mazar Hotel Suites Regulations'}
-                </h3>
+                <h3 className="font-black text-lg text-[#1A1816]">{isRTL ? 'شروط وقوانين الإقامة بمزار' : 'Mazar House Rules'}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowRulesModal(false)}
-                className="w-8 h-8 rounded-lg bg-[#FAF8F5] hover:bg-[#1A1816] hover:text-white flex items-center justify-center font-bold transition-colors"
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-4 text-xs text-[#5C554B] leading-relaxed">
-              <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#EAE5DC] space-y-1.5">
-                <h4 className="font-black text-[#1A1816] flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-[#9E7A4A]" />
-                  <span>{isRTL ? 'مواعيد الدخول والمغادرة' : 'Check-In & Check-Out'}</span>
-                </h4>
-                <ul className="list-disc list-inside space-y-1 text-stone-600 text-[11px]">
-                  <li>{isRTL ? 'تسجيل الوصول: ابتداءً من الساعة 2:00 ظهراً.' : 'Check-in: from 2:00 PM onwards.'}</li>
-                  <li>{isRTL ? 'تسجيل المغادرة: حتى الساعة 12:00 ظهراً كحد أقصى.' : 'Check-out: by 12:00 PM.'}</li>
-                </ul>
+              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <span className="font-bold text-[#1A1816] block mb-1">1. إثبات الهوية وتسجيل النزلاء:</span>
+                يلتزم جميع النزلاء بتقديم بطاقة الرقم القومي أو جواز السفر الساري عند الوصول، وتسجيل بيانات جميع المرافقين طبقاً للتعليمات الفندقية والأمنية الرسمية.
               </div>
-
-              <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#EAE5DC] space-y-1.5">
-                <h4 className="font-black text-[#1A1816] flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#9E7A4A]" />
-                  <span>{isRTL ? 'إثبات الهوية واستلام الوحدة' : 'Identity Verification'}</span>
-                </h4>
-                <p className="text-stone-600 text-[11px]">
-                  {isRTL
-                    ? 'يُشترط تقديم بطاقة رقم قومي سارية أو جواز سفر أصلي لجميع النزيلين عند الاستلام طبقاً للتعليمات الأمنية.'
-                    : 'Valid official ID or passport is required for all guests upon arrival.'}
-                </p>
+              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <span className="font-bold text-[#1A1816] block mb-1">2. مواعيد الوصول والمغادرة:</span>
+                تسجيل الدخول يبدأ من الساعة 14:00 ظهراً، وتسجيل المغادرة وتسليم الكارت الذكي بحد أقصى الساعة 12:00 ظهراً.
               </div>
-
-              <div className="p-4 bg-red-50/70 rounded-xl border border-red-100 space-y-1.5 text-red-950">
-                <h4 className="font-black text-red-800 flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
-                  <span>{isRTL ? 'سياسة الهدوء والأمان' : 'Peace & Safety Policy'}</span>
-                </h4>
-                <ul className="list-disc list-inside space-y-1 text-red-900/90 text-[11px]">
-                  <li>{isRTL ? 'يُمنع منعاً باتاً استقبال زوار غير مسجلين لدى إدارة مزار.' : 'Unregistered guests/visitors are strictly prohibited.'}</li>
-                  <li>{isRTL ? 'يُمنع إدخال أو تداول المشروبات الكحولية أو الممنوعات داخل المبنى.' : 'Alcohol and illegal substances are strictly prohibited.'}</li>
-                  <li>{isRTL ? 'تلتزم إدارة مزار بتوفير أعلى درجات الهدوء والراحة لجميع النزلاء.' : 'Mazar strictly maintains a quiet, peaceful luxury environment.'}</li>
-                </ul>
+              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <span className="font-bold text-[#1A1816] block mb-1">3. سياسة العربون والتأكيد:</span>
+                يتم تأكيد الحجز بسداد عربون يعادل قيمة ليلة واحدة فقط. العربون غير مسترد في حال الإلغاء قبل أقل من 24 ساعة من موعد الوصول.
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <span className="font-bold text-[#1A1816] block mb-1">4. المحافظة على الهدوء والآداب العامة:</span>
+                يُمنع منعاً باتاً اصطحاب الحيوانات الأليفة، ويُرجى الحفاظ على الهدوء التام داخل المجمع ومراعاة راحة النزلاء في الأجنحة المجاورة.
               </div>
             </div>
 
-            <div className="pt-2 flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRulesAccepted(true);
-                  setShowRulesModal(false);
-                }}
-                className="flex-1 bg-[#1A1816] text-white py-3 rounded-xl font-bold text-xs hover:bg-black transition-all shadow-xs"
-              >
-                {isRTL ? 'قرأت وأوافق على الالتزام الكامل' : 'I have read and agree'}
-              </button>
-              <Link
-                href="/mazar/rules"
-                target="_blank"
-                className="py-3 px-4 rounded-xl border border-[#EAE5DC] text-[#7A7265] hover:text-[#1A1816] font-bold text-xs text-center transition-colors"
-              >
-                {isRTL ? 'عرض صفحة القواعد الكاملة' : 'View Full Rules'}
-              </Link>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRulesAccepted(true);
+                setShowRulesModal(false);
+              }}
+              className="w-full bg-[#1A1816] hover:bg-black text-white font-bold py-3.5 rounded-xl text-xs transition-all cursor-pointer"
+            >
+              {isRTL ? 'قرأت الشروط وأوافق عليها' : 'I Understand & Accept'}
+            </button>
           </div>
         </div>
       )}
 
+      {/* Footer */}
       <Footer />
     </main>
   );
