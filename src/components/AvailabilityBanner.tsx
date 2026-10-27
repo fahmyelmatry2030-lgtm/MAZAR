@@ -1,7 +1,7 @@
-import LuxuryDateInput from '@/components/LuxuryDateInput';
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import LuxuryDateInput from '@/components/LuxuryDateInput';
 import { 
   MagnifyingGlassIcon, 
   ArrowRightEndOnRectangleIcon, 
