@@ -8,6 +8,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/LanguageContext';
 
 import UnitCard from '@/components/UnitCard';
+import LuxuryDateInput from '@/components/LuxuryDateInput';
 
 const getStudioTypeCategory = (unitId: string) => {
   if (unitId.startsWith('p-s') || unitId.startsWith('apt-')) return 'tworoom';
@@ -127,36 +128,40 @@ export default function StudiosPage() {
         </header>
 
         {/* Date Filter Bar */}
-        <div className="bg-white p-6 rounded-[2rem] border border-[#EAE4D9] shadow-sm mb-12 flex flex-col md:flex-row gap-6 items-end max-w-4xl">
-          <div className="flex-1 w-full space-y-2">
-            <label className={`block text-[10px] font-black text-[#7A7061] uppercase ${isRTL ? 'text-right' : 'text-left'}`}>
-              🛬 {isRTL ? 'تاريخ الدخول (البحث عن المتاح)' : 'Check-In Date (Search Availability)'}
-            </label>
-            <input
-              type="date"
+        <div className="bg-white p-6 rounded-[2rem] border border-[#EAE4D9] shadow-sm mb-12 flex flex-col md:flex-row gap-6 items-start max-w-4xl" dir={isRTL ? "rtl" : "ltr"}>
+          <div className="flex-1 w-full">
+            <LuxuryDateInput
+              label={isRTL ? "تاريخ الدخول (البحث عن المتاح)" : "Check-In Date (Search Availability)"}
               value={checkIn}
-              onChange={(e) => setCheckIn(e.target.value)}
-              className="w-full bg-[#F7F5F0] border border-[#EAE4D9]/60 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#C1A68D] transition-all text-[#2A2723]"
+              onChange={(val) => {
+                setCheckIn(val);
+                if (val && checkOut && new Date(checkOut) <= new Date(val)) {
+                  const next = new Date(val);
+                  next.setDate(next.getDate() + 1);
+                  setCheckOut(next.toISOString().split("T")[0]);
+                }
+              }}
+              isRTL={isRTL}
             />
           </div>
-          <div className="flex-1 w-full space-y-2">
-            <label className={`block text-[10px] font-black text-[#7A7061] uppercase ${isRTL ? 'text-right' : 'text-left'}`}>
-              🛫 {isRTL ? 'تاريخ الخروج' : 'Check-Out Date'}
-            </label>
-            <input
-              type="date"
+          <div className="flex-1 w-full">
+            <LuxuryDateInput
+              label={isRTL ? "تاريخ الخروج" : "Check-Out Date"}
               value={checkOut}
-              onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full bg-[#F7F5F0] border border-[#EAE4D9]/60 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#C1A68D] transition-all text-[#2A2723]"
+              min={checkIn}
+              onChange={(val) => setCheckOut(val)}
+              isRTL={isRTL}
             />
           </div>
           {(checkIn || checkOut) && (
-            <button
-              onClick={() => { setCheckIn(''); setCheckOut(''); }}
-              className="px-6 py-3.5 bg-[#2A2723] text-white rounded-xl text-xs font-black hover:bg-black transition-all shrink-0 w-full md:w-auto"
-            >
-              {isRTL ? 'إعادة تعيين' : 'Reset'}
-            </button>
+            <div className="pt-6 w-full md:w-auto">
+              <button
+                onClick={() => { setCheckIn(""); setCheckOut(""); }}
+                className="px-6 py-2.5 bg-[#2A2723] text-white rounded-xl text-xs font-black hover:bg-black transition-all shrink-0 w-full md:w-auto cursor-pointer"
+              >
+                {isRTL ? "إعادة تعيين" : "Reset"}
+              </button>
+            </div>
           )}
         </div>
 

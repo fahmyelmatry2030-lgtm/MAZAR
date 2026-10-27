@@ -1,3 +1,4 @@
+import LuxuryDateInput from '@/components/LuxuryDateInput';
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -217,37 +218,34 @@ export default function AvailabilityBanner() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Check In */}
-          <div className="space-y-2">
-            <label className="flex items-center justify-end gap-1.5 text-right text-[11px] font-black text-[#7A7061] uppercase tracking-wider">
-              تاريخ الدخول
-              <ArrowRightEndOnRectangleIcon className="w-4 h-4" />
-            </label>
-            <input
-              type="date"
+          <div className="w-full">
+            <LuxuryDateInput
+              label="تاريخ الدخول"
               value={checkIn}
               min={todayStr}
-              onChange={(e) => {
-                setCheckIn(e.target.value);
+              onChange={(val) => {
+                setCheckIn(val);
                 setSearched(false);
-                const next = new Date(e.target.value);
-                next.setDate(next.getDate() + 1);
-                setCheckOut(next.toISOString().split('T')[0]);
+                if (val) {
+                  const next = new Date(val);
+                  next.setDate(next.getDate() + 1);
+                  setCheckOut(next.toISOString().split('T')[0]);
+                }
               }}
-              className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#C1A68D] transition-all text-right text-[#2A2723]"
+              isRTL={true}
             />
           </div>
           {/* Check Out */}
-          <div className="space-y-2">
-            <label className="flex items-center justify-end gap-1.5 text-right text-[11px] font-black text-[#7A7061] uppercase tracking-wider">
-              تاريخ الخروج
-              <ArrowLeftStartOnRectangleIcon className="w-4 h-4" />
-            </label>
-            <input
-              type="date"
+          <div className="w-full">
+            <LuxuryDateInput
+              label="تاريخ الخروج"
               value={checkOut}
               min={checkIn || todayStr}
-              onChange={(e) => { setCheckOut(e.target.value); setSearched(false); }}
-              className="w-full bg-[#F7F5F0] border border-[#EAE4D9] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#C1A68D] transition-all text-right text-[#2A2723]"
+              onChange={(val) => {
+                setCheckOut(val);
+                setSearched(false);
+              }}
+              isRTL={true}
             />
           </div>
           {/* Unit Type */}
