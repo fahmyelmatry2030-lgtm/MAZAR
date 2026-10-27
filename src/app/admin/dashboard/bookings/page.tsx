@@ -199,9 +199,13 @@ export default function BookingsManagement() {
     } catch(e) {}
 
     try {
+      const chosenUnit = availableAptsForBooking.find((u: any) => u.id === selectedAptId);
+      const studioTitle = chosenUnit?.title?.ar || chosenUnit?.title?.en || selectedBooking.studio || selectedAptId;
+
       await updateBookingStatus(selectedBooking.id, { 
           status: 'approved', 
           apartmentId: selectedAptId, 
+          studio: studioTitle,
           paymentInfo,
           totalAmount,
           numberOfDays,

@@ -198,7 +198,14 @@ export default function BookingPage() {
           if (!res.ok) return;
           const allBookings = await res.json();
           const unitBooked = allBookings
-            .filter((b: any) => b.apartmentId === selectedUnitId && !['cancelled', 'deleted', 'rejected', 'مرفوض', 'ملغي'].includes(b.status))
+            .filter((b: any) => {
+              if (['cancelled', 'deleted', 'rejected', 'مرفوض', 'ملغي'].includes(b.status)) return false;
+              const bApt = String(b.apartmentId || b.apartment_id || '').trim().toLowerCase();
+              const bStudio = String(b.studio || '').trim().toLowerCase();
+              const target = String(selectedUnitId).trim().toLowerCase();
+              const titleAr = String(selectedUnit?.title?.ar || '').trim().toLowerCase();
+              return bApt === target || bStudio === target || (titleAr && (bApt === titleAr || bStudio === titleAr));
+            })
             .flatMap((b: any) => {
               const dates: string[] = [];
               let current = new Date(b.checkIn);
@@ -268,6 +275,8 @@ export default function BookingPage() {
     setIsSubmitting(true);
     setError(null);
 
+    const unitTitleAr = selectedUnit?.title?.[language] || selectedUnit?.title?.ar || selectedUnitId;
+
     const bookingPayload = {
       name,
       phone,
@@ -280,6 +289,7 @@ export default function BookingPage() {
       remainingAmount: remainingOnArrival,
       idNumber: idDocUrl || null,
       apartmentId: selectedUnitId,
+      studio: unitTitleAr,
       branch: selectedUnit?.branch || 1,
       paymentMethod,
       receiptUrl: receiptUrl || null,

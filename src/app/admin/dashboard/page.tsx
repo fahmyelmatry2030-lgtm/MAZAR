@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBookings, getSystemUnits } from '@/lib/data-init';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { updateDbBookingStatus, deleteDbBooking, deleteAllPendingDbBookings, getDbTodos, saveDbTodo, updateDbTodoStatus, deleteDbTodo, getDbCustomerNotes } from '@/lib/actions/db';
+import { updateDbBookingStatus, updateDbUnitDetails, deleteDbBooking, deleteAllPendingDbBookings, getDbTodos, saveDbTodo, updateDbTodoStatus, deleteDbTodo, getDbCustomerNotes } from '@/lib/actions/db';
 import CustomerProfileModal from '@/components/CustomerProfileModal';
 import ReceiptImageModal, { toDirectImageUrl } from '@/components/ReceiptImageModal';
 import { User, Phone, MessageSquare, FileText, Calendar, CheckCircle2, Home, X, Trash2, ChevronDown, ChevronUp, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
@@ -275,6 +275,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         lastCheckOut: lastBooking?.checkOut,
         upcomingBookingsCount: upcomingBookings.length,
         daysUntilNextBooking,
+        nextBooking,
+        nextGuest: nextBooking?.name,
+        nextPhone: nextBooking?.phone,
+        nextCheckIn: nextBooking?.checkIn,
+        nextCheckOut: nextBooking?.checkOut,
+        nextNotes: nextBooking?.notes,
+        nextBookingId: nextBooking?.id,
+        nextBrokerName: nextBooking?.brokerName,
         isTurnover,
         isExtension,
         notes: activeBooking?.notes || (outToday?.notes ? outToday.notes : inToday?.notes ? inToday.notes : ''),
@@ -389,17 +397,32 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       const shiftLead = getLoggedInAdminName();
       const customUnit = selectedWebUnits[req.id];
       const finalAptId = customUnit?.id || req.apartmentId || req.apartment_id;
-      const finalStudio = customUnit?.studio || req.studio;
+      const foundUnit = units.find((u: any) => u.id === finalAptId);
+      const finalStudio = customUnit?.studio || req.studio || foundUnit?.title?.ar || foundUnit?.title?.en || finalAptId;
 
       await updateDbBookingStatus(req.id, { 
         status: 'مؤكد', 
         apartmentId: finalAptId,
         studio: finalStudio,
         approvedByAdmin: true,
-        bookingManager: 'فهد',
+        bookingManager: shiftLead || 'فهد',
         notes: req.notes || ''
       });
-      loadOverviewData();
+
+      // Update unit next_booking non-blockingly
+      try {
+        if (finalAptId && foundUnit) {
+          const nextBookingText = `${req.name || 'حجز جديد'} (${formatDateDMY(req.checkIn || req.check_in)} - ${formatDateDMY(req.checkOut || req.check_out)})`;
+          await updateDbUnitDetails(finalAptId, {
+            nextBooking: nextBookingText
+          });
+        }
+      } catch (unitErr) {
+        console.warn('Non-blocking unit detail update:', unitErr);
+      }
+
+      await loadOverviewData();
+      alert(`✅ تم تأكيد حجز ${req.name || ''} وتثبيته على الوحدة (${finalStudio}) بنجاح.`);
     } catch {
       alert('حدث خطأ أثناء تأكيد الحجز.');
     }
@@ -1871,6 +1894,33 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   </button>
                                 )}
                               </div>
+                            ) : apt.nextGuest ? (
+                              <div className="flex flex-col items-start gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-bold text-gray-500 bg-gray-200/70 px-1.5 py-0.5 rounded">شاغر اليوم</span>
+                                  <span className="text-[11px] font-black text-amber-950 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                                    <span className="text-amber-700 font-bold">قادم:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openCustomerProfile(apt.nextGuest, apt.nextPhone, 'history')}
+                                      className="hover:underline font-black text-amber-950 truncate max-w-[130px]"
+                                    >
+                                      {apt.nextGuest}
+                                    </button>
+                                    <span className="text-stone-600 font-bold text-[10px]" dir="ltr">({formatMiniDate(apt.nextCheckIn)})</span>
+                                    {hasCustomerProfileNote(apt.nextPhone, apt.nextGuest) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCustomerProfile(apt.nextGuest, apt.nextPhone, 'notes')}
+                                        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-900 shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer text-[9px] font-black shrink-0 border border-amber-500"
+                                        title={`ملاحظة عميل: ${getCustomerProfileNote(apt.nextPhone, apt.nextGuest)}`}
+                                      >
+                                        ⭐
+                                      </button>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
                               <span className="text-gray-300 font-normal">—</span>
                             )}
@@ -1881,7 +1931,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                             {(() => {
                               const effectiveNote = apt.isTurnover
                                 ? (getCustomerEffectiveNote(apt.leavingNotes, apt.leavingPhone) || getCustomerEffectiveNote(apt.arrivingNotes, apt.arrivingPhone))
-                                : getCustomerEffectiveNote(apt.notes, apt.phone);
+                                : (getCustomerEffectiveNote(apt.notes, apt.phone) || (apt.nextNotes ? `[قادم: ${formatMiniDate(apt.nextCheckIn)}] ${apt.nextNotes}` : ''));
 
                               if (!effectiveNote) return <span className="text-gray-300">—</span>;
 
@@ -1890,7 +1940,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                   onClick={() => setActiveNoteModal({ 
                                     isOpen: true, 
                                     text: effectiveNote, 
-                                    title: `ملاحظات ${apt.title?.ar || apt.id} - ${apt.guest || ''}` 
+                                    title: `ملاحظات ${apt.title?.ar || apt.id} - ${apt.guest || apt.nextGuest || ''}` 
                                   })}
                                   className="truncate block w-full text-right bg-amber-100/90 border border-amber-300 px-3 py-1.5 rounded-xl text-amber-900 font-black hover:bg-amber-200 transition-all shadow-xs cursor-pointer"
                                   title={`اضغط لقراءة الملاحظة كاملة: ${effectiveNote}`}
@@ -1911,6 +1961,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                               apt.isCheckingIn ? 'bg-blue-600 text-white font-black' :
                               apt.status === 'صيانة' ? 'bg-gray-100 text-gray-500' : 
                               apt.isOccupied ? 'bg-red-100 text-red-700' : 
+                              apt.nextGuest ? 'bg-amber-100 text-amber-900 border border-amber-300' :
                               'bg-emerald-100 text-emerald-800'
                             }`}>
                               {apt.isExtension ? '🔁 تمديد' :
@@ -1920,6 +1971,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                                apt.isCheckingIn ? '🛬 وصول اليوم' :
                                apt.isOccupied ? (apt.checkOut ? `مشغول (خروج: ${formatMiniDate(apt.checkOut)})` : 'مشغول') : 
                                apt.status === 'صيانة' ? 'صيانة' : 
+                               apt.nextGuest ? `متاح (حجز: ${formatMiniDate(apt.nextCheckIn)})` :
                                'متاح'}
                             </span>
                           </td>

@@ -113,15 +113,38 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
       const supabase = getSupabaseServerClient();
       if (!supabase) return cachedBookings?.data || [];
 
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('timestamp', { ascending: false });
+      let allRows: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Error reading bookings:', error);
-        return cachedBookings?.data || [];
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data: pageData, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.error('Error reading bookings page:', error);
+          break;
+        }
+
+        if (pageData && pageData.length > 0) {
+          allRows = allRows.concat(pageData);
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
       }
+
+      const data = allRows;
 
       // --- AUTO-CLEANUP: Expired pending requests (non-blocking) ---
       const today = new Date().toISOString().split('T')[0];

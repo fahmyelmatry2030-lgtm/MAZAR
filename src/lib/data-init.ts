@@ -122,8 +122,8 @@ export const getPublicUnitsWithAvailability = async () => {
     .map((b: any) => b.apartmentId);
 
   // 3. Map physical units to their categories and calculate availability
-  // Physical units are identified by b1-s1 to b1-s24
-  const physicalStudios = allUnits.filter(u => String(u.id).startsWith('b1-s'));
+  // Physical units are identified by b1-s1 to b1-s12 and b2-s1 to b2-s12
+  const physicalStudios = allUnits.filter(u => String(u.id).startsWith('b1-s') || String(u.id).startsWith('b2-s'));
 
   return masterUnits.map(master => {
     let physicalGroup: any[] = [];

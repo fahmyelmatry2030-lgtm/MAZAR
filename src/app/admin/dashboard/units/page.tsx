@@ -359,6 +359,13 @@ export default function UnitsManagement() {
                   </div>
                 </div>
 
+                {unit.next_booking && unit.next_booking !== 'لا يوجد' && (
+                  <div className="bg-amber-50 border border-amber-200/80 rounded-lg px-2.5 py-1 text-[10px] font-black text-amber-900 mb-3 flex items-center gap-1.5 shadow-2xs">
+                    <span>🗓️</span>
+                    <span className="truncate">{unit.next_booking}</span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-1.5 mb-5">
                     {(unit.features?.ar || []).slice(0, 3).map((f: string, i: number) => (
                         <span key={i} className="text-[8px] bg-[#FDFBF7] px-2 py-1 rounded-lg text-[#7A7061] whitespace-nowrap font-black border border-[#EAE4D9]/50">{f}</span>
