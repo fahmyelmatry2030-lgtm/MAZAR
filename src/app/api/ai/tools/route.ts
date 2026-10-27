@@ -1,8 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { validateAiApiKey } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Security & Authentication Check
+  const auth = validateAiApiKey(req);
+  if (!auth.valid) {
+    return NextResponse.json({
+      success: false,
+      error: auth.error || 'Unauthorized: API Key required'
+    }, { status: 401 });
+  }
   const toolsSchema = [
     {
       name: "check_availability",

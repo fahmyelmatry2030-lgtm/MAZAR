@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSystemUnits } from '@/lib/data-init';
 import { saveDbBooking, getFreshDbBookings } from '@/lib/actions/db';
 import { isUnitMatch, normalizeDateString, parseDateDMY, formatDateDMY, formatWhatsAppNumber } from '@/lib/utils';
+import { validateAiApiKey } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  // Security & Authentication Check
+  const auth = validateAiApiKey(req);
+  if (!auth.valid) {
+    return NextResponse.json({
+      success: false,
+      error: auth.error || 'Unauthorized: API Key required'
+    }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
