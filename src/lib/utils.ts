@@ -489,4 +489,54 @@ export function parseDateDMY(displayStr?: string | null): string {
   return s;
 }
 
+/**
+ * مطابقة الحجز بالوحدة عبر مختلف مسمياتها وأكوادها
+ */
+export function isUnitMatch(b: any, unitId: string, unitTitleAr?: string): boolean {
+  if (!b || !unitId) return false;
+  const targetId = String(unitId).trim().toLowerCase();
+  const bAptId = String(b.apartmentId || b.apartment_id || '').trim().toLowerCase();
+  const bStudio = String(b.studio || '').trim().toLowerCase();
+  const bUnitId = String(b.unitId || b.unit_id || '').trim().toLowerCase();
+  const titleAr = String(unitTitleAr || '').trim();
+
+  // منع المطابقة الخاطئة بين عمارة 1 وعمارة 2
+  if (targetId.startsWith('b1-') && (bAptId.startsWith('b2-') || bUnitId.startsWith('b2-'))) return false;
+  if (targetId.startsWith('b2-') && (bAptId.startsWith('b1-') || bUnitId.startsWith('b1-'))) return false;
+
+  if (bAptId === targetId || bStudio === targetId || bUnitId === targetId) return true;
+  if (titleAr && (bAptId === titleAr.toLowerCase() || bStudio === titleAr.toLowerCase() || bUnitId === titleAr.toLowerCase())) return true;
+
+  if (targetId === 'apt-1') {
+    if (['apt-1', 'زكي رستم', 'ذكي رستم', 'ذكي سيستم', 'شقة 1', 'شقة فاخرة 1', 'شقة فندقية فاخرة 1'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
+  }
+  if (targetId === 'apt-2') {
+    if (['apt-2', 'سيتي ستارز', 'شقة 2', 'شقة فاخرة 2', 'شقة فندقية فاخرة 2'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
+  }
+  if (targetId === 'apt-3') {
+    if (['apt-3', 'عباس الرئيسي', 'دائري التحرير', 'شقة 3', 'شقة فاخرة 3', 'شقة فندقية فاخرة 3'].some(a => bAptId.includes(a) || bStudio.includes(a))) return true;
+  }
+
+  if (targetId.startsWith('b1-s')) {
+    const num = targetId.replace('b1-s', '');
+    const aliases = [num, `استوديو ${num}`, `استوديو ${num} (دبل)`, `استوديو ${num} (سنجل)`, `استوديو ${num} (تريبل)`, `س ${num}`, `س${num}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
+  }
+
+  if (targetId.startsWith('b2-s')) {
+    const num = targetId.replace('b2-s', '');
+    const globalNum = parseInt(num, 10) + 12;
+    const aliases = [`b2-s${num}`, `س ${globalNum}`, `س${globalNum}`, `استوديو بريميوم ${globalNum}`, `${globalNum}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
+  }
+
+  if (targetId.startsWith('p-s')) {
+    const num = targetId.replace('p-s', '');
+    const aliases = [`p-s${num}`, `س ${num}`, `س${num}`, `شقة غرفتين (${num})`, `${num}`];
+    if (aliases.some(a => bAptId === a.toLowerCase() || bStudio === a.toLowerCase())) return true;
+  }
+
+  return false;
+}
+
 
