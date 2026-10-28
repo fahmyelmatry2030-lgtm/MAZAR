@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
     console.log(`[CLAUDE REPLY] To: ${senderPhone} | Reply: ${aiReply}`);
 
     // Auto-reply via UltraMsg (QR Code integration)
-    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
-    const ultraToken = process.env.ULTRAMSG_TOKEN;
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
+    const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
     if (ultraInstance && ultraToken && senderPhone) {
       try {
         await fetch(`https://api.ultramsg.com/${ultraInstance}/messages/chat`, {
