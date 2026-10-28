@@ -55,7 +55,27 @@ export async function POST(req: NextRequest) {
     const aiReply = await chatWithMazarClaude(incomingText);
     console.log(`[CLAUDE REPLY] To: ${senderPhone} | Reply: ${aiReply}`);
 
-    // Optional: Auto-reply via Meta Graph API if credentials exist
+    // Auto-reply via UltraMsg (QR Code integration)
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID;
+    const ultraToken = process.env.ULTRAMSG_TOKEN;
+    if (ultraInstance && ultraToken && senderPhone) {
+      try {
+        await fetch(`https://api.ultramsg.com/${ultraInstance}/messages/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            token: ultraToken,
+            to: senderPhone,
+            body: aiReply
+          })
+        });
+        console.log(`[ULTRAMSG SENT] Successfully replied to ${senderPhone}`);
+      } catch (sendErr) {
+        console.error('[ULTRAMSG SEND ERROR]', sendErr);
+      }
+    }
+
+    // Auto-reply via Meta Graph API if credentials exist
     const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -74,6 +94,7 @@ export async function POST(req: NextRequest) {
             text: { body: aiReply }
           })
         });
+        console.log(`[META WHATSAPP SENT] Successfully replied to ${senderPhone}`);
       } catch (sendErr) {
         console.error('[WHATSAPP SEND ERROR]', sendErr);
       }
