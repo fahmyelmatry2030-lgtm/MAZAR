@@ -35,9 +35,19 @@ export async function POST(req: NextRequest) {
       incomingText = msg.text?.body || '';
     } 
     // 2. UltraMsg / Generic Webhook Format
-    else if (body.data && body.data.body) {
-      senderPhone = body.data.from;
-      incomingText = body.data.body;
+    else if (body.data && (body.data.body || body.data.caption)) {
+      // Don't reply to our own outgoing messages
+      if (body.data.fromMe === true) {
+        return NextResponse.json({ success: true, note: 'Skipping outgoing message from bot' });
+      }
+
+      // Ignore group chats (@g.us) to prevent spamming groups
+      if (body.data.from && body.data.from.includes('@g.us')) {
+        return NextResponse.json({ success: true, note: 'Skipping group message' });
+      }
+
+      senderPhone = body.data.from?.replace('@c.us', '') || body.data.from;
+      incomingText = body.data.body || body.data.caption || '';
     } 
     // 3. Make.com / n8n / Custom direct JSON
     else {
