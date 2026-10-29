@@ -3,6 +3,9 @@ import { chatWithMazarClaude } from '@/lib/ai/claude-agent';
 
 export const dynamic = 'force-dynamic';
 
+// Master Switch: Bot paused until admin explicitly enables it
+const IS_WHATSAPP_BOT_ACTIVE = process.env.WHATSAPP_BOT_ACTIVE === 'true'; // Defaults to false (PAUSED)
+
 // Webhook Verification (Meta WhatsApp Cloud API Requirement)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -23,6 +26,12 @@ export async function GET(req: NextRequest) {
 // Inbound Message Handler
 export async function POST(req: NextRequest) {
   try {
+    // 🛑 PAUSE KILL-SWITCH: Do not process or reply to any incoming messages while paused
+    if (!IS_WHATSAPP_BOT_ACTIVE) {
+      console.log('[WHATSAPP BOT PAUSED] Bot is paused by admin. Skipping all incoming messages.');
+      return NextResponse.json({ success: true, status: 'paused', message: 'Bot is paused by admin' });
+    }
+
     const body = await req.json();
 
     let senderPhone = '';
