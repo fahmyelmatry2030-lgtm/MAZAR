@@ -401,7 +401,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
       const finalStudio = customUnit?.studio || req.studio || foundUnit?.title?.ar || foundUnit?.title?.en || finalAptId;
 
       await updateDbBookingStatus(req.id, { 
-        status: 'مؤكد', 
+        status: 'approved', 
         apartmentId: finalAptId,
         studio: finalStudio,
         approvedByAdmin: true,

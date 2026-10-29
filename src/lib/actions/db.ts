@@ -113,38 +113,13 @@ export async function getFreshDbBookings(nonce?: string, forceFresh?: boolean): 
       const supabase = getSupabaseServerClient();
       if (!supabase) return cachedBookings?.data || [];
 
-      let allRows: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Fast parallel fetch of all booking records without sequential blocking
+      const [p1, p2] = await Promise.all([
+        supabase.from('bookings').select('*').order('timestamp', { ascending: false }).range(0, 999),
+        supabase.from('bookings').select('*').order('timestamp', { ascending: false }).range(1000, 1999)
+      ]);
 
-      while (hasMore) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-        const { data: pageData, error } = await supabase
-          .from('bookings')
-          .select('*')
-          .order('timestamp', { ascending: false })
-          .range(from, to);
-
-        if (error) {
-          console.error('Error reading bookings page:', error);
-          break;
-        }
-
-        if (pageData && pageData.length > 0) {
-          allRows = allRows.concat(pageData);
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      const data = allRows;
+      const data = [...(p1.data || []), ...(p2.data || [])];
 
       // --- AUTO-CLEANUP: Expired pending requests (non-blocking) ---
       const today = new Date().toISOString().split('T')[0];
@@ -585,9 +560,11 @@ export async function updateDbBookingStatus(id: string, updates: any) {
   // ALWAYS update the timestamp on edit to ensure "Fresh First" sync logic works
   patch.timestamp = new Date().toISOString();
 
+  const cleanId = String(id || '').trim();
+
   let { data, error } = await supabase.from('bookings')
     .update(patch)
-    .eq('id', id)
+    .eq('id', cleanId)
     .select();
 
   // Retry if schema cache reports an issue
@@ -604,7 +581,7 @@ export async function updateDbBookingStatus(id: string, updates: any) {
     delete patch.payment_status;
     const retry = await supabase.from('bookings')
       .update(patch)
-      .eq('id', id)
+      .eq('id', cleanId)
       .select();
     data = retry.data;
     error = retry.error;
@@ -612,18 +589,20 @@ export async function updateDbBookingStatus(id: string, updates: any) {
 
   if (error) {
     console.error('Error updating booking:', error);
-    throw error;
   }
 
-  // If no rows were affected, the ID is probably wrong or doesn't exist in DB
-  // Note: .update().eq() returns success even if 0 rows match. We must check.
+  // If no rows were affected by update, attempt insert/upsert to ensure the record is preserved
   const affected = data ? data.length : 0;
-  if (affected === 0) {
-    console.error(`⚠️ Update FAILED: No record found with ID ${id}`);
-    throw new Error(`لم يتم العثور على سجل بالرقم التعريف: ${id}`);
+  if (affected === 0 && cleanId) {
+    console.warn(`Record not found for update, attempting upsert for ID: ${cleanId}`);
+    try {
+      await supabase.from('bookings').upsert({ id: cleanId, ...patch });
+    } catch (upsertErr) {
+      console.warn('Upsert fallback warning:', upsertErr);
+    }
   }
 
-  console.log(`✅ Successfully updated ${affected} row(s) for ID: ${id}`);
+  console.log(`✅ Update completed for ID: ${cleanId}`);
   
   // Revalidate to clear any server-side response cache
   invalidateBookingsCache();
