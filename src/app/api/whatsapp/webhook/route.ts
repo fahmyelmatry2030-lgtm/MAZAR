@@ -4,9 +4,14 @@ import { DEFAULT_WHATSAPP_SETTINGS } from '@/data/whatsappMessages';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory cooldown tracker to avoid spamming if a user types multiple messages in 10 minutes
+// 1. In-memory tracker for phones that have received the welcome greeting
 const lastGreetingSentMap = new Map<string, number>();
 const GREETING_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes cooldown
+
+// 2. In-memory tracker for phones that have received the handover message (4th message)
+// Once handed over, the bot FREEZES completely and NEVER replies again to this customer!
+const handedOverMap = new Map<string, number>();
+const HANDOVER_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days freeze
 
 // Helper to sleep between messages for natural delivery
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -25,7 +30,7 @@ function normalizeText(text: string): string {
 // 1. Thank-you / Closing keywords (Bot must stay completely silent)
 const THANK_YOU_REGEX = /(شكرا|تسلم|تسلملي|الف شكر|حبيبي تسلم|ثانكس|thanks|thank you|تمام تسلم|جزاك الله خيرا|بارك الله فيك|تسلم يا غالي|تسلم ايدك|تسلم يارب)/;
 
-// 2. Booking Intent / Video Request / Number of Persons (Trigger handover message)
+// 2. Booking Intent / Video Request / Number of Persons (Trigger handover message - 4th message)
 const BOOKING_INTENT_REGEX = /(عايز احجز|عاوز احجز|محتاج احجز|احجزلي|احجز|حجز|فيديو|ابعتلي فيديو|عايز فيديو|شخصين|فردين|افراد|اشخاص|كام فرد|بكام|الاسعار|سعر|متاح|في متاح|فاضي|يوم \d+|تاريخ|كام السعر|احجز ازاي|نحجز ازاي)/;
 
 // Helper to send message via UltraMsg
@@ -48,23 +53,28 @@ async function sendViaUltraMsg(instanceId: string, token: string, toPhone: strin
   }
 }
 
-// Helper to check user chat history in UltraMsg (determines if new or inactive >= 30 days)
-async function checkCustomerInactivity(instanceId: string, token: string, phone: string, thresholdDays: number): Promise<{ isFirstTime: boolean; isInactiveOverDays: boolean; daysSinceLast: number }> {
+// Helper to check user chat history in UltraMsg (determines if new, inactive >= 30 days, or already handed over)
+async function checkCustomerInactivity(instanceId: string, token: string, phone: string, thresholdDays: number): Promise<{ isFirstTime: boolean; isInactiveOverDays: boolean; daysSinceLast: number; alreadyHasHandoverInChat: boolean }> {
   try {
     const chatId = `${phone}@c.us`;
-    const res = await fetch(`https://api.ultramsg.com/${instanceId}/chats/messages?token=${token}&chatId=${encodeURIComponent(chatId)}&limit=10`);
+    const res = await fetch(`https://api.ultramsg.com/${instanceId}/chats/messages?token=${token}&chatId=${encodeURIComponent(chatId)}&limit=15`);
     const messages = await res.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999 };
+      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: false };
     }
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     // Find the latest previous message (ignore messages sent in the last 15 seconds)
     const prevMessages = messages.filter((m: any) => (nowSeconds - (m.timestamp || 0)) > 15);
 
+    // Check if the handover message was already sent by Mazar in this chat
+    const handoverFound = messages.some((m: any) => 
+      m.fromMe && m.body && (m.body.includes('تحويل حضرتك') || m.body.includes('مسؤولي الحجز') || m.body.includes('التواصل مع حضرتك'))
+    );
+
     if (prevMessages.length === 0) {
-      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999 };
+      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: handoverFound };
     }
 
     const latestPrev = prevMessages[0];
@@ -75,15 +85,15 @@ async function checkCustomerInactivity(instanceId: string, token: string, phone:
       isFirstTime: false,
       isInactiveOverDays: daysSinceLast >= thresholdDays,
       daysSinceLast: Math.round(daysSinceLast * 10) / 10,
+      alreadyHasHandoverInChat: handoverFound,
     };
   } catch (err: any) {
     console.warn('[ULTRAMSG HISTORY CHECK FAILED]', err.message);
-    // Safe fallback: treat as first time to ensure customer gets service
-    return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999 };
+    return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: false };
   }
 }
 
-// Webhook Verification (Meta WhatsApp Cloud API Requirement) & Health Check
+// Webhook Verification & Health Check
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get('hub.mode');
@@ -100,11 +110,12 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     status: 'online',
-    service: 'Mazar WhatsApp Auto-Reply & Handover System',
+    service: 'Mazar WhatsApp Auto-Reply & Handover System (Strict 4-Messages Limit)',
     enabled: settings.enabled,
     inactivityThresholdDays: settings.inactivityDays,
     messagesCount: settings.messages.length,
     transferMessageConfigured: !!settings.transferMessage,
+    activeHandoversCount: handedOverMap.size
   });
 }
 
@@ -158,6 +169,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, note: 'Bot currently disabled in settings' });
     }
 
+    const now = Date.now();
+
+    // --------------------------------------------------------------------------
+    // RULE 0: ABSOLUTE FREEZE AFTER HANDOVER (الـ 4 رسائل فقط)
+    // If this customer has already received the handover message (Message 4):
+    // The bot STOPS completely and NEVER replies again to this customer!
+    // --------------------------------------------------------------------------
+    const lastHandoverTime = handedOverMap.get(senderPhone) || 0;
+    if (now - lastHandoverTime < HANDOVER_EXPIRY_MS) {
+      console.log(`[WHATSAPP FROZEN] Customer ${senderPhone} already handed over to human agent. Bot stays 100% silent.`);
+      return NextResponse.json({
+        success: true,
+        action: 'bot_frozen_after_handover',
+        note: 'Customer has already received the handover message (4th message). Bot stops completely; human agent is in control.'
+      });
+    }
+
     const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
     const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
 
@@ -175,18 +203,35 @@ export async function POST(req: NextRequest) {
 
     // -------------------------------------------------------------
     // RULE 2: BOOKING INTENT / VIDEO REQUEST / PERSONS COUNT
-    // -> Send Handover Message and then stay silent
+    // -> Send Handover Message (4th message) ONLY ONCE, then freeze!
     // -------------------------------------------------------------
     if (BOOKING_INTENT_REGEX.test(cleanIncoming)) {
-      console.log(`[WHATSAPP HANDOVER] Booking intent detected from ${senderPhone}. Sending handover message.`);
+      // Check UltraMsg history to see if handover was ever sent in this chat
+      const historyCheck = await checkCustomerInactivity(ultraInstance, ultraToken, senderPhone, settings.inactivityDays || 30);
+      
+      if (historyCheck.alreadyHasHandoverInChat) {
+        console.log(`[WHATSAPP ALREADY HANDED OVER] Customer ${senderPhone} chat already has handover message. Freezing bot.`);
+        handedOverMap.set(senderPhone, now);
+        return NextResponse.json({
+          success: true,
+          action: 'bot_frozen_already_sent',
+          note: 'Handover message was already sent previously. Bot stops completely.'
+        });
+      }
+
+      console.log(`[WHATSAPP HANDOVER] Booking intent detected from ${senderPhone}. Sending 4th message (handover) and freezing bot.`);
       const handoverText = settings.transferMessage || DEFAULT_WHATSAPP_SETTINGS.transferMessage;
       
+      // Mark as handed over BEFORE sending so no race condition can double-send
+      handedOverMap.set(senderPhone, now);
+
       const sendRes = await sendViaUltraMsg(ultraInstance, ultraToken, senderPhone, handoverText);
       return NextResponse.json({
         success: true,
         action: 'transferred_to_agent',
         sentMessage: handoverText,
-        details: sendRes
+        details: sendRes,
+        note: 'Handover complete. Bot is now permanently frozen for this customer.'
       });
     }
 
@@ -204,6 +249,17 @@ export async function POST(req: NextRequest) {
       settings.inactivityDays || 30
     );
 
+    // If chat already has a handover message, freeze bot immediately
+    if (inactivityInfo.alreadyHasHandoverInChat) {
+      handedOverMap.set(senderPhone, now);
+      console.log(`[WHATSAPP FROZEN] Chat history reveals previous handover for ${senderPhone}. Staying silent.`);
+      return NextResponse.json({
+        success: true,
+        action: 'bot_frozen_after_handover',
+        note: 'Chat already contains handover. Bot stays silent.'
+      });
+    }
+
     // If customer has an ongoing active chat within the last 30 days -> DO NOT SEND 3 MESSAGES
     if (!inactivityInfo.isFirstTime && !inactivityInfo.isInactiveOverDays) {
       console.log(`[WHATSAPP ACTIVE CHAT] Customer ${senderPhone} active within last ${inactivityInfo.daysSinceLast} days. Skipping 3 greeting messages.`);
@@ -215,7 +271,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Check recent in-memory cooldown to prevent repeat within the hour
-    const now = Date.now();
     const lastGreeting = lastGreetingSentMap.get(senderPhone) || 0;
     if (now - lastGreeting < GREETING_COOLDOWN_MS) {
       console.log(`[WHATSAPP COOLDOWN] Greeting already sent to ${senderPhone} recently.`);

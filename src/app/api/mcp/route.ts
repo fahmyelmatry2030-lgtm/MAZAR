@@ -139,13 +139,30 @@ const TOOLS = [
   },
   {
     name: 'read_whatsapp_conversations',
-    description: 'قراءة محادثات واستفسارات الواتساب ونماذج الردود الفندقية المعتمدة لتعلم أسلوب مزار',
+    description: 'قراءة محادثات واستفسارات الواتساب الحية وتفاصيل شات عميل معين أو أحدث المحادثات ونماذج الردود الفندقية المعتمدة',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone: {
+          type: 'string',
+          description: 'رقم هاتف العميل لقراءة محادثته بالتفصيل. اختياري'
+        },
+        limit: {
+          type: 'number',
+          description: 'عدد الرسائل أو المحادثات المطلوبة (الافتراضي 10)'
+        }
+      }
+    }
+  },
+  {
+    name: 'whatsapp_tour',
+    description: 'عمل جولة استكشافية شاملة في واتساب مزار بالكامل: فحص أحدث المحادثات الحية، معرفة استفسارات العملاء النشطة، الشاتات الأخيرة، ونبرة الردود الفندقية',
     inputSchema: {
       type: 'object',
       properties: {
         limit: {
           type: 'number',
-          description: 'عدد الرسائل المطلوبة (الافتراضي 20)'
+          description: 'عدد المحادثات التي تشملها الجولة (الافتراضي 12)'
         }
       }
     }
@@ -473,48 +490,59 @@ async function executeTool(name: string, args: any) {
     };
   }
 
-  // 8. WhatsApp Conversations & Tone Learning
+  // 8. WhatsApp Conversations & Specific Phone Query
   if (name === 'read_whatsapp_conversations') {
     const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
     const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
+    const targetPhone = args.phone ? String(args.phone).replace(/\D/g, '') : null;
     const requestedLimit = Number(args.limit) || 10;
 
     let liveChatsData: any[] = [];
 
     try {
-      // 1. Fetch real chat list from UltraMsg
-      const chatsRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats?token=${ultraToken}&limit=${Math.min(requestedLimit, 15)}`);
-      const allChats = await chatsRes.json();
+      if (targetPhone) {
+        // Query specific customer chat history
+        const chatId = `${targetPhone}@c.us`;
+        const msgRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats/messages?token=${ultraToken}&chatId=${encodeURIComponent(chatId)}&limit=${Math.min(requestedLimit, 25)}`);
+        const msgs = await msgRes.json();
+        if (Array.isArray(msgs)) {
+          const formatted = msgs.map((m: any) => ({
+            sender: m.fromMe ? 'فريق إدارة مزار' : `العميل (${targetPhone})`,
+            text: m.body || (m.type === 'image' ? '[صورة]' : m.type === 'ptt' ? '[رسالة صوتية]' : `[${m.type}]`),
+            time: m.timestamp ? new Date(m.timestamp * 1000).toLocaleString('ar-EG') : '---'
+          }));
+          liveChatsData.push({ phone: targetPhone, messages: formatted });
+        }
+      } else {
+        // Fetch recent customer chats
+        const chatsRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats?token=${ultraToken}&limit=${Math.min(requestedLimit, 20)}`);
+        const allChats = await chatsRes.json();
 
-      if (Array.isArray(allChats)) {
-        // Filter out groups, get individual customer chats
-        const directChats = allChats.filter((c: any) => !c.isGroup && c.id && c.id.includes('@c.us')).slice(0, 6);
+        if (Array.isArray(allChats)) {
+          const directChats = allChats.filter((c: any) => !c.isGroup && c.id && c.id.includes('@c.us')).slice(0, 8);
+          for (const c of directChats) {
+            try {
+              const msgRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats/messages?token=${ultraToken}&chatId=${encodeURIComponent(c.id)}&limit=6`);
+              const msgs = await msgRes.json();
+              if (Array.isArray(msgs) && msgs.length > 0) {
+                const formattedMsgs = msgs
+                  .filter((m: any) => m.body && m.body.trim().length > 0)
+                  .map((m: any) => ({
+                    sender: m.fromMe ? 'فريق إدارة مزار (Mazar Staff)' : `العميل (${c.name || c.id.replace('@c.us', '')})`,
+                    text: m.body,
+                    time: m.timestamp ? new Date(m.timestamp * 1000).toLocaleString('ar-EG') : '---'
+                  }));
 
-        // Fetch recent messages for these direct customer chats
-        for (const c of directChats) {
-          try {
-            const msgRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats/messages?token=${ultraToken}&chatId=${encodeURIComponent(c.id)}&limit=6`);
-            const msgs = await msgRes.json();
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              const formattedMsgs = msgs
-                .filter((m: any) => m.body && m.body.trim().length > 0)
-                .map((m: any) => ({
-                  sender: m.fromMe ? 'فريق إدارة مزار (Mazar Staff)' : `العميل (${c.name || c.id.replace('@c.us', '')})`,
-                  text: m.body,
-                  time: m.timestamp ? new Date(m.timestamp * 1000).toLocaleString('ar-EG') : '---'
-                }));
-
-              if (formattedMsgs.length > 0) {
-                liveChatsData.push({
-                  chatWith: c.name || c.id.replace('@c.us', ''),
-                  phone: c.id.replace('@c.us', ''),
-                  lastActivity: c.last_time ? new Date(c.last_time * 1000).toLocaleString('ar-EG') : '---',
-                  messages: formattedMsgs
-                });
+                if (formattedMsgs.length > 0) {
+                  liveChatsData.push({
+                    chatWith: c.name || c.id.replace('@c.us', ''),
+                    phone: c.id.replace('@c.us', ''),
+                    lastActivity: c.last_time ? new Date(c.last_time * 1000).toLocaleString('ar-EG') : '---',
+                    messages: formattedMsgs
+                  });
+                }
               }
-            }
-          } catch (e) {
-            // continue next chat
+            } catch (e) {}
           }
         }
       }
@@ -526,26 +554,59 @@ async function executeTool(name: string, args: any) {
       source: "محادثات وسجلات خدمة عملاء مزار الحية (UltraMsg Live WhatsApp Archive)",
       toneOfVoiceGuidance: "أسلوب مزار الفندقي يتميز بالرقي والاحترام والسرعة، واستخدام الترحيب الفندقي والرموز التعبيرية الهادئة (🏨✨🤍)، وتقديم تفاصيل الأسعار والعربون بوضوح، مع تحويل العميل لمسؤول الحجز لإرسال فيديوهات الوحدات المتاحة.",
       totalChatsAnalyzed: liveChatsData.length,
-      realCustomerConversations: liveChatsData,
-      officialStandardTemplates: [
-        {
-          title: "الرسالة الأولى: الترحيب والأنواع والأسعار",
-          content: "✨ أهلًا بحضرتك في Mazar Studios 🤍🏨 متاح لدينا ستوديو وشقق فندقية تبدأ من 2400 جنيه/الليلة..."
-        },
-        {
-          title: "الرسالة الثانية: الخدمات الفندقية المجانية",
-          content: "خدمات مجمع مزار الفندقي: ستوديو مكيف، مطبخ مجهز، إنترنت سريع، أمن وكاميرات 24 ساعة، هاوس كيبنج..."
-        },
-        {
-          title: "الرسالة الثالثة: طلب التفاصيل لإرسال الفيديو",
-          content: "محتاج اعرف المدة من امتي ل امتي و عدد الافراد و انا هبعت لحضرتك فيديو للمتاح 🙏🏻"
-        },
-        {
-          title: "رسالة التحويل البشري الفوري",
-          content: "يا فندم هيتم تحويل حضرتك حالاً دلوقتي لأحد مسؤولي الحجز للرد والتأكيد مع حضرتك فوراً 🙏"
-        }
-      ]
+      realCustomerConversations: liveChatsData
     };
+  }
+
+  // 9. Full WhatsApp Tour (جولة شاملة في واتساب مزار)
+  if (name === 'whatsapp_tour') {
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
+    const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
+    const requestedLimit = Number(args.limit) || 12;
+
+    try {
+      const chatsRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats?token=${ultraToken}&limit=${requestedLimit}`);
+      const chats = await chatsRes.json();
+
+      if (!Array.isArray(chats)) {
+        return { success: false, message: "تعذر الاتصال بـ WhatsApp Gateway حالياً" };
+      }
+
+      const directChats = chats.filter((c: any) => !c.isGroup && c.id && c.id.includes('@c.us'));
+      const groupChats = chats.filter((c: any) => c.isGroup);
+
+      const recentOverview = [];
+
+      for (const c of directChats.slice(0, 10)) {
+        try {
+          const msgRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats/messages?token=${ultraToken}&chatId=${encodeURIComponent(c.id)}&limit=3`);
+          const msgs = await msgRes.json();
+          const lastMsg = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null;
+
+          recentOverview.push({
+            customerName: c.name || 'عميل غير مسجل',
+            phone: c.id.replace('@c.us', ''),
+            lastInteraction: c.last_time ? new Date(c.last_time * 1000).toLocaleString('ar-EG') : '---',
+            lastMessage: lastMsg ? {
+              from: lastMsg.fromMe ? 'فريق مزار' : 'العميل',
+              text: lastMsg.body || `[ملف/ميديا: ${lastMsg.type}]`,
+              time: lastMsg.timestamp ? new Date(lastMsg.timestamp * 1000).toLocaleString('ar-EG') : '---'
+            } : null
+          });
+        } catch (e) {}
+      }
+
+      return {
+        summary: `جولة شاملة في واتساب مزار: تم فحص أحدث ${recentOverview.length} محادثة مع العملاء. إجمالي الشاتات المسجلة على الرقم: ${chats.length} محادثة.`,
+        totalRecordedChats: chats.length,
+        directCustomerChatsCount: directChats.length,
+        internalGroupsCount: groupChats.length,
+        recentConversations: recentOverview,
+        systemContext: "رقم واتساب مزار الرسمي هو 01108109969. الرد التلقائي يرسل 3 رسائل ترحيبية للعملاء الجدد، ورسالة تحويل واحدة عند طلب الحجز، ثم يصمت ليترك الشات للموظف البشري."
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   }
 
   throw new Error(`Tool not found: ${name}`);
