@@ -74,6 +74,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
   const [adminRole, setAdminRole] = useState('Super Admin');
   const [adminName, setAdminName] = useState('مدير النظام');
+  const [adminUsername, setAdminUsername] = useState('');
 
   // 1. Route authorization check (runs when pathname changes)
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
     if (info?.role) setAdminRole(info.role);
     if (info?.name) setAdminName(info.name);
+    if (info?.username) setAdminUsername(info.username);
 
     if (!auth && pathname !== '/admin/login') {
       router.push('/admin/login');
@@ -94,6 +96,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       const isAdmin = info?.role === 'Admin';
       const isModerator = info?.role === 'Moderator';
       const isMohsen = info?.role === 'Mohsen';
+      const isMedhatOrMoamen = ['medhat', 'mo2men'].includes((info?.username || '').toLowerCase()) || ['مدحت', 'مؤمن'].some(n => (info?.name || '').includes(n));
+
+      if (pathname === '/admin/dashboard/whatsapp' && !isMedhatOrMoamen) {
+        router.push('/admin/dashboard');
+        return;
+      }
 
       const restrictedForBookings = ['/admin/dashboard/units', '/admin/dashboard/reports', '/admin/dashboard/admins'];
       const restrictedForUnits = ['/admin/dashboard/bookings', '/admin/dashboard/reports', '/admin/dashboard/admins'];
@@ -219,7 +227,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     { name: 'طلبات الحجز', href: '/admin/dashboard/bookings', icon: '📩', roles: ['Owner', 'Admin', 'Moderator', 'Super Admin', 'مدير الحجوزات', 'Akoura', 'Aura'] },
     { name: 'إدارة الوحدات', href: '/admin/dashboard/units', icon: '🏢', roles: ['Owner', 'Admin', 'Moderator', 'Super Admin', 'مدير الوحدات'] },
     { name: 'قاعدة العملاء', href: '/admin/dashboard/customers', icon: '📞', roles: ['Owner', 'Admin', 'Super Admin', 'Akoura', 'Aura'] },
-    { name: 'ردود الواتساب', href: '/admin/dashboard/whatsapp', icon: '💬', roles: ['Owner', 'Admin', 'Super Admin', 'Moderator'] },
+    ...((['medhat', 'mo2men'].includes(adminUsername.toLowerCase()) || ['مدحت', 'مؤمن'].some(n => adminName.includes(n))) ? [{ name: 'ردود الواتساب', href: '/admin/dashboard/whatsapp', icon: '💬', roles: ['Owner', 'Admin', 'Super Admin', 'Moderator'] }] : []),
     { name: 'الموظفين', href: '/admin/dashboard/hr/staff', icon: '👥', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'إدارة المحتوى', href: '/admin/dashboard/content', icon: '📝', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'المصروفات', href: '/admin/dashboard/reports', icon: '💰', roles: ['Owner', 'Admin', 'Super Admin', 'Mohsen', 'Akoura', 'Aura'] },

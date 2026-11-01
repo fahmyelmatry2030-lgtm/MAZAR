@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function WhatsAppSettingsPage() {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -16,8 +19,29 @@ export default function WhatsAppSettingsPage() {
   const [message3, setMessage3] = useState('');
   const [transferMessage, setTransferMessage] = useState('');
 
+  // 1. Authorization check: Medhat and Moamen ONLY
+  useEffect(() => {
+    try {
+      const info = JSON.parse(sessionStorage.getItem('adminInfo') || '{}');
+      const u = (info?.username || '').toLowerCase();
+      const n = (info?.name || '').toLowerCase();
+      const allowed = ['medhat', 'mo2men'].includes(u) || ['مدحت', 'مؤمن'].some(name => n.includes(name));
+
+      if (!allowed) {
+        setIsAuthorized(false);
+        router.push('/admin/dashboard');
+        return;
+      }
+      setIsAuthorized(true);
+    } catch {
+      setIsAuthorized(false);
+      router.push('/admin/dashboard');
+    }
+  }, [router]);
+
   // Fetch current settings
   useEffect(() => {
+    if (isAuthorized === false) return;
     async function load() {
       try {
         const res = await fetch('/api/admin/whatsapp-settings');
@@ -39,7 +63,7 @@ export default function WhatsAppSettingsPage() {
       }
     }
     load();
-  }, []);
+  }, [isAuthorized]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,11 +113,15 @@ export default function WhatsAppSettingsPage() {
       {/* Header */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-[#EAE4D9]/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
             <span className="text-3xl">💬</span>
             <h1 className="text-2xl md:text-3xl font-black text-[#2B2823]">
               إعدادات ردود الواتساب التلقائية
             </h1>
+            <span className="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-black rounded-full flex items-center gap-1.5 shadow-xs">
+              <span>👑</span>
+              <span>حصرية لـ: مدحت ومؤمن فقط</span>
+            </span>
           </div>
           <p className="text-sm font-medium text-[#7A7061]">
             تعديل نصوص الـ 3 رسائل الترحيبية، ورسالة التحويل، وتحديد شروط إرسالها دون الحاجة لكتابة كود.
