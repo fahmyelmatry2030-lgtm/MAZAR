@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSystemUnits } from '@/lib/data-init';
-import { getFreshDbBookings } from '@/lib/actions/db';
+import { getFreshDbBookings, getDbCustomerNotes } from '@/lib/actions/db';
 import { isUnitMatch, normalizeDateString, parseDateDMY, formatDateDMY } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -24,15 +24,60 @@ export async function OPTIONS() {
 const TOOLS = [
   {
     name: 'get_system_overview',
-    description: 'استرجاع الدليل الشامل لمجمع مزار الفندقي (الفروع، أنواع الوحدات، سياسة الأسعار والعربون، طرق الدفع، مواعيد الدخول والخروج)',
+    description: 'استرجاع الدليل الشامل لمجمع مزار والسيستم الداخلي (الفروع، أنواع الوحدات، سياسة الأسعار والعربون، طرق الدفع، مواعيد الدخول والخروج)',
     inputSchema: {
       type: 'object',
       properties: {}
     }
   },
   {
+    name: 'get_daily_schedule',
+    description: 'استرجاع جدول التشغيل اليومي للسيستم الداخلي (حركات الدخول Check-in، الخروج Check-out، وتسكين اليوم، والوحدات المشغولة)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'تاريخ اليوم المطلوب بصيغة YYYY-MM-DD أو DD/MM/YYYY (افتراضياً: تاريخ اليوم)'
+        }
+      }
+    }
+  },
+  {
+    name: 'get_customer_profile',
+    description: 'البحث في السيستم عن سجل وبيانات عميل معين برقم الهاتف أو الاسم (تاريخ حجوزاته السابقة، المبالغ، الملاحظات الخاصة بالإدارة)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'رقم هاتف العميل (مثال: 01012345678) أو اسمه'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'get_system_financials',
+    description: 'استعلام ماليات السيستم الداخلي والمتبقيات (كشف المبالغ المتبقية على النزلاء غير الخالصة، والتحصيلات، ومسؤولي الحجز)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filter: {
+          type: 'string',
+          enum: ['all', 'debts_only', 'paid_only'],
+          description: 'تصفية: debts_only (المتبقيات والديون فقط)، paid_only (الخالص فقط)، all (الكل)'
+        },
+        limit: {
+          type: 'number',
+          description: 'الحد الأقصى للنتائج (الافتراضي 25)'
+        }
+      }
+    }
+  },
+  {
     name: 'get_all_units',
-    description: 'استرجاع قائمة كافة الاستوديوهات والشقق الفندقية في مزار مع حالاتها الحالية والأسعار والمميزات',
+    description: 'استرجاع كشف كافة استوديوهات وشقق مزار من السيستم مع حالاتها اللحظية (متاح، مشغول، صيانة، نظافة)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -46,17 +91,17 @@ const TOOLS = [
   },
   {
     name: 'check_availability',
-    description: 'فحص التوافر الحقيقي للوحدات ومنع التعارض لفترة معينة، وحساب إجمالي السعر والعربون المطلوب ورابط الحجز',
+    description: 'فحص التوافر الفعلي في السيستم للوحدات المتاحة بدون أي تعارض لفترة إقامة معينة مع حساب الأسعار والعربون المطلوب',
     inputSchema: {
       type: 'object',
       properties: {
         checkIn: {
           type: 'string',
-          description: 'تاريخ الوصول بصيغة YYYY-MM-DD أو DD/MM/YYYY (مثال: 2026-11-15 أو 15/11/2026)'
+          description: 'تاريخ الوصول بصيغة YYYY-MM-DD أو DD/MM/YYYY'
         },
         checkOut: {
           type: 'string',
-          description: 'تاريخ المغادرة بصيغة YYYY-MM-DD أو DD/MM/YYYY (مثال: 2026-11-20 أو 20/11/2026)'
+          description: 'تاريخ المغادرة بصيغة YYYY-MM-DD أو DD/MM/YYYY'
         },
         branch: {
           type: 'number',
@@ -73,13 +118,13 @@ const TOOLS = [
   },
   {
     name: 'get_bookings',
-    description: 'البحث في حجوزات مزار واستعراض الحجوزات الحالية والمستقبلية باسم الضيف أو الهاتف أو التاريخ',
+    description: 'البحث الشامل في حجوزات السيستم الداخلي (1200+ حجز) باسم الضيف أو الهاتف أو الاستوديو أو الوسيط أو مسؤول الحجز',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'كلمة بحث (اسم الضيف، رقم الهاتف، أو اسم الاستوديو)'
+          description: 'كلمة بحث (اسم الضيف، رقم الهاتف، اسم الاستوديو، الوسيط، أو مسؤول الحجز)'
         },
         status: {
           type: 'string',
@@ -87,14 +132,14 @@ const TOOLS = [
         },
         limit: {
           type: 'number',
-          description: 'الحد الأقصى لعدد النتائج (الافتراضي 15)'
+          description: 'الحد الأقصى لعدد النتائج (الافتراضي 20)'
         }
       }
     }
   },
   {
     name: 'read_whatsapp_conversations',
-    description: 'قراءة أرشيف محادثات الواتساب ونماذج الاستفسارات والردود لتعلم أسلوب وطريقة خدمة عملاء مزار',
+    description: 'قراءة محادثات واستفسارات الواتساب ونماذج الردود الفندقية المعتمدة لتعلم أسلوب مزار',
     inputSchema: {
       type: 'object',
       properties: {
@@ -110,10 +155,12 @@ const TOOLS = [
 // ----------------- TOOL LOGIC -----------------
 
 async function executeTool(name: string, args: any) {
+  // 1. System Overview
   if (name === 'get_system_overview') {
     return {
       propertyName: "مجمع مزار الفندقي (Mazar Luxury Suites)",
       website: "https://mazarstudio.com",
+      systemPortal: "لوحة تحكم إدارة مزار الفندقية (Mazar Booking Management System)",
       branches: [
         {
           id: 1,
@@ -140,26 +187,162 @@ async function executeTool(name: string, args: any) {
         standardPricePerNight: "3,000 جنيه مصري في المتوسط للاستوديو",
         depositPolicy: "قيمة ليلة واحدة فقط مقدماً لتأكيد الحجز، والمبلغ المتبقي يُسدد عند الوصول والاستلام.",
         checkInTime: "الساعة 2:00 ظهراً",
-        checkOutTime: "الساعة 12:00 ظهراً",
-        cancellationPolicy: "إلغاء مجاني قبل موعد الوصول بـ 48 ساعة"
+        checkOutTime: "الساعة 12:00 ظهراً"
       },
       paymentMethods: [
         "فودافون كاش: 01005318003 / 01021691745",
         "إنستاباي (InstaPay)",
         "تحويل بنكي (البنك التجاري الدولي CIB / البنك الأهلي NBE)",
         "فيزا وماستركارد عبر بوابة الدفع الإلكتروني"
-      ],
-      featuresIncluded: [
-        "تكييف سبليت حديث في كل وحدة",
-        "واي فاي عالي السرعة فندقي مجاني",
-        "شاشة سمارت TV مسطحة",
-        "مطبخ مجهز (ثلاجة، ميكروويف، غلاية، أواني)",
-        "حمام خاص ومستلزمات فندقية معقمة",
-        "خدمة نظافة فندقية دورية ومصعد وأمن 24 ساعة"
       ]
     };
   }
 
+  // 2. Daily Schedule (Operations)
+  if (name === 'get_daily_schedule') {
+    let targetDate = args.date ? normalizeDateString(args.date.includes('/') ? parseDateDMY(args.date) : args.date) : new Date().toISOString().split('T')[0];
+    const allBookings = await getFreshDbBookings();
+
+    const activeBookings = allBookings.filter((b: any) => 
+      !['deleted', 'cancelled', 'rejected', 'مرفوض', 'ملغي'].includes(b.status)
+    );
+
+    const checkIns = activeBookings.filter((b: any) => (b.checkIn || b.check_in) === targetDate);
+    const checkOuts = activeBookings.filter((b: any) => (b.checkOut || b.check_out) === targetDate);
+    const currentlyStaying = activeBookings.filter((b: any) => {
+      const bIn = b.checkIn || b.check_in;
+      const bOut = b.checkOut || b.check_out;
+      return bIn <= targetDate && targetDate < bOut;
+    });
+
+    return {
+      targetDate: formatDateDMY(targetDate),
+      summary: {
+        totalCheckInsToday: checkIns.length,
+        totalCheckOutsToday: checkOuts.length,
+        totalCurrentlyStaying: currentlyStaying.length
+      },
+      checkInsToday: checkIns.map((b: any) => ({
+        guestName: b.name,
+        phone: b.phone,
+        unit: b.studio || b.apartmentId,
+        checkIn: formatDateDMY(b.checkIn || b.check_in),
+        checkOut: formatDateDMY(b.checkOut || b.check_out),
+        paymentInfo: b.paymentInfo || b.payment_info,
+        totalAmount: b.totalAmount || b.total_amount,
+        remainingAmount: b.remainingAmount,
+        bookingManager: b.bookingManager,
+        brokerName: b.brokerName,
+        notes: b.notes
+      })),
+      checkOutsToday: checkOuts.map((b: any) => ({
+        guestName: b.name,
+        phone: b.phone,
+        unit: b.studio || b.apartmentId,
+        checkIn: formatDateDMY(b.checkIn || b.check_in),
+        checkOut: formatDateDMY(b.checkOut || b.check_out),
+        paymentInfo: b.paymentInfo || b.payment_info,
+        remainingAmount: b.remainingAmount,
+        notes: b.notes
+      })),
+      currentlyStaying: currentlyStaying.slice(0, 15).map((b: any) => ({
+        guestName: b.name,
+        unit: b.studio || b.apartmentId,
+        checkIn: formatDateDMY(b.checkIn || b.check_in),
+        checkOut: formatDateDMY(b.checkOut || b.check_out),
+        paymentStatus: b.paymentStatus || (String(b.paymentInfo).includes('خالص') ? 'خالص' : 'متبقي')
+      }))
+    };
+  }
+
+  // 3. Customer Profile & History
+  if (name === 'get_customer_profile') {
+    const q = String(args.query || '').trim().toLowerCase();
+    const [allBookings, notesMap] = await Promise.all([
+      getFreshDbBookings(),
+      getDbCustomerNotes()
+    ]);
+
+    const cleanQ = q.replace(/\D/g, '');
+    const guestBookings = allBookings.filter((b: any) => {
+      const bPhone = String(b.phone || '').replace(/\D/g, '');
+      const bName = String(b.name || '').toLowerCase();
+      if (cleanQ && bPhone.includes(cleanQ)) return true;
+      if (bName.includes(q)) return true;
+      return false;
+    });
+
+    if (guestBookings.length === 0) {
+      return { found: false, message: `لم يتم العثور على أي نزيل مسجل بالاسم أو الهاتف: ${args.query}` };
+    }
+
+    const firstMatch = guestBookings[0];
+    const customerPhone = firstMatch.phone || '';
+    const adminNote = notesMap[customerPhone] || notesMap[customerPhone.replace(/^2/, '')] || null;
+
+    const totalSpent = guestBookings.reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.total_amount) || 0), 0);
+    const totalNights = guestBookings.reduce((sum: number, b: any) => sum + (Number(b.numberOfDays || b.number_of_days) || 0), 0);
+
+    return {
+      found: true,
+      guestName: firstMatch.name,
+      phone: customerPhone,
+      adminSpecialNote: adminNote || "لا توجد ملاحظات إدارية خاصة مسجلة لهذا النزيل",
+      stats: {
+        totalBookingsCount: guestBookings.length,
+        totalNightsStayed: totalNights,
+        totalRevenueEGP: totalSpent
+      },
+      bookingsHistory: guestBookings.map((b: any) => ({
+        id: b.id,
+        unit: b.studio || b.apartmentId,
+        checkIn: formatDateDMY(b.checkIn || b.check_in),
+        checkOut: formatDateDMY(b.checkOut || b.check_out),
+        nights: b.numberOfDays || b.number_of_days,
+        status: b.status,
+        totalAmount: b.totalAmount || b.total_amount,
+        paymentInfo: b.paymentInfo || b.payment_info,
+        bookingManager: b.bookingManager,
+        notes: b.notes
+      }))
+    };
+  }
+
+  // 4. System Financials & Debts
+  if (name === 'get_system_financials') {
+    const allBookings = await getFreshDbBookings();
+    const filter = args.filter || 'all';
+
+    let debtsList = allBookings.filter((b: any) => {
+      const pInfo = String(b.paymentInfo || b.payment_info || '').toLowerCase();
+      const isPaid = pInfo.includes('خالص') || pInfo.includes('تم السداد') || pInfo.includes('مدفوع بالكامل');
+      const hasDebt = pInfo.includes('متبقي') || pInfo.includes('باقي') || (Number(b.remainingAmount) > 0);
+      
+      if (filter === 'debts_only') return hasDebt && !isPaid;
+      if (filter === 'paid_only') return isPaid;
+      return true;
+    });
+
+    const limit = args.limit || 25;
+    return {
+      totalFound: debtsList.length,
+      filterApplied: filter,
+      records: debtsList.slice(0, limit).map((b: any) => ({
+        id: b.id,
+        guestName: b.name,
+        phone: b.phone,
+        unit: b.studio || b.apartmentId,
+        dates: `${formatDateDMY(b.checkIn || b.check_in)} إلى ${formatDateDMY(b.checkOut || b.check_out)}`,
+        totalAmount: b.totalAmount || b.total_amount,
+        paymentInfo: b.paymentInfo || b.payment_info,
+        bookingManager: b.bookingManager,
+        brokerName: b.brokerName,
+        status: b.status
+      }))
+    };
+  }
+
+  // 5. Units
   if (name === 'get_all_units') {
     const allUnits = await getSystemUnits();
     let list = allUnits.filter(u => !['s-single', 's-double', 's-triple', 's-tworoom'].includes(u.id));
@@ -174,12 +357,15 @@ async function executeTool(name: string, args: any) {
         branch: u.branch === 1 ? 'مزار 1 الرئيسي' : u.branch === 2 ? 'مزار 2 الملحق' : 'مزار 3 عكورة',
         type: u.type,
         status: u.status || 'متاح',
+        housekeeping: u.housekeeping || 'نظيف',
         price: Number(u.price || 3000),
+        nextBooking: u.next_booking || 'لا يوجد',
         features: u.features?.ar || ['تكييف', 'واي فاي سريع', 'شاشة سمارت']
       }))
     };
   }
 
+  // 6. Availability Check
   if (name === 'check_availability') {
     let { checkIn, checkOut, branch } = args;
     if (!checkIn || !checkOut) {
@@ -245,6 +431,7 @@ async function executeTool(name: string, args: any) {
     };
   }
 
+  // 7. General Bookings Search
   if (name === 'get_bookings') {
     const allBookings = await getFreshDbBookings();
     let list = allBookings;
@@ -260,11 +447,13 @@ async function executeTool(name: string, args: any) {
         String(b.name || '').toLowerCase().includes(q) ||
         String(b.phone || '').includes(q) ||
         String(b.studio || '').toLowerCase().includes(q) ||
-        String(b.apartmentId || '').toLowerCase().includes(q)
+        String(b.apartmentId || '').toLowerCase().includes(q) ||
+        String(b.brokerName || '').toLowerCase().includes(q) ||
+        String(b.bookingManager || '').toLowerCase().includes(q)
       );
     }
 
-    const limit = args.limit || 15;
+    const limit = args.limit || 20;
     return {
       total: list.length,
       bookings: list.slice(0, limit).map((b: any) => ({
@@ -272,16 +461,19 @@ async function executeTool(name: string, args: any) {
         guestName: b.name,
         phone: b.phone,
         studio: b.studio,
-        checkIn: b.checkIn || b.check_in,
-        checkOut: b.checkOut || b.check_out,
+        checkIn: formatDateDMY(b.checkIn || b.check_in),
+        checkOut: formatDateDMY(b.checkOut || b.check_out),
         status: b.status,
         paymentInfo: b.paymentInfo || b.payment_info,
         totalAmount: b.totalAmount || b.total_amount,
+        bookingManager: b.bookingManager,
+        brokerName: b.brokerName,
         notes: b.notes
       }))
     };
   }
 
+  // 8. WhatsApp Conversations
   if (name === 'read_whatsapp_conversations') {
     return {
       source: "Mazar Standard Customer Service Archive",
@@ -359,6 +551,7 @@ export async function GET(req: NextRequest) {
     server: 'mazar-booking-mcp',
     transport: 'HTTP / SSE (Remote MCP)',
     mcpServerUrl: 'https://mazarstudio.com/api/mcp',
+    systemConnected: true,
     toolsCount: TOOLS.length,
     tools: TOOLS.map(t => ({ name: t.name, description: t.description }))
   }, { headers: CORS_HEADERS });
@@ -392,7 +585,6 @@ export async function POST(req: NextRequest) {
           }
         });
       } else if (method === 'notifications/initialized') {
-        // Notification, no result needed or return ack
         if (id !== undefined) {
           responses.push({ jsonrpc: '2.0', id, result: {} });
         }
@@ -440,7 +632,6 @@ export async function POST(req: NextRequest) {
           });
         }
       } else {
-        // Unknown method
         if (id !== undefined) {
           responses.push({
             jsonrpc: '2.0',
