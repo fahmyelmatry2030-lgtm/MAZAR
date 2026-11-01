@@ -15,13 +15,12 @@ export default function WhatsAppSettingsPage() {
   const [inactivityDays, setInactivityDays] = useState(30);
   const [delayBetweenMessagesMs, setDelayBetweenMessagesMs] = useState(1500);
 
-  const [message1, setMessage1] = useState('');
-  const [message2, setMessage2] = useState('');
-  const [message3, setMessage3] = useState('');
+  // Dynamic list of welcome messages
+  const [messages, setMessages] = useState<string[]>([]);
   const [transferMessage, setTransferMessage] = useState('');
 
-  // Active message editor tab
-  const [activeTab, setActiveTab] = useState<'msg1' | 'msg2' | 'msg3' | 'transfer'>('msg1');
+  // Active editor tab: index of message (0, 1, 2...) or 'transfer'
+  const [activeTab, setActiveTab] = useState<number | 'transfer'>(0);
   
   // Simulator scenario preview mode
   const [simulatorMode, setSimulatorMode] = useState<'welcome' | 'handover'>('welcome');
@@ -58,10 +57,8 @@ export default function WhatsAppSettingsPage() {
           setEnabled(s.enabled ?? true);
           setInactivityDays(s.inactivityDays ?? 30);
           setDelayBetweenMessagesMs(s.delayBetweenMessagesMs ?? 1500);
-          setMessage1(s.messages?.[0] || '');
-          setMessage2(s.messages?.[1] || '');
-          setMessage3(s.messages?.[2] || '');
-          setTransferMessage(s.transferMessage || '');
+          setMessages(Array.isArray(s.messages) && s.messages.length > 0 ? s.messages : DEFAULT_WHATSAPP_SETTINGS.messages);
+          setTransferMessage(s.transferMessage || DEFAULT_WHATSAPP_SETTINGS.transferMessage);
         }
       } catch (err) {
         console.error('Failed to load whatsapp settings:', err);
@@ -72,12 +69,45 @@ export default function WhatsAppSettingsPage() {
     load();
   }, [isAuthorized]);
 
+  const handleUpdateMessage = (idx: number, text: string) => {
+    const updated = [...messages];
+    updated[idx] = text;
+    setMessages(updated);
+  };
+
+  const handleAddMessage = () => {
+    const newIdx = messages.length;
+    const updated = [...messages, ''];
+    setMessages(updated);
+    setActiveTab(newIdx);
+  };
+
+  const handleDeleteMessage = (idx: number) => {
+    if (messages.length <= 1) {
+      alert('⚠️ يجب أن تبقى رسالة ترحيبية واحدة على الأقل في السيستم.');
+      return;
+    }
+    if (confirm(`هل أنت متأكد من حذف الرسالة رقم (${idx + 1})؟`)) {
+      const updated = messages.filter((_, i) => i !== idx);
+      setMessages(updated);
+      if (activeTab === idx) {
+        setActiveTab(Math.max(0, idx - 1));
+      } else if (typeof activeTab === 'number' && activeTab > idx) {
+        setActiveTab(activeTab - 1);
+      }
+    }
+  };
+
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setSaving(true);
     setSavedSuccess(false);
 
     try {
+      // Filter out completely empty messages (must have at least one message)
+      const validMessages = messages.map(m => m.trim()).filter(m => m.length > 0);
+      const messagesToSave = validMessages.length > 0 ? validMessages : messages;
+
       const res = await fetch('/api/admin/whatsapp-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +115,7 @@ export default function WhatsAppSettingsPage() {
           enabled,
           inactivityDays: Number(inactivityDays) || 30,
           delayBetweenMessagesMs: Number(delayBetweenMessagesMs) || 1500,
-          messages: [message1, message2, message3],
+          messages: messagesToSave,
           transferMessage,
         })
       });
@@ -105,13 +135,12 @@ export default function WhatsAppSettingsPage() {
   };
 
   const handleResetToDefault = () => {
-    if (confirm('هل أنت متأكد من رغبتك في استعادة النصوص الرسمية الافتراضية؟')) {
-      setMessage1(DEFAULT_WHATSAPP_SETTINGS.messages[0]);
-      setMessage2(DEFAULT_WHATSAPP_SETTINGS.messages[1]);
-      setMessage3(DEFAULT_WHATSAPP_SETTINGS.messages[2]);
+    if (confirm('هل أنت متأكد من استعادة الـ 3 رسائل الترحيبية ورسالة التحويل الافتراضية الرسمية؟')) {
+      setMessages([...DEFAULT_WHATSAPP_SETTINGS.messages]);
       setTransferMessage(DEFAULT_WHATSAPP_SETTINGS.transferMessage);
       setInactivityDays(30);
       setDelayBetweenMessagesMs(1500);
+      setActiveTab(0);
     }
   };
 
@@ -156,7 +185,7 @@ export default function WhatsAppSettingsPage() {
             </h1>
 
             <p className="text-xs md:text-sm font-medium text-white/70 max-w-2xl leading-relaxed">
-              تحكم كامل في نصوص الـ 3 رسائل الترحيبية، ورسالة التحويل البشري، مع ميزة التجميد التام بعد الرسالة الرابعة وقاعدة الـ 30 يوماً لمنع التكرار.
+              تحكم كامل في رسائل الترحيب: يمكنك إضافة أي عدد من الرسائل أو حذفها أو تعديلها، مع رسالة التحويل والتجميد وقاعدة الـ 30 يوماً.
             </p>
           </div>
 
@@ -193,7 +222,7 @@ export default function WhatsAppSettingsPage() {
             <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl shadow-md">✓</div>
             <div>
               <p className="font-black text-sm">تم حفظ التعديلات بنجاح في قاعدة البيانات!</p>
-              <p className="text-xs text-emerald-700 mt-0.5">سيتم تطبيق النصوص والقواعد الجديدة فوراً على أي عميل يتواصل مع مزار عبر الواتساب.</p>
+              <p className="text-xs text-emerald-700 mt-0.5">سيتم إرسال ({messages.length}) رسائل ترحيبية لأي عميل جديد أو منقطع منذ {inactivityDays} يوماً.</p>
             </div>
           </div>
           <button 
@@ -242,7 +271,7 @@ export default function WhatsAppSettingsPage() {
                   className="w-full accent-[#C1A68D] cursor-pointer"
                 />
                 <p className="text-[11px] text-[#7A7061] leading-relaxed">
-                  * لو العميل كان بيتكلم معانا خلال آخر <strong className="text-[#2B2823]">{inactivityDays} يوم</strong>، السيستم <span className="text-rose-600 font-bold">مش هيبعتله</span> الـ 3 رسائل، ويبعتها فقط لو عميل جديد أو منقطع لأكثر من {inactivityDays} يوم.
+                  * لو العميل كان بيتكلم معانا خلال آخر <strong className="text-[#2B2823]">{inactivityDays} يوم</strong>، السيستم <span className="text-rose-600 font-bold">مش هيبعتله</span> الرسائل الترحيبية، ويبعتها فقط لو عميل جديد أو منقطع لأكثر من {inactivityDays} يوم.
                 </p>
               </div>
 
@@ -277,151 +306,131 @@ export default function WhatsAppSettingsPage() {
             </div>
           </div>
 
-          {/* Interactive Message Tabs & Editor */}
+          {/* Dynamic Message Tabs & Management Bar */}
           <div className="bg-white rounded-3xl p-6 md:p-8 border border-[#EAE4D9]/80 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE4D9]/60 pb-4">
               <div>
-                <h3 className="text-base font-black text-[#2B2823]">محرر نصوص الرسائل الرسمية</h3>
-                <p className="text-xs text-[#7A7061] mt-0.5">اختر الرسالة المراد تعديلها واكتب بالعامية أو الفصحى مع الإيموجي المناسب</p>
+                <h3 className="text-base font-black text-[#2B2823]">إدارة وتعديل رسائل الرد</h3>
+                <p className="text-xs text-[#7A7061] mt-0.5">يمكنك إضافة رسائل جديدة أو حذف رسائل حالية بسهولة تامة</p>
               </div>
-              <button
-                type="button"
-                onClick={handleResetToDefault}
-                className="text-xs font-black text-[#7A7061] hover:text-[#2B2823] hover:underline flex items-center gap-1 self-start sm:self-auto"
-              >
-                <span>↺</span>
-                <span>استعادة النصوص الافتراضية</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddMessage}
+                  className="px-3.5 py-2 bg-[#C1A68D]/15 hover:bg-[#C1A68D]/25 text-[#C1A68D] rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>➕</span>
+                  <span>إضافة رسالة جديدة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetToDefault}
+                  className="text-xs font-bold text-[#7A7061] hover:text-[#2B2823] px-2.5 py-2 hover:bg-gray-50 rounded-xl transition-all"
+                  title="استعادة النصوص الافتراضية"
+                >
+                  ↺ استعادة
+                </button>
+              </div>
             </div>
 
-            {/* Segmented Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-[#FAF8F5] rounded-2xl border border-[#EAE4D9]">
-              <button
-                type="button"
-                onClick={() => setActiveTab('msg1')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                  activeTab === 'msg1'
-                    ? 'bg-white text-[#C1A68D] shadow-sm border border-[#EAE4D9]'
-                    : 'text-[#7A7061] hover:text-[#2B2823]'
-                }`}
-              >
-                <span className="w-5 h-5 rounded-full bg-[#C1A68D]/20 text-[#C1A68D] flex items-center justify-center text-[10px]">1</span>
-                <span>الترحيب والأسعار</span>
-              </button>
+            {/* Dynamic Segmented Tabs with Add/Delete Support */}
+            <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#FAF8F5] rounded-2xl border border-[#EAE4D9]">
+              {messages.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveTab(idx)}
+                  className={`py-2 px-3.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                    activeTab === idx
+                      ? 'bg-white text-[#C1A68D] shadow-sm border border-[#EAE4D9]'
+                      : 'text-[#7A7061] hover:text-[#2B2823]'
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                    activeTab === idx ? 'bg-[#C1A68D] text-white' : 'bg-[#C1A68D]/15 text-[#C1A68D]'
+                  }`}>
+                    {idx + 1}
+                  </span>
+                  <span>الرسالة {idx + 1}</span>
+                </button>
+              ))}
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('msg2')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                  activeTab === 'msg2'
-                    ? 'bg-white text-[#C1A68D] shadow-sm border border-[#EAE4D9]'
-                    : 'text-[#7A7061] hover:text-[#2B2823]'
-                }`}
-              >
-                <span className="w-5 h-5 rounded-full bg-[#C1A68D]/20 text-[#C1A68D] flex items-center justify-center text-[10px]">2</span>
-                <span>الخدمات والمزايا</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('msg3')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                  activeTab === 'msg3'
-                    ? 'bg-white text-[#C1A68D] shadow-sm border border-[#EAE4D9]'
-                    : 'text-[#7A7061] hover:text-[#2B2823]'
-                }`}
-              >
-                <span className="w-5 h-5 rounded-full bg-[#C1A68D]/20 text-[#C1A68D] flex items-center justify-center text-[10px]">3</span>
-                <span>طلب الفيديو والمدة</span>
-              </button>
-
+              {/* Handover Tab */}
               <button
                 type="button"
                 onClick={() => setActiveTab('transfer')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                className={`py-2 px-4 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 mr-auto ${
                   activeTab === 'transfer'
                     ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-emerald-700 hover:text-emerald-900 bg-emerald-50'
+                    : 'text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200'
                 }`}
               >
-                <span className="w-5 h-5 rounded-full bg-white/20 text-white flex items-center justify-center text-[10px]">4</span>
-                <span>رسالة التحويل</span>
+                <span>🤝</span>
+                <span>رسالة التحويل البشري</span>
               </button>
             </div>
 
-            {/* Tab 1 Content */}
-            {activeTab === 'msg1' && (
-              <div className="space-y-3 animate-fade-in">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-black text-[#2B2823]">نص الرسالة الأولى (الترحيب، تفاصيل الوحدات، والأسعار):</span>
-                  <span className="font-mono text-[#7A7061] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D9]">
-                    {message1.length} حرف
-                  </span>
+            {/* Active Message Content Editor */}
+            {typeof activeTab === 'number' && messages[activeTab] !== undefined && (
+              <div className="space-y-4 animate-fade-in bg-white p-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-[#C1A68D] text-white flex items-center justify-center text-xs font-black">
+                      {activeTab + 1}
+                    </span>
+                    <span className="font-black text-sm text-[#2B2823]">
+                      محتوى الرسالة رقم ({activeTab + 1}) من إجمالي ({messages.length}) رسائل ترحيبية:
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-[#7A7061] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D9]">
+                      {messages[activeTab].length} حرف
+                    </span>
+                    {messages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMessage(activeTab)}
+                        className="text-xs font-black text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-rose-200"
+                        title="حذف هذه الرسالة"
+                      >
+                        <span>🗑️</span>
+                        <span>حذف هذه الرسالة</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
                 <textarea
-                  rows={13}
-                  value={message1}
-                  onChange={(e) => setMessage1(e.target.value)}
+                  rows={activeTab === 0 ? 12 : activeTab === 1 ? 10 : 5}
+                  value={messages[activeTab]}
+                  onChange={(e) => handleUpdateMessage(activeTab, e.target.value)}
                   className="w-full p-4 bg-[#FAF8F5] border-2 border-transparent focus:border-[#C1A68D] focus:bg-white rounded-2xl text-xs md:text-sm font-medium text-[#2B2823] leading-relaxed transition-all resize-y shadow-inner outline-hidden"
-                  placeholder="اكتب نص الرسالة الأولى هنا..."
+                  placeholder={`اكتب نص الرسالة رقم ${activeTab + 1} هنا...`}
                 />
-                <p className="text-[11px] text-[#7A7061]">
-                  💡 <strong>نصيحة:</strong> اذكر هنا سعر الليلة التقريبي (مثلاً يبدأ من 2400 جنيه) والأوراق المطلوبة للتأكيد (باسبور، تذكرة طيران).
-                </p>
+
+                <div className="flex items-center justify-between text-[11px] text-[#7A7061] pt-1">
+                  <span>💡 سيتم إرسالها بالترتيب بعد فاصل {(delayBetweenMessagesMs / 1000).toFixed(1)} ثانية.</span>
+                  {activeTab < messages.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab(activeTab + 1)}
+                      className="font-bold text-[#C1A68D] hover:underline"
+                    >
+                      التالي: تعديل الرسالة {activeTab + 2} &larr;
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Tab 2 Content */}
-            {activeTab === 'msg2' && (
-              <div className="space-y-3 animate-fade-in">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-black text-[#2B2823]">نص الرسالة الثانية (الخدمات الفندقية المجانية):</span>
-                  <span className="font-mono text-[#7A7061] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D9]">
-                    {message2.length} حرف
-                  </span>
-                </div>
-                <textarea
-                  rows={11}
-                  value={message2}
-                  onChange={(e) => setMessage2(e.target.value)}
-                  className="w-full p-4 bg-[#FAF8F5] border-2 border-transparent focus:border-[#C1A68D] focus:bg-white rounded-2xl text-xs md:text-sm font-medium text-[#2B2823] leading-relaxed transition-all resize-y shadow-inner outline-hidden"
-                  placeholder="اكتب نص الرسالة الثانية هنا..."
-                />
-                <p className="text-[11px] text-[#7A7061]">
-                  💡 <strong>نصيحة:</strong> اعرض مميزات الفندق: التكييف، المطبخ المتكامل، سمارت لوك، الهاوس كيبنج، والكوفي كورنر المجاني.
-                </p>
-              </div>
-            )}
-
-            {/* Tab 3 Content */}
-            {activeTab === 'msg3' && (
-              <div className="space-y-3 animate-fade-in">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-black text-[#2B2823]">نص الرسالة الثالثة (السؤال عن التواريخ والأفراد لإرسال الفيديو):</span>
-                  <span className="font-mono text-[#7A7061] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D9]">
-                    {message3.length} حرف
-                  </span>
-                </div>
-                <textarea
-                  rows={5}
-                  value={message3}
-                  onChange={(e) => setMessage3(e.target.value)}
-                  className="w-full p-4 bg-[#FAF8F5] border-2 border-transparent focus:border-[#C1A68D] focus:bg-white rounded-2xl text-xs md:text-sm font-medium text-[#2B2823] leading-relaxed transition-all resize-y shadow-inner outline-hidden"
-                  placeholder="اكتب نص الرسالة الثالثة هنا..."
-                />
-                <p className="text-[11px] text-[#7A7061]">
-                  💡 <strong>نصيحة:</strong> هذه الرسالة تختم بها الـ 3 رسائل لتشجيع العميل على الرد بتواريخه وعدد أفراده فوراً.
-                </p>
-              </div>
-            )}
-
-            {/* Tab 4 Content (Handover) */}
+            {/* Tab: Handover Content */}
             {activeTab === 'transfer' && (
-              <div className="space-y-3 animate-fade-in bg-emerald-50/50 p-5 rounded-2xl border border-emerald-200">
+              <div className="space-y-4 animate-fade-in bg-emerald-50/50 p-6 rounded-2xl border border-emerald-200">
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 text-emerald-900 font-black">
+                  <div className="flex items-center gap-2 text-emerald-900 font-black text-sm">
                     <span>🤝</span>
-                    <span>رسالة التحويل البشري (الرسالة الرابعة والأخيرة):</span>
+                    <span>رسالة التحويل لمسؤول الحجز البشري (المرحلة الختامية):</span>
                   </div>
                   <span className="font-mono text-emerald-800 bg-white px-2.5 py-1 rounded-md border border-emerald-200">
                     {transferMessage.length} حرف
@@ -434,9 +443,9 @@ export default function WhatsAppSettingsPage() {
                   className="w-full p-4 bg-white border-2 border-emerald-300 focus:border-emerald-600 rounded-2xl text-xs md:text-sm font-medium text-[#2B2823] leading-relaxed transition-all resize-y shadow-inner outline-hidden"
                   placeholder="اكتب رسالة التحويل هنا..."
                 />
-                <div className="bg-white p-3 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed space-y-1">
-                  <p className="font-black">🔒 قاعدة التجميد التام:</p>
-                  <p>تُرسل هذه الرسالة فور أن يكتب العميل <em>"عايز أحجز"</em>، <em>"ابعتلي فيديو"</em>، أو يحدد عدد أفراده. <strong>وفور إرسالها يتجمد البوت تماماً ولا يرسل أي رسالة أخرى لهذا العميل نهائياً</strong> ليتولى موظف الحجز البشري المحادثة.</p>
+                <div className="bg-white p-3.5 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed space-y-1">
+                  <p className="font-black">🔒 التجميد التام بعد الإرسال:</p>
+                  <p>تُرسل هذه الرسالة لمرة واحدة فقط عند طلب الحجز أو طلب فيديو، <strong>وبعدها يتوقف البوت عن الرد نهائياً مع هذا العميل</strong> حتى لا يُكرر نفسه، ويتولى موظف الحجز البشري المحادثة.</p>
                 </div>
               </div>
             )}
@@ -447,7 +456,7 @@ export default function WhatsAppSettingsPage() {
           <div className="bg-white p-4 md:p-6 rounded-3xl border border-[#EAE4D9]/80 shadow-md flex items-center justify-between gap-4">
             <div className="hidden sm:block">
               <p className="text-xs font-black text-[#2B2823]">جاهز لتطبيق التعديلات؟</p>
-              <p className="text-[11px] text-[#7A7061]">سيتم الحفظ فوراً دون الحاجة لإعادة تشغيل السيرفر</p>
+              <p className="text-[11px] text-[#7A7061]">سيتم حفظ عدد ({messages.length}) رسائل ترحيبية فوراً في السيستم</p>
             </div>
             <button
               type="button"
@@ -463,7 +472,7 @@ export default function WhatsAppSettingsPage() {
               ) : (
                 <>
                   <span>💾</span>
-                  <span>حفظ التعديلات فوراً</span>
+                  <span>حفظ التعديلات فوراً ({messages.length} رسائل)</span>
                 </>
               )}
             </button>
@@ -505,7 +514,7 @@ export default function WhatsAppSettingsPage() {
                     simulatorMode === 'welcome' ? 'bg-white text-[#075E54] shadow-xs' : 'text-white/70 hover:text-white'
                   }`}
                 >
-                  الترحيب (3 رسائل)
+                  الترحيب ({messages.length} رسائل)
                 </button>
                 <button
                   type="button"
@@ -514,7 +523,7 @@ export default function WhatsAppSettingsPage() {
                     simulatorMode === 'handover' ? 'bg-white text-[#075E54] shadow-xs' : 'text-white/70 hover:text-white'
                   }`}
                 >
-                  التحويل (الرسالة 4)
+                  التحويل البشري
                 </button>
               </div>
 
@@ -528,53 +537,37 @@ export default function WhatsAppSettingsPage() {
                   </span>
                 </div>
 
-                {/* Scenario 1: Welcome Greeting (3 Messages) */}
+                {/* Scenario 1: Welcome Greeting (Dynamic Count of Messages) */}
                 {simulatorMode === 'welcome' && (
                   <>
                     {/* Customer message */}
                     <div className="flex justify-start">
                       <div className="bg-white text-[#2B2823] p-2.5 rounded-2xl rounded-tr-none shadow-xs max-w-[80%] space-y-1">
-                        <p>السلام عليكم، عندكم شقق أو استوديوهات؟</p>
+                        <p>السلام عليكم، عندكم شقق أو استوديوهات متاحة؟</p>
                         <p className="text-[8px] text-[#7A7061] text-left">10:30 ص</p>
                       </div>
                     </div>
 
-                    {/* Bot Message 1 */}
-                    <div className="flex justify-end">
-                      <div className="bg-[#E7FFDB] text-[#2B2823] p-2.5 rounded-2xl rounded-tl-none shadow-xs max-w-[85%] space-y-1 border border-emerald-100">
-                        <p className="whitespace-pre-wrap">{message1 || DEFAULT_WHATSAPP_SETTINGS.messages[0]}</p>
-                        <div className="flex items-center justify-end gap-1 text-[8px] text-[#7A7061]">
-                          <span>10:30 ص</span>
-                          <span className="text-blue-500 font-bold">✓✓</span>
+                    {/* Bot Dynamic Messages */}
+                    {messages.map((msg, i) => (
+                      <div key={i} className="flex justify-end">
+                        <div className="bg-[#E7FFDB] text-[#2B2823] p-2.5 rounded-2xl rounded-tl-none shadow-xs max-w-[85%] space-y-1 border border-emerald-100">
+                          <div className="flex items-center justify-between text-[8px] font-black text-emerald-800 pb-0.5 border-b border-emerald-200/50 mb-1">
+                            <span>رسالة {i + 1}</span>
+                            <span>بعد {(i * delayBetweenMessagesMs / 1000).toFixed(1)} ث</span>
+                          </div>
+                          <p className="whitespace-pre-wrap">{msg || `[نص الرسالة ${i + 1}]`}</p>
+                          <div className="flex items-center justify-end gap-1 text-[8px] text-[#7A7061]">
+                            <span>10:30 ص</span>
+                            <span className="text-blue-500 font-bold">✓✓</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Bot Message 2 */}
-                    <div className="flex justify-end">
-                      <div className="bg-[#E7FFDB] text-[#2B2823] p-2.5 rounded-2xl rounded-tl-none shadow-xs max-w-[85%] space-y-1 border border-emerald-100">
-                        <p className="whitespace-pre-wrap">{message2 || DEFAULT_WHATSAPP_SETTINGS.messages[1]}</p>
-                        <div className="flex items-center justify-end gap-1 text-[8px] text-[#7A7061]">
-                          <span>10:30 ص</span>
-                          <span className="text-blue-500 font-bold">✓✓</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bot Message 3 */}
-                    <div className="flex justify-end">
-                      <div className="bg-[#E7FFDB] text-[#2B2823] p-2.5 rounded-2xl rounded-tl-none shadow-xs max-w-[85%] space-y-1 border border-emerald-100">
-                        <p className="whitespace-pre-wrap">{message3 || DEFAULT_WHATSAPP_SETTINGS.messages[2]}</p>
-                        <div className="flex items-center justify-end gap-1 text-[8px] text-[#7A7061]">
-                          <span>10:30 ص</span>
-                          <span className="text-blue-500 font-bold">✓✓</span>
-                        </div>
-                      </div>
-                    </div>
+                    ))}
                   </>
                 )}
 
-                {/* Scenario 2: Handover and Freeze (Message 4) */}
+                {/* Scenario 2: Handover and Freeze (Last message) */}
                 {simulatorMode === 'handover' && (
                   <>
                     {/* Customer request */}
@@ -585,7 +578,7 @@ export default function WhatsAppSettingsPage() {
                       </div>
                     </div>
 
-                    {/* Bot Handover Message (4th message) */}
+                    {/* Bot Handover Message */}
                     <div className="flex justify-end">
                       <div className="bg-[#E7FFDB] text-[#2B2823] p-2.5 rounded-2xl rounded-tl-none shadow-xs max-w-[85%] space-y-1 border border-emerald-200">
                         <p className="whitespace-pre-wrap">{transferMessage || DEFAULT_WHATSAPP_SETTINGS.transferMessage}</p>
@@ -607,7 +600,7 @@ export default function WhatsAppSettingsPage() {
                     {/* Complete Silence / Frozen Indicator */}
                     <div className="flex justify-center my-3">
                       <div className="bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-black px-3 py-2 rounded-xl text-center shadow-xs space-y-0.5">
-                        <p>🔒 البوت توقف وتجمد تماماً (4 رسائل فقط)</p>
+                        <p>🔒 البوت توقف وتجمد تماماً</p>
                         <p className="text-[9px] font-normal text-amber-700">المحادثة الآن في يد الموظف البشري للرد وإرسال الفيديو</p>
                       </div>
                     </div>
@@ -632,7 +625,7 @@ export default function WhatsAppSettingsPage() {
 
           <div className="text-center mt-3">
             <span className="text-[11px] font-bold text-[#7A7061]">
-              📱 محاكي واتساب حقيقي يعكس تعديلاتك في نفس اللحظة
+              📱 محاكي واتساب حي يعرض الـ ({messages.length}) رسائل تزامناً مع تعديلاتك
             </span>
           </div>
         </div>
