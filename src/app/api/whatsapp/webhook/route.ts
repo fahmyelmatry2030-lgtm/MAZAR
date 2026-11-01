@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbWhatsAppSettings, DEFAULT_WHATSAPP_SETTINGS } from '@/lib/actions/db';
+import { getDbWhatsAppSettings } from '@/lib/actions/db';
+import { DEFAULT_WHATSAPP_SETTINGS } from '@/data/whatsappMessages';
 
 export const dynamic = 'force-dynamic';
 

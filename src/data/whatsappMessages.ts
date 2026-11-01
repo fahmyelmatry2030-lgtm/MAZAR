@@ -48,3 +48,19 @@ export const MAZAR_WHATSAPP_AUTO_REPLIES: string[] = [
   // الرسالة الثالثة: سؤال تحديد المدة والعدد لإرسال الفيديو
   `محتاج اعرف المدة من امتي ل امتي و عدد الافراد و انا هبعت لحضرتك فيديو للمتاح 🙏🏻`
 ];
+
+export interface WhatsAppBotSettings {
+  messages: string[];
+  transferMessage: string;
+  inactivityDays: number;
+  delayBetweenMessagesMs: number;
+  enabled: boolean;
+}
+
+export const DEFAULT_WHATSAPP_SETTINGS: WhatsAppBotSettings = {
+  messages: MAZAR_WHATSAPP_AUTO_REPLIES,
+  transferMessage: 'يا فندم هيتم تحويل حضرتك حالاً دلوقتي لأحد مسؤولي الحجز للرد والتأكيد مع حضرتك فوراً 🙏',
+  inactivityDays: 30,
+  delayBetweenMessagesMs: 1500,
+  enabled: true,
+};

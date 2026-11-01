@@ -2307,23 +2307,7 @@ export async function saveDbCustomerNote(phone: string, note: string): Promise<b
 }
 
 // --- WHATSAPP BOT AUTO-REPLY SETTINGS (Persisted in translations id: 105) ---
-import { MAZAR_WHATSAPP_AUTO_REPLIES } from '@/data/whatsappMessages';
-
-export interface WhatsAppBotSettings {
-  messages: string[];
-  transferMessage: string;
-  inactivityDays: number;
-  delayBetweenMessagesMs: number;
-  enabled: boolean;
-}
-
-export const DEFAULT_WHATSAPP_SETTINGS: WhatsAppBotSettings = {
-  messages: MAZAR_WHATSAPP_AUTO_REPLIES,
-  transferMessage: 'يا فندم هيتم تحويل حضرتك حالاً دلوقتي لأحد مسؤولي الحجز للرد والتأكيد مع حضرتك فوراً 🙏',
-  inactivityDays: 30,
-  delayBetweenMessagesMs: 1500,
-  enabled: true,
-};
+import { DEFAULT_WHATSAPP_SETTINGS, WhatsAppBotSettings } from '@/data/whatsappMessages';
 
 export async function getDbWhatsAppSettings(): Promise<WhatsAppBotSettings> {
   try {
