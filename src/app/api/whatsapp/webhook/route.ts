@@ -1,10 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chatWithMazarClaude } from '@/lib/ai/claude-agent';
+import { MAZAR_WHATSAPP_AUTO_REPLIES } from '@/data/whatsappMessages';
 
 export const dynamic = 'force-dynamic';
 
-// Master Switch: Bot paused until admin explicitly enables it
-const IS_WHATSAPP_BOT_ACTIVE = process.env.WHATSAPP_BOT_ACTIVE === 'true'; // Defaults to false (PAUSED)
+// In-memory cooldown tracker to avoid spamming the same customer if they send multiple messages in a row
+// Stores phone -> timestamp
+const lastRepliedMap = new Map<string, number>();
+const COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes cooldown per customer
+
+// Helper to sleep between messages for natural delivery
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+// Helper to send message via UltraMsg
+async function sendViaUltraMsg(instanceId: string, token: string, toPhone: string, text: string) {
+  try {
+    const res = await fetch(`https://api.ultramsg.com/${instanceId}/messages/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token,
+        to: toPhone,
+        body: text
+      })
+    });
+    const data = await res.json();
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[ULTRAMSG ERROR]', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// Helper to send message via Meta WhatsApp Cloud API (if used)
+async function sendViaMeta(token: string, phoneId: string, toPhone: string, text: string) {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: toPhone,
+        type: 'text',
+        text: { body: text }
+      })
+    });
+    const data = await res.json();
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[META SEND ERROR]', err.message);
+    return { success: false, error: err.message };
+  }
+}
 
 // Webhook Verification (Meta WhatsApp Cloud API Requirement)
 export async function GET(req: NextRequest) {
@@ -20,18 +69,18 @@ export async function GET(req: NextRequest) {
     return new NextResponse(challenge, { status: 200 });
   }
 
-  return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
+  // Also allow GET status check
+  return NextResponse.json({
+    status: 'online',
+    service: 'Mazar WhatsApp Auto-Reply System',
+    messagesConfigured: MAZAR_WHATSAPP_AUTO_REPLIES.length,
+    cooldownMinutes: 60
+  });
 }
 
 // Inbound Message Handler
 export async function POST(req: NextRequest) {
   try {
-    // 🛑 PAUSE KILL-SWITCH: Do not process or reply to any incoming messages while paused
-    if (!IS_WHATSAPP_BOT_ACTIVE) {
-      console.log('[WHATSAPP BOT PAUSED] Bot is paused by admin. Skipping all incoming messages.');
-      return NextResponse.json({ success: true, status: 'paused', message: 'Bot is paused by admin' });
-    }
-
     const body = await req.json();
 
     let senderPhone = '';
@@ -64,66 +113,60 @@ export async function POST(req: NextRequest) {
       incomingText = body.message || body.text || body.body || '';
     }
 
-    if (!incomingText) {
-      return NextResponse.json({ success: true, note: 'No text message to process' });
+    if (!senderPhone || !incomingText) {
+      return NextResponse.json({ success: true, note: 'No message to reply to' });
     }
 
     console.log(`[WHATSAPP INCOMING] From: ${senderPhone} | Message: ${incomingText}`);
 
-    // Call Claude AI Agent
-    const aiReply = await chatWithMazarClaude(incomingText);
-    console.log(`[CLAUDE REPLY] To: ${senderPhone} | Reply: ${aiReply}`);
-
-    // Auto-reply via UltraMsg (QR Code integration)
-    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
-    const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
-    if (ultraInstance && ultraToken && senderPhone) {
-      try {
-        await fetch(`https://api.ultramsg.com/${ultraInstance}/messages/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            token: ultraToken,
-            to: senderPhone,
-            body: aiReply
-          })
-        });
-        console.log(`[ULTRAMSG SENT] Successfully replied to ${senderPhone}`);
-      } catch (sendErr) {
-        console.error('[ULTRAMSG SEND ERROR]', sendErr);
-      }
+    // Check cooldown for this phone number
+    const now = Date.now();
+    const lastReplied = lastRepliedMap.get(senderPhone) || 0;
+    if (now - lastReplied < COOLDOWN_MS) {
+      console.log(`[WHATSAPP COOLDOWN] Skipped auto-reply for ${senderPhone} (Already greeted recently)`);
+      return NextResponse.json({ 
+        success: true, 
+        status: 'cooldown_active', 
+        note: 'Customer already received welcome messages recently' 
+      });
     }
 
-    // Auto-reply via Meta Graph API if credentials exist
+    // Mark as replied
+    lastRepliedMap.set(senderPhone, now);
+
+    // Credentials
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
+    const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
     const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-    if (whatsappToken && phoneId && senderPhone) {
-      try {
-        await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${whatsappToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            to: senderPhone,
-            type: 'text',
-            text: { body: aiReply }
-          })
-        });
-        console.log(`[META WHATSAPP SENT] Successfully replied to ${senderPhone}`);
-      } catch (sendErr) {
-        console.error('[WHATSAPP SEND ERROR]', sendErr);
+    // Send the 3 official Mazar messages sequentially with 1.5s delay
+    const sendResults = [];
+
+    for (let i = 0; i < MAZAR_WHATSAPP_AUTO_REPLIES.length; i++) {
+      const msgText = MAZAR_WHATSAPP_AUTO_REPLIES[i];
+
+      // Delay between messages for realistic delivery
+      if (i > 0) {
+        await sleep(1500);
+      }
+
+      if (ultraInstance && ultraToken) {
+        const res = await sendViaUltraMsg(ultraInstance, ultraToken, senderPhone, msgText);
+        sendResults.push({ msgIndex: i + 1, ...res });
+      } else if (whatsappToken && phoneId) {
+        const res = await sendViaMeta(whatsappToken, phoneId, senderPhone, msgText);
+        sendResults.push({ msgIndex: i + 1, ...res });
       }
     }
 
+    console.log(`[WHATSAPP 3-MESSAGES SENT] Successfully dispatched to ${senderPhone}`);
+
     return NextResponse.json({
       success: true,
-      from: senderPhone,
-      incomingMessage: incomingText,
-      reply: aiReply
+      recipient: senderPhone,
+      messagesSentCount: MAZAR_WHATSAPP_AUTO_REPLIES.length,
+      details: sendResults
     });
 
   } catch (err: any) {
