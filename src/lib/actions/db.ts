@@ -2306,6 +2306,84 @@ export async function saveDbCustomerNote(phone: string, note: string): Promise<b
   }
 }
 
+// --- WHATSAPP BOT AUTO-REPLY SETTINGS (Persisted in translations id: 105) ---
+import { MAZAR_WHATSAPP_AUTO_REPLIES } from '@/data/whatsappMessages';
+
+export interface WhatsAppBotSettings {
+  messages: string[];
+  transferMessage: string;
+  inactivityDays: number;
+  delayBetweenMessagesMs: number;
+  enabled: boolean;
+}
+
+export const DEFAULT_WHATSAPP_SETTINGS: WhatsAppBotSettings = {
+  messages: MAZAR_WHATSAPP_AUTO_REPLIES,
+  transferMessage: 'يا فندم هيتم تحويل حضرتك حالاً دلوقتي لأحد مسؤولي الحجز للرد والتأكيد مع حضرتك فوراً 🙏',
+  inactivityDays: 30,
+  delayBetweenMessagesMs: 1500,
+  enabled: true,
+};
+
+export async function getDbWhatsAppSettings(): Promise<WhatsAppBotSettings> {
+  try {
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return DEFAULT_WHATSAPP_SETTINGS;
+
+    const { data, error } = await supabase
+      .from('translations')
+      .select('data')
+      .eq('id', 105)
+      .single();
+
+    if (error || !data?.data) {
+      return DEFAULT_WHATSAPP_SETTINGS;
+    }
+
+    return {
+      messages: Array.isArray(data.data.messages) && data.data.messages.length > 0
+        ? data.data.messages
+        : DEFAULT_WHATSAPP_SETTINGS.messages,
+      transferMessage: data.data.transferMessage || DEFAULT_WHATSAPP_SETTINGS.transferMessage,
+      inactivityDays: typeof data.data.inactivityDays === 'number' ? data.data.inactivityDays : 30,
+      delayBetweenMessagesMs: typeof data.data.delayBetweenMessagesMs === 'number' ? data.data.delayBetweenMessagesMs : 1500,
+      enabled: data.data.enabled !== undefined ? data.data.enabled : true,
+    };
+  } catch (err) {
+    console.error('Error fetching whatsapp bot settings:', err);
+    return DEFAULT_WHATSAPP_SETTINGS;
+  }
+}
+
+export async function saveDbWhatsAppSettings(settings: Partial<WhatsAppBotSettings>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return { success: false, error: 'Database client offline' };
+
+    const current = await getDbWhatsAppSettings();
+    const updated = {
+      ...current,
+      ...settings,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('translations')
+      .upsert({ id: 105, data: updated, updated_at: new Date().toISOString() });
+
+    if (error) {
+      console.error('Error saving whatsapp bot settings:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error in saveDbWhatsAppSettings:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+
 
 
 

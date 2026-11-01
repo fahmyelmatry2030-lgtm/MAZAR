@@ -219,6 +219,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     { name: 'طلبات الحجز', href: '/admin/dashboard/bookings', icon: '📩', roles: ['Owner', 'Admin', 'Moderator', 'Super Admin', 'مدير الحجوزات', 'Akoura', 'Aura'] },
     { name: 'إدارة الوحدات', href: '/admin/dashboard/units', icon: '🏢', roles: ['Owner', 'Admin', 'Moderator', 'Super Admin', 'مدير الوحدات'] },
     { name: 'قاعدة العملاء', href: '/admin/dashboard/customers', icon: '📞', roles: ['Owner', 'Admin', 'Super Admin', 'Akoura', 'Aura'] },
+    { name: 'ردود الواتساب', href: '/admin/dashboard/whatsapp', icon: '💬', roles: ['Owner', 'Admin', 'Super Admin', 'Moderator'] },
     { name: 'الموظفين', href: '/admin/dashboard/hr/staff', icon: '👥', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'إدارة المحتوى', href: '/admin/dashboard/content', icon: '📝', roles: ['Owner', 'Admin', 'Super Admin'] },
     { name: 'المصروفات', href: '/admin/dashboard/reports', icon: '💰', roles: ['Owner', 'Admin', 'Super Admin', 'Mohsen', 'Akoura', 'Aura'] },

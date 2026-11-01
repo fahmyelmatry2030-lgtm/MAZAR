@@ -473,26 +473,76 @@ async function executeTool(name: string, args: any) {
     };
   }
 
-  // 8. WhatsApp Conversations
+  // 8. WhatsApp Conversations & Tone Learning
   if (name === 'read_whatsapp_conversations') {
+    const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
+    const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
+    const requestedLimit = Number(args.limit) || 10;
+
+    let liveChatsData: any[] = [];
+
+    try {
+      // 1. Fetch real chat list from UltraMsg
+      const chatsRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats?token=${ultraToken}&limit=${Math.min(requestedLimit, 15)}`);
+      const allChats = await chatsRes.json();
+
+      if (Array.isArray(allChats)) {
+        // Filter out groups, get individual customer chats
+        const directChats = allChats.filter((c: any) => !c.isGroup && c.id && c.id.includes('@c.us')).slice(0, 6);
+
+        // Fetch recent messages for these direct customer chats
+        for (const c of directChats) {
+          try {
+            const msgRes = await fetch(`https://api.ultramsg.com/${ultraInstance}/chats/messages?token=${ultraToken}&chatId=${encodeURIComponent(c.id)}&limit=6`);
+            const msgs = await msgRes.json();
+            if (Array.isArray(msgs) && msgs.length > 0) {
+              const formattedMsgs = msgs
+                .filter((m: any) => m.body && m.body.trim().length > 0)
+                .map((m: any) => ({
+                  sender: m.fromMe ? 'فريق إدارة مزار (Mazar Staff)' : `العميل (${c.name || c.id.replace('@c.us', '')})`,
+                  text: m.body,
+                  time: m.timestamp ? new Date(m.timestamp * 1000).toLocaleString('ar-EG') : '---'
+                }));
+
+              if (formattedMsgs.length > 0) {
+                liveChatsData.push({
+                  chatWith: c.name || c.id.replace('@c.us', ''),
+                  phone: c.id.replace('@c.us', ''),
+                  lastActivity: c.last_time ? new Date(c.last_time * 1000).toLocaleString('ar-EG') : '---',
+                  messages: formattedMsgs
+                });
+              }
+            }
+          } catch (e) {
+            // continue next chat
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('[MCP LIVE WHATSAPP FETCH ERROR]', err.message);
+    }
+
     return {
-      source: "Mazar Standard Customer Service Archive",
-      note: "نماذج الاستفسارات والردود المعتمدة لخدمة عملاء مزار لتعلم أسلوب التخاطب الراقي والمهني.",
-      conversationSamples: [
+      source: "محادثات وسجلات خدمة عملاء مزار الحية (UltraMsg Live WhatsApp Archive)",
+      toneOfVoiceGuidance: "أسلوب مزار الفندقي يتميز بالرقي والاحترام والسرعة، واستخدام الترحيب الفندقي والرموز التعبيرية الهادئة (🏨✨🤍)، وتقديم تفاصيل الأسعار والعربون بوضوح، مع تحويل العميل لمسؤول الحجز لإرسال فيديوهات الوحدات المتاحة.",
+      totalChatsAnalyzed: liveChatsData.length,
+      realCustomerConversations: liveChatsData,
+      officialStandardTemplates: [
         {
-          scenario: "استفسار عن التوافر والأسعار",
-          customer: "السلام عليكم، متاح استوديو لشخصين من يوم 5 نوفمبر لحد 8 نوفمبر وبكام؟",
-          mazarTeamReply: "أهلاً وسهلاً بك في مجمع مزار الفندقي 🏨✨ متاح لدينا استوديو بريميوم مجهز بالكامل في مزار 2 (الملحق). السعر لليلة 3,000 ج.م، وإجمالي الـ 3 ليالٍ 9,000 ج.م. لتثبيت الحجز يُطلب عربون ليلة واحدة فقط (3,000 ج.م) والباقي يُسدد عند الوصول والاستلام. هل تحب أرسل لحضرتك رابط الحجز وصور الاستوديو؟"
+          title: "الرسالة الأولى: الترحيب والأنواع والأسعار",
+          content: "✨ أهلًا بحضرتك في Mazar Studios 🤍🏨 متاح لدينا ستوديو وشقق فندقية تبدأ من 2400 جنيه/الليلة..."
         },
         {
-          scenario: "طلب بيانات تحويل العربون",
-          customer: "تمام عايز أحجز، أحول العربون إزاي؟",
-          mazarTeamReply: "تحت أمرك يا فندم! يمكنك تحويل عربون الليلة الأولى (3,000 ج.م) عبر:\n1. فودافون كاش: 01005318003 أو 01021691745\n2. أو عبر إنستاباي (InstaPay)\nبعد التحويل يرجى إرسال إيصال السداد هنا لتسجيل وتأكيد حجزك رسمياً في السيستم."
+          title: "الرسالة الثانية: الخدمات الفندقية المجانية",
+          content: "خدمات مجمع مزار الفندقي: ستوديو مكيف، مطبخ مجهز، إنترنت سريع، أمن وكاميرات 24 ساعة، هاوس كيبنج..."
         },
         {
-          scenario: "استفسار عن مواعيد الدخول والخروج والمميزات",
-          customer: "مواعيد الدخول والخروج إيه؟ وهل في واي فاي ومطبخ؟",
-          mazarTeamReply: "مواعيدنا الفندقية:\n- تسجيل الدخول: بدءاً من الساعة 2:00 ظهراً\n- تسجيل الخروج: حتى الساعة 12:00 ظهراً\nجميع استوديوهاتنا مكيفة ومجهزة بواي فاي فندقي مجاني فائق السرعة، شاشة سمارت، ومطبخ متكامل (ثلاجة، ميكروويف، غلاية، أواني). نتشرف باستضافتك دائماً!"
+          title: "الرسالة الثالثة: طلب التفاصيل لإرسال الفيديو",
+          content: "محتاج اعرف المدة من امتي ل امتي و عدد الافراد و انا هبعت لحضرتك فيديو للمتاح 🙏🏻"
+        },
+        {
+          title: "رسالة التحويل البشري الفوري",
+          content: "يا فندم هيتم تحويل حضرتك حالاً دلوقتي لأحد مسؤولي الحجز للرد والتأكيد مع حضرتك فوراً 🙏"
         }
       ]
     };
