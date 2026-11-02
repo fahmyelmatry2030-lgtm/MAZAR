@@ -4,34 +4,13 @@ import { DEFAULT_WHATSAPP_SETTINGS } from '@/data/whatsappMessages';
 
 export const dynamic = 'force-dynamic';
 
-// 1. In-memory tracker for phones that have received the welcome greeting
-const lastGreetingSentMap = new Map<string, number>();
-const GREETING_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes cooldown
-
-// 2. In-memory tracker for phones that have received the handover message (4th message)
-// Once handed over, the bot FREEZES completely and NEVER replies again to this customer!
-const handedOverMap = new Map<string, number>();
-const HANDOVER_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days freeze
+// In-memory tracker for phones that have received the welcome greeting
+// Tracks phone -> timestamp of when greeting was sent
+const greetedPhonesMap = new Map<string, number>();
+const GREETING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Helper to sleep between messages for natural delivery
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-// Helper to normalize Arabic text for keyword matching
-function normalizeText(text: string): string {
-  return (text || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ة/g, 'ه')
-    .replace(/ى/g, 'ي')
-    .replace(/[\u064B-\u065F]/g, ''); // strip Arabic tashkeel/diacritics
-}
-
-// 1. Thank-you / Closing keywords (Bot must stay completely silent)
-const THANK_YOU_REGEX = /(شكرا|تسلم|تسلملي|الف شكر|حبيبي تسلم|ثانكس|thanks|thank you|تمام تسلم|جزاك الله خيرا|بارك الله فيك|تسلم يا غالي|تسلم ايدك|تسلم يارب)/;
-
-// 2. Booking Intent / Video Request / Number of Persons (Trigger handover message - 4th message)
-const BOOKING_INTENT_REGEX = /(عايز احجز|عاوز احجز|محتاج احجز|احجزلي|احجز|حجز|فيديو|ابعتلي فيديو|عايز فيديو|شخصين|فردين|افراد|اشخاص|كام فرد|بكام|الاسعار|سعر|متاح|في متاح|فاضي|يوم \d+|تاريخ|كام السعر|احجز ازاي|نحجز ازاي)/;
 
 // Helper to send message via UltraMsg
 async function sendViaUltraMsg(instanceId: string, token: string, toPhone: string, text: string) {
@@ -53,28 +32,23 @@ async function sendViaUltraMsg(instanceId: string, token: string, toPhone: strin
   }
 }
 
-// Helper to check user chat history in UltraMsg (determines if new, inactive >= 30 days, or already handed over)
-async function checkCustomerInactivity(instanceId: string, token: string, phone: string, thresholdDays: number): Promise<{ isFirstTime: boolean; isInactiveOverDays: boolean; daysSinceLast: number; alreadyHasHandoverInChat: boolean }> {
+// Helper to check user chat history in UltraMsg (determines if new or inactive >= 30 days)
+async function checkCustomerInactivity(instanceId: string, token: string, phone: string, thresholdDays: number): Promise<{ isFirstTime: boolean; isInactiveOverDays: boolean; daysSinceLast: number; hasExistingMessages: boolean }> {
   try {
     const chatId = `${phone}@c.us`;
     const res = await fetch(`https://api.ultramsg.com/${instanceId}/chats/messages?token=${token}&chatId=${encodeURIComponent(chatId)}&limit=15`);
     const messages = await res.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: false };
+      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, hasExistingMessages: false };
     }
 
     const nowSeconds = Math.floor(Date.now() / 1000);
-    // Find the latest previous message (ignore messages sent in the last 15 seconds)
+    // Find previous messages excluding any message received in the last 15 seconds
     const prevMessages = messages.filter((m: any) => (nowSeconds - (m.timestamp || 0)) > 15);
 
-    // Check if the handover message was already sent by Mazar in this chat
-    const handoverFound = messages.some((m: any) => 
-      m.fromMe && m.body && (m.body.includes('تحويل حضرتك') || m.body.includes('مسؤولي الحجز') || m.body.includes('التواصل مع حضرتك'))
-    );
-
     if (prevMessages.length === 0) {
-      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: handoverFound };
+      return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, hasExistingMessages: false };
     }
 
     const latestPrev = prevMessages[0];
@@ -85,11 +59,12 @@ async function checkCustomerInactivity(instanceId: string, token: string, phone:
       isFirstTime: false,
       isInactiveOverDays: daysSinceLast >= thresholdDays,
       daysSinceLast: Math.round(daysSinceLast * 10) / 10,
-      alreadyHasHandoverInChat: handoverFound,
+      hasExistingMessages: true,
     };
   } catch (err: any) {
     console.warn('[ULTRAMSG HISTORY CHECK FAILED]', err.message);
-    return { isFirstTime: true, isInactiveOverDays: true, daysSinceLast: 999, alreadyHasHandoverInChat: false };
+    // On error, rely on in-memory map
+    return { isFirstTime: false, isInactiveOverDays: false, daysSinceLast: 0, hasExistingMessages: true };
   }
 }
 
@@ -110,12 +85,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     status: 'online',
-    service: 'Mazar WhatsApp Auto-Reply & Handover System (Strict 4-Messages Limit)',
+    service: 'Mazar WhatsApp Auto-Reply System (Welcome Messages Only - Strict Silence Afterward)',
     enabled: settings.enabled,
     inactivityThresholdDays: settings.inactivityDays,
     messagesCount: settings.messages.length,
-    transferMessageConfigured: !!settings.transferMessage,
-    activeHandoversCount: handedOverMap.size
+    greetedPhonesTracked: greetedPhonesMap.size
   });
 }
 
@@ -158,7 +132,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, note: 'No message to process' });
     }
 
-    const cleanIncoming = normalizeText(incomingText);
     console.log(`[WHATSAPP INCOMING] From: ${senderPhone} | Text: "${incomingText}"`);
 
     // Fetch dynamic settings from DB
@@ -170,125 +143,64 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
+    const thresholdDays = settings.inactivityDays || 30;
+    const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000;
 
     // --------------------------------------------------------------------------
-    // RULE 0: ABSOLUTE FREEZE AFTER HANDOVER (الـ 4 رسائل فقط)
-    // If this customer has already received the handover message (Message 4):
-    // The bot STOPS completely and NEVER replies again to this customer!
+    // RULE 1: IN-MEMORY CHECK - HAS THIS CUSTOMER ALREADY BEEN GREETED?
+    // Once the welcome messages are sent, the bot FREEZES completely for this customer!
+    // No follow-up bot messages, no handover messages. Human team takes over.
     // --------------------------------------------------------------------------
-    const lastHandoverTime = handedOverMap.get(senderPhone) || 0;
-    if (now - lastHandoverTime < HANDOVER_EXPIRY_MS) {
-      console.log(`[WHATSAPP FROZEN] Customer ${senderPhone} already handed over to human agent. Bot stays 100% silent.`);
+    const lastGreetedAt = greetedPhonesMap.get(senderPhone) || 0;
+    if (now - lastGreetedAt < thresholdMs) {
+      console.log(`[WHATSAPP BOT SILENT] Customer ${senderPhone} already received welcome messages. Bot remains 100% silent.`);
       return NextResponse.json({
         success: true,
-        action: 'bot_frozen_after_handover',
-        note: 'Customer has already received the handover message (4th message). Bot stops completely; human agent is in control.'
+        action: 'bot_silent_already_greeted',
+        note: 'Customer already received welcome messages. Human management handles all subsequent messages.'
       });
     }
 
     const ultraInstance = process.env.ULTRAMSG_INSTANCE_ID || 'instance195641';
     const ultraToken = process.env.ULTRAMSG_TOKEN || 'dqgr70zrc62t8lrr';
 
-    // -------------------------------------------------------------
-    // RULE 1: THANK YOU / CLOSING WORDS -> STAY COMPLETELY SILENT
-    // -------------------------------------------------------------
-    if (THANK_YOU_REGEX.test(cleanIncoming)) {
-      console.log(`[WHATSAPP SILENT] Detected thank you / close from ${senderPhone}. Staying silent.`);
-      return NextResponse.json({
-        success: true,
-        action: 'silent_thank_you',
-        note: 'Customer expressed thanks or closed conversation. Bot remained silent.'
-      });
-    }
-
-    // -------------------------------------------------------------
-    // RULE 2: BOOKING INTENT / VIDEO REQUEST / PERSONS COUNT
-    // -> Send Handover Message (4th message) ONLY ONCE, then freeze!
-    // -------------------------------------------------------------
-    if (BOOKING_INTENT_REGEX.test(cleanIncoming)) {
-      // Check UltraMsg history to see if handover was ever sent in this chat
-      const historyCheck = await checkCustomerInactivity(ultraInstance, ultraToken, senderPhone, settings.inactivityDays || 30);
-      
-      if (historyCheck.alreadyHasHandoverInChat) {
-        console.log(`[WHATSAPP ALREADY HANDED OVER] Customer ${senderPhone} chat already has handover message. Freezing bot.`);
-        handedOverMap.set(senderPhone, now);
-        return NextResponse.json({
-          success: true,
-          action: 'bot_frozen_already_sent',
-          note: 'Handover message was already sent previously. Bot stops completely.'
-        });
-      }
-
-      console.log(`[WHATSAPP HANDOVER] Booking intent detected from ${senderPhone}. Sending 4th message (handover) and freezing bot.`);
-      const handoverText = settings.transferMessage || DEFAULT_WHATSAPP_SETTINGS.transferMessage;
-      
-      // Mark as handed over BEFORE sending so no race condition can double-send
-      handedOverMap.set(senderPhone, now);
-
-      const sendRes = await sendViaUltraMsg(ultraInstance, ultraToken, senderPhone, handoverText);
-      return NextResponse.json({
-        success: true,
-        action: 'transferred_to_agent',
-        sentMessage: handoverText,
-        details: sendRes,
-        note: 'Handover complete. Bot is now permanently frozen for this customer.'
-      });
-    }
-
-    // -------------------------------------------------------------
-    // RULE 3: 3 WELCOME MESSAGES ELIGIBILITY CHECK
-    // Only sent if:
-    //  a) First time customer EVER
-    //  OR
-    //  b) Inactive for >= inactivityDays (Default: 30 days)
-    // -------------------------------------------------------------
+    // --------------------------------------------------------------------------
+    // RULE 2: HISTORICAL CHAT CHECK IN ULTRAMSG
+    // If the customer has an active ongoing chat with Mazar within the last 30 days:
+    // DO NOT SEND the welcome messages! Keep the bot silent.
+    // --------------------------------------------------------------------------
     const inactivityInfo = await checkCustomerInactivity(
       ultraInstance,
       ultraToken,
       senderPhone,
-      settings.inactivityDays || 30
+      thresholdDays
     );
 
-    // If chat already has a handover message, freeze bot immediately
-    if (inactivityInfo.alreadyHasHandoverInChat) {
-      handedOverMap.set(senderPhone, now);
-      console.log(`[WHATSAPP FROZEN] Chat history reveals previous handover for ${senderPhone}. Staying silent.`);
-      return NextResponse.json({
-        success: true,
-        action: 'bot_frozen_after_handover',
-        note: 'Chat already contains handover. Bot stays silent.'
-      });
-    }
-
-    // If customer has an ongoing active chat within the last 30 days -> DO NOT SEND 3 MESSAGES
+    // Active customer within the threshold -> DO NOT send messages
     if (!inactivityInfo.isFirstTime && !inactivityInfo.isInactiveOverDays) {
-      console.log(`[WHATSAPP ACTIVE CHAT] Customer ${senderPhone} active within last ${inactivityInfo.daysSinceLast} days. Skipping 3 greeting messages.`);
+      console.log(`[WHATSAPP ACTIVE CHAT] Customer ${senderPhone} active within last ${inactivityInfo.daysSinceLast} days. Bot stays silent.`);
+      // Update in-memory tracker so subsequent requests are fast
+      greetedPhonesMap.set(senderPhone, now);
       return NextResponse.json({
         success: true,
         action: 'skip_active_customer',
-        note: `Customer active within last ${inactivityInfo.daysSinceLast} days (< ${settings.inactivityDays} threshold). No spam sent.`
+        note: `Customer active within last ${inactivityInfo.daysSinceLast} days (< ${thresholdDays} threshold). Bot stays silent.`
       });
     }
 
-    // Check recent in-memory cooldown to prevent repeat within the hour
-    const lastGreeting = lastGreetingSentMap.get(senderPhone) || 0;
-    if (now - lastGreeting < GREETING_COOLDOWN_MS) {
-      console.log(`[WHATSAPP COOLDOWN] Greeting already sent to ${senderPhone} recently.`);
-      return NextResponse.json({
-        success: true,
-        action: 'cooldown_active',
-        note: '3 messages already sent within the last hour'
-      });
-    }
+    // --------------------------------------------------------------------------
+    // RULE 3: DISPATCH WELCOME MESSAGES (ONLY ONCE)
+    // Sent ONLY to new customers or customers inactive for >= 30 days.
+    // After this, the bot NEVER replies again to this customer!
+    // --------------------------------------------------------------------------
+    greetedPhonesMap.set(senderPhone, now);
 
-    // Mark as greeted
-    lastGreetingSentMap.set(senderPhone, now);
+    const messagesToSend = (Array.isArray(settings.messages) && settings.messages.length > 0)
+      ? settings.messages
+      : DEFAULT_WHATSAPP_SETTINGS.messages;
 
-    // Send the 3 official Mazar messages sequentially
-    const messagesToSend = settings.messages.length > 0 ? settings.messages : DEFAULT_WHATSAPP_SETTINGS.messages;
     const sendResults = [];
-
-    console.log(`[WHATSAPP DISPATCHING 3 MESSAGES] To ${senderPhone} (isFirstTime: ${inactivityInfo.isFirstTime}, daysSinceLast: ${inactivityInfo.daysSinceLast})`);
+    console.log(`[WHATSAPP DISPATCHING ${messagesToSend.length} WELCOME MESSAGES] To ${senderPhone}`);
 
     for (let i = 0; i < messagesToSend.length; i++) {
       const msgText = messagesToSend[i];
@@ -302,14 +214,17 @@ export async function POST(req: NextRequest) {
       sendResults.push({ msgIndex: i + 1, ...res });
     }
 
+    console.log(`[WHATSAPP WELCOME COMPLETED] Sent ${messagesToSend.length} messages to ${senderPhone}. Bot is now permanently silent for this conversation.`);
+
     return NextResponse.json({
       success: true,
-      action: '3_messages_sent',
+      action: 'welcome_messages_sent',
       recipient: senderPhone,
       isFirstTime: inactivityInfo.isFirstTime,
       daysSinceLast: inactivityInfo.daysSinceLast,
       messagesSentCount: messagesToSend.length,
-      details: sendResults
+      details: sendResults,
+      note: 'Welcome messages delivered. Bot is now completely silent; human team handles all replies and video dispatch.'
     });
 
   } catch (err: any) {
