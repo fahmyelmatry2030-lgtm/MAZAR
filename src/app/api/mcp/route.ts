@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSystemUnits } from '@/lib/data-init';
-import { getFreshDbBookings, getDbCustomerNotes } from '@/lib/actions/db';
+import {
+  getFreshDbBookings,
+  getDbCustomerNotes,
+  getDbExpenses,
+  getDbSalaries,
+  getDbCustody,
+  getDbTreasuryTransfers,
+  getDbStaff
+} from '@/lib/actions/db';
 import { isUnitMatch, normalizeDateString, parseDateDMY, formatDateDMY } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -166,8 +174,110 @@ const TOOLS = [
         }
       }
     }
+  },
+  {
+    name: 'get_monthly_financial_statement',
+    description: 'كشف الحساب الشهري الشامل والمالية الفندقية وأرباح الشركاء (نفس شاشة الملاك: مؤمن ومدحت). يعرض الإيرادات، العمولات، المصروفات التشغيلية، الرواتب، صافي الربح، وجدول توزيع أرباح الشركاء (محسن 35%، H.O 18%، مدحت 23.5%، مؤمن 23.5%) لمزار 1 و 2، ومزار 3، والشقق الفندقية، بالإضافة لملخص شهور السنة.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        month: {
+          type: 'number',
+          description: 'رقم الشهر المطلوب (1 إلى 12). افتراضياً: الشهر الحالي.'
+        },
+        year: {
+          type: 'number',
+          description: 'السنة المطلوبة (مثال: 2025 أو 2026). افتراضياً: السنة الحالية.'
+        },
+        includeYearlyRollup: {
+          type: 'boolean',
+          description: 'تضمين ملخص شهور السنة كاملة (يناير إلى ديسمبر). افتراضياً: true.'
+        }
+      }
+    }
+  },
+  {
+    name: 'get_expenses_and_custody',
+    description: 'كشف المصروفات التشغيلية والعهدة وحالات الاعتماد (نفس صلاحيات مؤمن ومدحت). يعرض بنود المصروفات المسجلة وحالات اعتمادها (معتمد من مؤمن/مدحت، معلق، مرفوض)، وحسابات العهدة، والمصروفات حسب الفئات والوحدات.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        month: {
+          type: 'number',
+          description: 'رقم الشهر (1 إلى 12). اختياري'
+        },
+        year: {
+          type: 'number',
+          description: 'السنة (مثال: 2025 أو 2026). اختياري'
+        },
+        branch: {
+          type: 'number',
+          description: 'الفرع: 1 أو 2 (مزار 1 و 2)، 3 (مزار 3)، 4/5/6 (الشقق). اختياري'
+        },
+        status: {
+          type: 'string',
+          enum: ['all', 'approved', 'pending', 'rejected'],
+          description: 'حالة الاعتماد (all: الكل، approved: معتمد، pending: معلق، rejected: مرفوض). الافتراضي all'
+        },
+        limit: {
+          type: 'number',
+          description: 'الحد الأقصى لعدد النتائج (الافتراضي 50)'
+        }
+      }
+    }
+  },
+  {
+    name: 'get_treasury_and_salaries',
+    description: 'كشف الخزنة وسجل رواتب الموظفين والتحويلات المالية المسجلة في السيستم لمؤمن ومدحت.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        month: {
+          type: 'number',
+          description: 'رقم الشهر (1 إلى 12). اختياري'
+        },
+        year: {
+          type: 'number',
+          description: 'السنة. اختياري'
+        }
+      }
+    }
   }
 ];
+
+// ----------------- FINANCIAL & DATE HELPERS (MATCHING OWNER DASHBOARD) -----------------
+
+const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+const parseDateYM = (dateStr: any): { year: number; month: number } | null => {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) return { year: +ymd[1], month: +ymd[2] - 1 };
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) return { year: +dmy[3], month: +dmy[2] - 1 };
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() };
+  return null;
+};
+
+const isMohsenBookingMatch = (b: any, units: any[]) => {
+  const aptId = String(b?.apartmentId || b?.apartment_id || '').toLowerCase().trim();
+  const studio = String(b?.studio || '').toLowerCase().trim();
+  if (aptId.startsWith('apt-') || aptId.startsWith('ext-') || aptId.startsWith('p-s') || aptId.includes('tworoom')) return false;
+  if (studio.includes('شقة') || studio.includes('غرفتين') || studio.includes('شاليه') || studio.includes('مزار 3') || studio.includes('3 غرف') || studio.includes('ثلاث') || studio.includes('زكي رستم') || studio.includes('سيتي ستارز') || studio.includes('عباس')) return false;
+  const u = units.find((unit: any) => unit.id === (b.apartmentId || b.apartment_id));
+  if (u) {
+    const uId = String(u.id || '').toLowerCase();
+    return (uId.startsWith('b1-s') || uId.startsWith('b2-s')) && (u.branch === 1 || u.branch === 2);
+  }
+  const match = studio.match(/(?:استوديو|studio)\s*(\d+)/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    return num >= 1 && num <= 24;
+  }
+  return false;
+};
 
 // ----------------- TOOL LOGIC -----------------
 
@@ -211,7 +321,14 @@ async function executeTool(name: string, args: any) {
         "إنستاباي (InstaPay)",
         "تحويل بنكي (البنك التجاري الدولي CIB / البنك الأهلي NBE)",
         "فيزا وماستركارد عبر بوابة الدفع الإلكتروني"
-      ]
+      ],
+      ownerClearanceContext: {
+        activePersona: "Super Admin / Owner (مؤمن ومدحت)",
+        authorizationLevel: "صلاحيات الملاك الكاملة (Full Owner Clearance)",
+        monthlyStatementAccess: "متاح بالكامل عبر أداة get_monthly_financial_statement (نفس شاشة كشف الحساب الشهري المعروضة لمؤمن ومدحت)",
+        partnersMazar12: "M.H (محسن): 35% | H.O: 18% | M.E (مدحت): 23.5% | H.M (مؤمن): 23.5%",
+        partnersMazar3: "Koura (عكورة): 50% | M.M: 25% | M.E (مدحت): 25%"
+      }
     };
   }
 
@@ -602,11 +719,310 @@ async function executeTool(name: string, args: any) {
         directCustomerChatsCount: directChats.length,
         internalGroupsCount: groupChats.length,
         recentConversations: recentOverview,
-        systemContext: "رقم واتساب مزار الرسمي هو 01108109969. الرد التلقائي يرسل 3 رسائل ترحيبية للعملاء الجدد، ورسالة تحويل واحدة عند طلب الحجز، ثم يصمت ليترك الشات للموظف البشري."
+        systemContext: "رقم واتساب مزار الرسمي هو 01108109969. الرد التلقائي يرسل 3 رسائل ترحيبية للعملاء الجدد ثم يتوقف البوت تماماً ليترك الشات للموظف البشري."
       };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
+  }
+
+  // 10. Monthly Financial Statement (كشف الحساب الشهري وأرباح الشركاء - صلاحيات مؤمن ومدحت)
+  if (name === 'get_monthly_financial_statement') {
+    const now = new Date();
+    const targetMonth = args.month !== undefined ? Number(args.month) - 1 : now.getMonth();
+    const targetYear = args.year !== undefined ? Number(args.year) : now.getFullYear();
+    const includeYearlyRollup = args.includeYearlyRollup !== false;
+
+    const [allBookings, allExpenses, allSalaries, units] = await Promise.all([
+      getFreshDbBookings(),
+      getDbExpenses(),
+      getDbSalaries(),
+      getSystemUnits(),
+    ]);
+
+    const isApprovedExpense = (e: any) => {
+      if (!e) return false;
+      if (e.status === 'REJECTED' || e.status === 'مرفوض') return false;
+      return true;
+    };
+
+    // Filter confirmed/approved bookings for target month & year
+    const monthlyBookings = (allBookings || []).filter((b: any) => {
+      if (b.status === 'deleted' || b.status === 'cancelled' || b.status === 'rejected' || b.status === 'ملغي' || b.status === 'مرفوض') return false;
+      if (b.status !== 'approved' && b.status !== 'مؤكد') return false;
+      const parsed = parseDateYM(b.checkIn || b.check_in);
+      return parsed && parsed.month === targetMonth && parsed.year === targetYear;
+    });
+
+    // Filter monthly expenses
+    const monthlyExpenses = (allExpenses || []).filter((e: any) => {
+      if (!isApprovedExpense(e) || !e.date) return false;
+      const parsed = parseDateYM(e.date);
+      return parsed && parsed.month === targetMonth && parsed.year === targetYear;
+    });
+
+    // Salaries for this month
+    const monthlySalaries = (allSalaries || []).filter((s: any) =>
+      Number(s.month) - 1 === targetMonth && Number(s.year) === targetYear
+    );
+    const salariesFromExpenses = monthlyExpenses
+      .filter((e: any) => e.category === 'رواتب' || e.category === 'مرتبات' || e.category === 'مرتب')
+      .reduce((s: number, e: any) => s + (parseFloat(e.amount) || 0), 0);
+    const salariesTotal = monthlySalaries.reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0) + salariesFromExpenses;
+
+    // --- SECTION 1: Mazar 1 & 2 (Studios 1-24) ---
+    const mazar12Bookings = monthlyBookings.filter((b: any) => isMohsenBookingMatch(b, units));
+    const mazar12Revenue = mazar12Bookings.reduce((sum: number, b: any) => sum + (parseFloat(b.totalAmount || b.total_amount) || 0), 0);
+    const mazar12Commissions = mazar12Bookings.reduce((sum: number, b: any) => sum + (parseFloat(b.commission) || 0), 0);
+    const mazar12TotalNights = mazar12Bookings.reduce((sum: number, b: any) => sum + (Number(b.numberOfDays || b.number_of_days) || 0), 0);
+    const mazar12AvgNight = mazar12TotalNights > 0 ? Math.round(mazar12Revenue / mazar12TotalNights) : 0;
+
+    const mazar12Expenses = monthlyExpenses
+      .filter((e: any) =>
+        (e.branch === 1 || e.branch === 2 || e.branch === '1' || e.branch === '2' || e.branch === 12 || e.branch === '12' || !e.branch) &&
+        e.category !== 'رواتب' &&
+        e.category !== 'مرتبات' &&
+        e.category !== 'مرتب'
+      )
+      .reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+
+    const mazar12TotalExpensesAndSalaries = mazar12Expenses + salariesTotal;
+    const mazar12NetProfit = mazar12Revenue - mazar12Commissions - mazar12Expenses - salariesTotal;
+
+    const partnersMazar12 = [
+      { key: 'MH', label: 'M.H (محسن)', percentage: 35, shareAmountEGP: Math.round((mazar12NetProfit * 35) / 100) },
+      { key: 'HO', label: 'H.O', percentage: 18, shareAmountEGP: Math.round((mazar12NetProfit * 18) / 100) },
+      { key: 'ME', label: 'M.E (مدحت)', percentage: 23.5, shareAmountEGP: Math.round((mazar12NetProfit * 23.5) / 100) },
+      { key: 'HM', label: 'H.M (مؤمن)', percentage: 23.5, shareAmountEGP: Math.round((mazar12NetProfit * 23.5) / 100) },
+    ];
+
+    // --- SECTION 2: Mazar 3 (Units 25-30 / Koura) ---
+    const mazar3Bookings = monthlyBookings.filter((b: any) => {
+      const u = units.find((unit: any) => unit.id === (b.apartmentId || b.apartment_id));
+      return u?.branch === 3 || String(b.apartmentId || b.apartment_id).startsWith('p-s');
+    });
+    const mazar3Revenue = mazar3Bookings.reduce((sum: number, b: any) => sum + (parseFloat(b.totalAmount || b.total_amount) || 0), 0);
+    const mazar3Commissions = mazar3Bookings.reduce((sum: number, b: any) => sum + (parseFloat(b.commission) || 0), 0);
+    const mazar3TotalNights = mazar3Bookings.reduce((sum: number, b: any) => sum + (Number(b.numberOfDays || b.number_of_days) || 0), 0);
+    const mazar3AvgNight = mazar3TotalNights > 0 ? Math.round(mazar3Revenue / mazar3TotalNights) : 0;
+
+    const mazar3Expenses = monthlyExpenses
+      .filter((e: any) =>
+        (e.branch === 3 || e.branch === '3') &&
+        e.category !== 'رواتب' &&
+        e.category !== 'مرتبات' &&
+        e.category !== 'مرتب'
+      )
+      .reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+
+    const mazar3NetProfit = mazar3Revenue - mazar3Commissions - mazar3Expenses;
+
+    const partnersMazar3 = [
+      { key: 'Koura', label: 'Koura (عكورة)', percentage: 50, shareAmountEGP: Math.round((mazar3NetProfit * 50) / 100) },
+      { key: 'MM', label: 'M.M', percentage: 25, shareAmountEGP: Math.round((mazar3NetProfit * 25) / 100) },
+      { key: 'ME', label: 'M.E (مدحت)', percentage: 25, shareAmountEGP: Math.round((mazar3NetProfit * 25) / 100) },
+    ];
+
+    // --- SECTION 3: Hotel Apartments (apt-1, apt-2, apt-3) ---
+    const getAptFinancials = (aptId: string, branchNum: number, aptName: string) => {
+      const aptBookings = monthlyBookings.filter((b: any) => (b.apartmentId || b.apartment_id) === aptId);
+      const rev = aptBookings.reduce((sum: number, b: any) => sum + (parseFloat(b.totalAmount || b.total_amount) || 0), 0);
+      const comm = aptBookings.reduce((sum: number, b: any) => sum + (parseFloat(b.commission) || 0), 0);
+      const exp = monthlyExpenses.filter((e: any) => e.branch === branchNum || e.branch === String(branchNum)).reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+      const net = rev - comm - exp;
+      return {
+        apartmentId: aptId,
+        apartmentName: aptName,
+        bookingsCount: aptBookings.length,
+        revenueEGP: rev,
+        commissionsEGP: comm,
+        expensesEGP: exp,
+        netProfitEGP: net
+      };
+    };
+
+    const apartments = [
+      getAptFinancials('apt-1', 4, 'شقة 1 (زكي رستم)'),
+      getAptFinancials('apt-2', 5, 'شقة 2 (سيتي ستارز)'),
+      getAptFinancials('apt-3', 6, 'شقة 3 (عباس الرئيسي)'),
+    ];
+
+    // Expenses by category
+    const expensesByCategory: Record<string, number> = {};
+    monthlyExpenses.forEach((e: any) => {
+      const cat = e.category || 'عام';
+      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + (parseFloat(e.amount) || 0);
+    });
+
+    // Yearly Rollup
+    let yearlyRollupData: any[] = [];
+    if (includeYearlyRollup) {
+      for (let m = 0; m < 12; m++) {
+        const mBookings = (allBookings || []).filter((b: any) => {
+          if (b.status === 'deleted' || b.status === 'cancelled' || b.status === 'rejected' || b.status === 'ملغي' || b.status === 'مرفوض') return false;
+          if (b.status !== 'approved' && b.status !== 'مؤكد') return false;
+          const parsed = parseDateYM(b.checkIn || b.check_in);
+          return parsed && parsed.month === m && parsed.year === targetYear;
+        });
+
+        const mExpenses = (allExpenses || []).filter((e: any) => {
+          if (!isApprovedExpense(e) || !e.date) return false;
+          const parsed = parseDateYM(e.date);
+          return parsed && parsed.month === m && parsed.year === targetYear;
+        });
+
+        const rev = mBookings.reduce((acc: number, b: any) => acc + (parseFloat(b.totalAmount || b.total_amount) || 0) - (parseFloat(b.commission) || 0), 0);
+        const exp = mExpenses.reduce((acc: number, e: any) => acc + (parseFloat(e.amount) || 0), 0);
+        const profit = rev - exp;
+
+        yearlyRollupData.push({
+          monthNumber: m + 1,
+          monthName: MONTHS_AR[m],
+          bookingsCount: mBookings.length,
+          revenueNetOfCommissionEGP: Math.round(rev),
+          expensesEGP: Math.round(exp),
+          netProfitEGP: Math.round(profit),
+          hasData: rev > 0 || exp > 0 || mBookings.length > 0
+        });
+      }
+    }
+
+    return {
+      statementType: "كشف الحساب الشهري الرسمي (صلاحيات الملاك: مؤمن ومدحت)",
+      period: {
+        monthNumber: targetMonth + 1,
+        monthName: MONTHS_AR[targetMonth],
+        year: targetYear
+      },
+      mazar1And2: {
+        title: "مزار (1) + مزار (2) — استوديوهات 1 إلى 24",
+        bookingsCount: mazar12Bookings.length,
+        totalNightsStayed: mazar12TotalNights,
+        averagePricePerNightEGP: mazar12AvgNight,
+        totalRevenueEGP: mazar12Revenue,
+        totalCommissionsEGP: mazar12Commissions,
+        operatingExpensesEGP: mazar12Expenses,
+        salariesTotalEGP: salariesTotal,
+        totalExpensesWithSalariesEGP: mazar12TotalExpensesAndSalaries,
+        netProfitEGP: mazar12NetProfit,
+        profitDistribution: partnersMazar12,
+        medhatShareEGP: partnersMazar12.find(p => p.key === 'ME')?.shareAmountEGP,
+        moamenShareEGP: partnersMazar12.find(p => p.key === 'HM')?.shareAmountEGP
+      },
+      mazar3: {
+        title: "مزار (3) — شقق 25 إلى 30 (عكورة)",
+        bookingsCount: mazar3Bookings.length,
+        totalNightsStayed: mazar3TotalNights,
+        averagePricePerNightEGP: mazar3AvgNight,
+        totalRevenueEGP: mazar3Revenue,
+        totalCommissionsEGP: mazar3Commissions,
+        operatingExpensesEGP: mazar3Expenses,
+        netProfitEGP: mazar3NetProfit,
+        profitDistribution: partnersMazar3
+      },
+      hotelApartments: apartments,
+      expensesBreakdownByCategory: expensesByCategory,
+      recordedExpensesCount: monthlyExpenses.length,
+      yearlyRollup: includeYearlyRollup ? yearlyRollupData : undefined
+    };
+  }
+
+  // 11. Expenses & Custody (كشف المصروفات والعهدة - صلاحيات مؤمن ومدحت)
+  if (name === 'get_expenses_and_custody') {
+    const [allExpenses, custodyData] = await Promise.all([
+      getDbExpenses(),
+      getDbCustody(),
+    ]);
+
+    let list = allExpenses || [];
+
+    if (args.year !== undefined) {
+      list = list.filter((e: any) => {
+        const parsed = parseDateYM(e.date);
+        return parsed && parsed.year === Number(args.year);
+      });
+    }
+
+    if (args.month !== undefined) {
+      list = list.filter((e: any) => {
+        const parsed = parseDateYM(e.date);
+        return parsed && parsed.month === Number(args.month) - 1;
+      });
+    }
+
+    if (args.branch !== undefined) {
+      list = list.filter((e: any) => Number(e.branch) === Number(args.branch));
+    }
+
+    if (args.status && args.status !== 'all') {
+      if (args.status === 'approved') {
+        list = list.filter((e: any) => e.status === 'APPROVED' || e.status === 'معتمد' || !e.status);
+      } else if (args.status === 'pending') {
+        list = list.filter((e: any) => e.status === 'PENDING' || e.status === 'معلق');
+      } else if (args.status === 'rejected') {
+        list = list.filter((e: any) => e.status === 'REJECTED' || e.status === 'مرفوض');
+      }
+    }
+
+    const limit = args.limit || 50;
+    const totalAmount = list.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+
+    return {
+      accessGrantedAs: "Owner (مؤمن ومدحت)",
+      custodyOverview: custodyData || {},
+      totalExpensesCount: list.length,
+      totalExpensesAmountEGP: totalAmount,
+      expenses: list.slice(0, limit).map((e: any) => ({
+        id: e.id,
+        date: e.date,
+        title: e.title || e.description,
+        amountEGP: parseFloat(e.amount) || 0,
+        category: e.category,
+        branch: e.branch,
+        unitId: e.unitId,
+        status: e.status || 'معتمد',
+        approvedBy: e.approvedBy || 'مؤمن / مدحت',
+        notes: e.notes
+      }))
+    };
+  }
+
+  // 12. Treasury & Salaries (الخزنة والرواتب - صلاحيات مؤمن ومدحت)
+  if (name === 'get_treasury_and_salaries') {
+    const [transfers, salaries, staff] = await Promise.all([
+      getDbTreasuryTransfers(),
+      getDbSalaries(),
+      getDbStaff(),
+    ]);
+
+    let salList = salaries || [];
+    if (args.year !== undefined) {
+      salList = salList.filter((s: any) => Number(s.year) === Number(args.year));
+    }
+    if (args.month !== undefined) {
+      salList = salList.filter((s: any) => Number(s.month) === Number(args.month));
+    }
+
+    return {
+      accessGrantedAs: "Owner (مؤمن ومدحت)",
+      treasuryTransfers: (transfers || []).slice(0, 30),
+      staffList: (staff || []).map((st: any) => ({
+        id: st.id,
+        name: st.name,
+        role: st.role,
+        phone: st.phone,
+        baseSalary: st.salary
+      })),
+      salariesRecords: salList.map((s: any) => ({
+        id: s.id,
+        employeeName: s.name,
+        month: s.month,
+        year: s.year,
+        amountEGP: s.amount,
+        type: s.type || 'راتب',
+        notes: s.notes
+      }))
+    };
   }
 
   throw new Error(`Tool not found: ${name}`);
