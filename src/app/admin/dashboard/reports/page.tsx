@@ -1262,8 +1262,13 @@ function ReportsContent() {
     const outVal = checkOutYear * 12 + checkOutMonth;
     const selVal = selectedYear * 12 + selectedMonth;
     
-    const isCarriedOver = false;
-    const matches = checkInYear === selectedYear && checkInMonth === selectedMonth;
+    // 1. الحجز الأصلي يبدأ في هذا الشهر
+    const isPrimaryMonth = (checkInYear === selectedYear && checkInMonth === selectedMonth);
+
+    // 2. الحجز الممتد/المرحّل: بدأ في شهر سابق ولكن تاريخ الخروج يقع في هذا الشهر أو بعده
+    const isCarriedOver = (inVal < selVal && outVal >= selVal);
+
+    const matches = isPrimaryMonth || isCarriedOver;
     
     return { ...b, isCarriedOver, matches };
   }).filter((b: any) => {
@@ -1293,6 +1298,12 @@ function ReportsContent() {
     }
 
     return true;
+  }).sort((a: any, b: any) => {
+    // Carried over bookings with earlier checkIn naturally sort to the top
+    const dateA = a.checkIn || '';
+    const dateB = b.checkIn || '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return String(a.id || '').localeCompare(String(b.id || ''));
   });
 
   // Get unit price
@@ -1554,7 +1565,15 @@ function ReportsContent() {
 
   // Re-assign 'no' from the month-wide sequential order
   const renumberedRows = sortedDataRows.map((r, i) => {
-    const globalNo = globalBookingNumberMap.get(String(r.id)) ?? (i + 1);
+    let globalNo = globalBookingNumberMap.get(String(r.id));
+    if (!globalNo) {
+      if (r.originalBooking?.bookingNumber && !isNaN(Number(r.originalBooking.bookingNumber))) {
+        globalNo = Number(r.originalBooking.bookingNumber);
+      } else {
+        const explicitMatch = String(r.notes || r.rawNotes || '').match(/\[رقم(?:_الحجز)?:\s*(\d+)\]/i);
+        globalNo = explicitMatch ? Number(explicitMatch[1]) : (i + 1);
+      }
+    }
     return { ...r, no: globalNo };
   });
 
@@ -1581,7 +1600,7 @@ function ReportsContent() {
       r.no, r.date, r.name, r.nationality, r.idNumber, r.phone,
       r.checkIn, r.checkOut, r.days, r.pricePerNight, r.total,
       r.paymentStatus === 'باقي' ? 'باقي فلوس (❌)' : 'خالص (✔️)',
-      r.clientStatus, r.commission, r.brokerName, r.netValue, r.notes,
+      r.isCarriedOver ? `${r.clientStatus || ''} (مرحّل)` : r.clientStatus, r.commission, r.brokerName, r.netValue, r.notes,
     ].join(','));
 
     csvRows.push(['', '', '', '', '', '', '', '', totals.days, '', totals.total, '', totals.commission, '', totals.netValue, ''].join(','));
@@ -2225,6 +2244,11 @@ function ReportsContent() {
                 <div className="absolute top-0 right-0 w-16 h-16 bg-[#C1A68D]/5 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-[#C1A68D]/10 transition-colors" />
                 <div className="text-[#7A7061] text-[9px] font-black mb-2 tracking-[0.15em] uppercase opacity-60">عدد الحجوزات</div>
                 <div className="text-3xl font-black text-[#2A2723]">{filteredBookings.length}</div>
+                {filteredBookings.some((b: any) => b.isCarriedOver) && (
+                  <p className="text-[10px] font-bold text-[#8B6E4E] mt-1">
+                    ({filteredBookings.filter((b: any) => !b.isCarriedOver).length} جديد + {filteredBookings.filter((b: any) => b.isCarriedOver).length} ممتد)
+                  </p>
+                )}
               </div>
               <div className="bg-white p-6 rounded-[1.5rem] border border-[#EAE4D9]/50 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/5 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-green-500/10 transition-colors" />
@@ -2291,14 +2315,20 @@ function ReportsContent() {
                         <tr key={index} className={`border-t border-[#D5CBB8]/60 transition-colors group ${!row.hasData ? 'bg-[#F0EBE2] opacity-50' : row.isCarriedOver ? 'bg-[#F5F0E6]' : index % 2 === 0 ? 'bg-[#FDFBF7] hover:bg-[#F0EBE2]' : 'bg-[#F7F3EC] hover:bg-[#EBE5D9]'}`}>
                           <td className="px-2 py-3 text-[#8B7355] font-black tracking-widest transition-colors">
                             {row.hasData && row.no ? (
-                              <EditableCell
-                                value={row.no ? row.no.toString().padStart(2, '0') : ''}
-                                bookingId={row.id}
-                                field="bookingNo"
-                                onSave={handleCellSave}
-                                className="font-black text-[#8B7355] tracking-widest text-center"
-                                readOnly={row.isCarriedOver}
-                              />
+                              row.isCarriedOver ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-[#8B6E4E] bg-amber-100/80 border border-amber-300/80 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap" title="حجز مقيم ومرحّل من الشهر السابق">
+                                  <span>📌</span>
+                                  <span>{row.no ? row.no.toString().padStart(2, '0') : 'مرحّل'}</span>
+                                </span>
+                              ) : (
+                                <EditableCell
+                                  value={row.no ? row.no.toString().padStart(2, '0') : ''}
+                                  bookingId={row.id}
+                                  field="bookingNo"
+                                  onSave={handleCellSave}
+                                  className="font-black text-[#8B7355] tracking-widest text-center"
+                                />
+                              )
                             ) : (
                               <span className="text-[#D5CBB8]">—</span>
                             )}
@@ -2501,8 +2531,20 @@ function ReportsContent() {
                           <td className="px-1 py-1 no-print border-l border-[#EAE4D9]/20 transition-colors group-hover:bg-[#FDFBF7]" style={{ backgroundColor: row.isCarriedOver ? '#fcf9f2' : 'inherit' }}>
                             {row.hasData && (
                               row.isCarriedOver ? (
-                                <div className="flex items-center justify-center">
-                                  <span className="text-[9px] font-black text-[#C1A68D] bg-white border border-[#EAE4D9] px-2 py-1 rounded-lg tracking-widest shadow-sm">مرحّل</span>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[9px] font-black text-[#8B6E4E] bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg tracking-widest shadow-2xs" title="حجز مقيم ومرحّل من الشهر السابق">مرحّل 📌</span>
+                                  <button
+                                    onClick={() => {
+                                      const fullBooking = bookings.find(b => b.id === row.id);
+                                      if (fullBooking) {
+                                        openEditModal(fullBooking);
+                                      }
+                                    }}
+                                    className="w-7 h-7 flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
+                                    title="عرض وتعديل بيانات الحجز"
+                                  >
+                                    <Pencil size={13} strokeWidth={2.5} />
+                                  </button>
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-center gap-1">
