@@ -392,6 +392,20 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
     return 'قائد الشيفت';
   };
 
+  const isMoamenOrMedhat = () => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo');
+      if (!raw) return false;
+      const info = JSON.parse(raw);
+      const u = (info?.username || '').toLowerCase().trim();
+      const n = (info?.name || '').toLowerCase().trim();
+      return ['medhat', 'mo2men'].includes(u) || ['مدحت', 'مؤمن', 'مأمون'].some(name => n.includes(name));
+    } catch {
+      return false;
+    }
+  };
+
   const handleConfirmWebBooking = async (req: any) => {
     try {
       const shiftLead = getLoggedInAdminName();
@@ -718,38 +732,166 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         </div>
       </header>
 
-      {/* 🔮 Smart Booking Assistant Widget (Large Crimson Card) */}
-      {/* ── SECTION 1: SMART ACCOMMODATION ASSISTANT (قسم 1: مساعد التسكين الذكي - لون ذهبي دافئ) ── */}
-      <div className="bg-gradient-to-br from-[#231710] via-[#1A110B] to-[#231710] p-6 md:p-8 rounded-[2.5rem] border-2 border-amber-500/70 shadow-[0_0_25px_rgba(245,158,11,0.15)] hover:border-amber-400 text-white space-y-4 animate-fade-in relative overflow-hidden transition-all">
-        {/* Decorative background glow */}
-        <div className="absolute -top-12 -left-12 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-amber-600/10 rounded-full blur-3xl" />
-
-        <button
-          type="button"
+      {/* ── 3 COMPACT QUICK-ACCESS CARDS (3 مربعات متجاورة للتنظيم التام ومنع الزحمة) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
+        
+        {/* Card 1: مساعد التسكين الذكي */}
+        <div
           onClick={() => setSmartAssistantOpen(!smartAssistantOpen)}
-          className="w-full flex items-center justify-between text-right relative z-10"
+          className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer text-white relative overflow-hidden group select-none shadow-md ${
+            smartAssistantOpen
+              ? 'bg-gradient-to-br from-[#2E1D13] via-[#231710] to-[#1A110B] border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.25)] ring-2 ring-amber-400/40'
+              : 'bg-gradient-to-br from-[#231710] via-[#1A110B] to-[#231710] border-amber-500/40 hover:border-amber-400 hover:shadow-lg'
+          }`}
         >
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-black text-2xl shadow-lg shrink-0 border border-amber-400/30">
-              🔮
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-black text-2xl shadow-md border border-amber-400/30 group-hover:scale-105 transition-transform shrink-0">
+                🔮
+              </div>
+              <div>
+                <h3 className="text-base font-black text-amber-200 group-hover:text-amber-300 transition-colors">
+                  مساعد التسكين الذكي
+                </h3>
+                <p className="text-[11px] text-gray-400 font-bold mt-0.5 line-clamp-1">
+                  اقتراح الغرف والتقسيم المتاح
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-black text-amber-200">مساعد التسكين الذكي واقتراح الغرف والتقسيم المتاح</h3>
-              <p className="text-xs text-gray-400 font-bold mt-0.5">
-                أدخل تواريخ إقامة العميل المقترحة ونوع الغرفة لنقوم باقتراح الغرفة المناسبة أو توليد خطة تسكين مقسمة (Split-Stay) تلقائياً.
-              </p>
+            <div className="w-8 h-8 rounded-xl bg-white/10 group-hover:bg-amber-500 group-hover:text-black text-white flex items-center justify-center transition-all duration-300 shrink-0">
+              {smartAssistantOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider">
-              {smartAssistantOpen ? 'إغلاق المساعد ▲' : 'بدء البحث عن مقترح حجز جديد 🔍'}
+
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-gray-400">
+              خطة تسكين ذكية (Split-Stay)
+            </span>
+            <span className={`text-[10px] font-black px-3 py-1 rounded-full transition-colors ${
+              smartAssistantOpen ? 'bg-amber-500 text-black shadow-sm' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+            }`}>
+              {smartAssistantOpen ? 'مفتوح الآن ▲' : 'انقر للفتح 🔍'}
             </span>
           </div>
-        </button>
+        </div>
 
-        {smartAssistantOpen && (
-          <div className="pt-5 border-t border-red-500/20 space-y-6 relative z-10 animate-fade-in">
+        {/* Card 2: طلبات الحجز المعلقة */}
+        <div
+          id="website-requests-card"
+          onClick={() => setIsPendingRequestsExpanded(!isPendingRequestsExpanded)}
+          className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer text-white relative overflow-hidden group select-none shadow-md ${
+            isPendingRequestsExpanded
+              ? 'bg-gradient-to-br from-[#2D261E] via-[#241F1A] to-[#1F1C18] border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.25)] ring-2 ring-amber-400/40'
+              : 'bg-gradient-to-br from-[#1F1C18] to-[#2A241F] border-amber-500/40 hover:border-amber-400 hover:shadow-lg'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black text-2xl shadow-inner group-hover:scale-105 transition-transform shrink-0">
+                🌐
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors">
+                    طلبات الحجز
+                  </h3>
+                  {pendingWebRequests.length > 0 && (
+                    <span className="w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-black flex items-center justify-center animate-pulse shadow-sm">
+                      {pendingWebRequests.length}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 font-bold mt-0.5 line-clamp-1">
+                  الحجوزات الواردة من الموقع
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-white/10 group-hover:bg-amber-500 group-hover:text-black text-white flex items-center justify-center transition-all duration-300 shrink-0">
+              {isPendingRequestsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+            <span className={`text-[11px] font-bold ${pendingWebRequests.length > 0 ? 'text-rose-400' : 'text-gray-400'}`}>
+              {pendingWebRequests.length > 0 ? `${pendingWebRequests.length} طلب بانتظار التأكيد` : 'لا توجد طلبات معلقة'}
+            </span>
+            <span className={`text-[10px] font-black px-3 py-1 rounded-full transition-colors ${
+              isPendingRequestsExpanded ? 'bg-amber-500 text-black shadow-sm' : 'bg-white/10 text-gray-300 border border-white/10'
+            }`}>
+              {isPendingRequestsExpanded ? 'مفتوح الآن ▲' : 'عرض الطلبات 📩'}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: جدول حركة اليوم */}
+        <div
+          onClick={() => setIsDailyScheduleExpanded(!isDailyScheduleExpanded)}
+          className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer text-white relative overflow-hidden group select-none shadow-md ${
+            isDailyScheduleExpanded
+              ? 'bg-gradient-to-br from-[#063024] via-[#042018] to-[#021812] border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.25)] ring-2 ring-emerald-400/40'
+              : 'bg-gradient-to-br from-[#042018] via-[#021812] to-[#042018] border-emerald-500/40 hover:border-emerald-400 hover:shadow-lg'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-950/90 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-inner group-hover:scale-105 transition-transform shrink-0">
+                <Calendar size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-emerald-200 group-hover:text-emerald-300 transition-colors">
+                  جدول الحركة اليومية
+                </h3>
+                <p className="text-[11px] text-gray-400 font-bold mt-0.5 line-clamp-1">
+                  حركات الوصول والمغادرة
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-white/10 group-hover:bg-emerald-500 group-hover:text-black text-white flex items-center justify-center transition-all duration-300 shrink-0">
+              {isDailyScheduleExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+              <span className="text-emerald-400">🛬 {todaySchedule.in.length} وصول</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-rose-400">🛫 {todaySchedule.out.length} خروج</span>
+            </div>
+            <span className={`text-[10px] font-black px-3 py-1 rounded-full transition-colors ${
+              isDailyScheduleExpanded ? 'bg-emerald-400 text-black shadow-sm' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            }`}>
+              {isDailyScheduleExpanded ? 'مفتوح الآن ▲' : 'عرض الجدول 📋'}
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── EXPANDED PANELS (تفتح تحت المربعات عند النقر) ── */}
+
+      {/* Panel 1: Smart Accommodation Assistant Panel */}
+      {smartAssistantOpen && (
+        <div className="bg-gradient-to-br from-[#231710] via-[#1A110B] to-[#231710] p-6 md:p-8 rounded-[2.5rem] border-2 border-amber-500/70 shadow-[0_0_25px_rgba(245,158,11,0.15)] text-white space-y-6 animate-fade-in relative overflow-hidden">
+          <div className="flex items-center justify-between border-b border-amber-500/20 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-black text-xl shadow-md border border-amber-400/30">
+                🔮
+              </div>
+              <div>
+                <h3 className="text-base md:text-lg font-black text-amber-200">مساعد التسكين الذكي واقتراح الغرف والتقسيم المتاح</h3>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">أدخل تواريخ إقامة العميل المقترحة ونوع الغرفة لنقوم باقتراح الغرفة أو خطة تسكين مقسمة (Split-Stay)</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSmartAssistantOpen(false)}
+              className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/40 px-3 py-1.5 rounded-xl border border-amber-500/40 transition-colors cursor-pointer"
+            >
+              إغلاق ✕
+            </button>
+          </div>
+
+          <div className="space-y-6 relative z-10 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-red-300 uppercase px-1">تاريخ الدخول المقترح</label>
@@ -790,7 +932,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
               <button
                 type="button"
                 onClick={handleSmartSearch}
-                className="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black px-8 py-3.5 rounded-xl text-xs transition-all shadow-lg flex items-center gap-2"
+                className="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black px-8 py-3.5 rounded-xl text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer"
               >
                 🔮 ابحث واقترح الغرف والتقسيم المتاح
               </button>
@@ -852,7 +994,7 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                           <button
                             type="button"
                             onClick={() => applyFullSuggestion(s.unit.id)}
-                            className="bg-green-600 hover:bg-green-500 text-white font-black px-5 py-2.5 rounded-xl text-[10px] transition-all flex items-center gap-1.5 shrink-0 self-stretch md:self-auto text-center justify-center shadow-md"
+                            className="bg-green-600 hover:bg-green-500 text-white font-black px-5 py-2.5 rounded-xl text-[10px] transition-all flex items-center gap-1.5 shrink-0 self-stretch md:self-auto text-center justify-center shadow-md cursor-pointer"
                           >
                             تسكين وتعبئة الحجز فوراً 📝
                           </button>
@@ -861,14 +1003,14 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                             <button
                               type="button"
                               onClick={() => applySplitPart(s.u1.id, smartCheckIn, s.splitDateStr)}
-                              className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-500 text-white font-black px-3.5 py-2 rounded-xl text-[10px] transition-all shadow-md"
+                              className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-500 text-white font-black px-3.5 py-2 rounded-xl text-[10px] transition-all shadow-md cursor-pointer"
                             >
                               تعبئة حجز الجزء الأول 📝
                             </button>
                             <button
                               type="button"
                               onClick={() => applySplitPart(s.u2.id, s.splitDateStr, smartCheckOut)}
-                              className="flex-1 md:flex-none bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white font-black px-3.5 py-2 rounded-xl text-[10px] transition-all shadow-md"
+                              className="flex-1 md:flex-none bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white font-black px-3.5 py-2 rounded-xl text-[10px] transition-all shadow-md cursor-pointer"
                             >
                               تعبئة حجز الجزء الثاني 📝
                             </button>
@@ -881,61 +1023,51 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── WEBSITE INCOMING BOOKING REQUESTS SECTION (قسم طلبات الحجز القادمة من الويب سايت) ── */}
-      <div id="website-requests-section" className="bg-gradient-to-br from-[#1F1C18] to-[#2A241F] p-6 md:p-8 rounded-[2.5rem] shadow-2xl border border-amber-500/30 text-white relative overflow-hidden space-y-6">
-        <div
-          onClick={() => setIsPendingRequestsExpanded(!isPendingRequestsExpanded)}
-          className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5 cursor-pointer group/accordion"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shadow-inner group-hover/accordion:scale-105 transition-transform">
-              🌐
-            </div>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="text-xl font-black text-white group-hover/accordion:text-amber-400 transition-colors">
-                  طلبات الحجز
-                </h3>
-                {pendingWebRequests.length > 0 && (
-                  <span className="w-8 h-8 rounded-full bg-rose-500 text-white text-sm font-black flex items-center justify-center animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.6)] border-2 border-white/20">
-                    {pendingWebRequests.length}
-                  </span>
-                )}
-                <span className="text-xs text-gray-400 font-bold bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                  {isPendingRequestsExpanded ? 'انقر للطي' : 'انقر لعرض الطلبات'}
-                </span>
+      {/* Panel 2: Website Incoming Booking Requests */}
+      {isPendingRequestsExpanded && (
+        <div id="website-requests-section" className="bg-gradient-to-br from-[#1F1C18] to-[#2A241F] p-6 md:p-8 rounded-[2.5rem] shadow-2xl border-2 border-amber-500/40 text-white relative overflow-hidden space-y-6 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shadow-inner">
+                🌐
               </div>
-              <p className="text-xs text-gray-400 font-bold mt-0.5">
-                طلبات الحجوزات المرسلة مباشرة من العملاء عبر الموقع الإلكتروني للمعاينة والتأكيد
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base md:text-lg font-black text-white">طلبات الحجز الواردة من الموقع الإلكتروني</h3>
+                  {pendingWebRequests.length > 0 && (
+                    <span className="w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-black flex items-center justify-center animate-pulse">
+                      {pendingWebRequests.length}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">طلبات الحجوزات المرسلة مباشرة من العملاء عبر الموقع للمعاينة والتأكيد</p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3 self-end md:self-auto">
-            {pendingWebRequests.length > 0 && (
+            <div className="flex items-center gap-2 self-end md:self-auto">
+              {pendingWebRequests.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllPendingWebRequests}
+                  className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-black px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  title="مسح وتفريغ الطلبات المعلقة"
+                >
+                  <span>🧹 مسح الطلبات ({pendingWebRequests.length})</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClearAllPendingWebRequests();
-                }}
-                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-black px-4 py-2 rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 shrink-0"
-                title="مسح وتفريغ الطلبات المعلقة"
+                onClick={() => setIsPendingRequestsExpanded(false)}
+                className="text-xs font-bold text-gray-300 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl border border-white/10 transition-colors cursor-pointer"
               >
-                <span>🧹 مسح الطلبات ({pendingWebRequests.length})</span>
+                إغلاق ✕
               </button>
-            )}
-
-            <div className="w-10 h-10 rounded-xl bg-white/10 group-hover/accordion:bg-amber-500 group-hover/accordion:text-black text-white flex items-center justify-center transition-all duration-300 shadow-md">
-              {isPendingRequestsExpanded ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
             </div>
           </div>
-        </div>
 
-        {isPendingRequestsExpanded && (
           <div className="animate-fade-in space-y-6">
             {pendingWebRequests.length === 0 ? (
               <div className="bg-[#2A2723]/60 p-6 rounded-2xl border border-white/5 text-center space-y-1.5">
@@ -1100,8 +1232,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
           </div>
         )}
       </div>
-    )}
-  </div>
+    </div>
+  )}
 
       {/* ── REALTIME TOAST / ALERT POPUP (إشعار الحجز الجديد الضخم والواضح) ── */}
       {newBookingToast && (
@@ -1173,47 +1305,40 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
         </div>
       )}
 
-      {/* ── SECTION 3: FULL-WIDTH DAILY OPERATIONS SCHEDULE (قسم 3: جدول خطة الدخول والخروج اليومية - لون زمردي فاخر) ── */}
-      <div className="bg-gradient-to-br from-[#042018] via-[#021812] to-[#042018] p-6 md:p-8 rounded-[2.5rem] shadow-[0_0_25px_rgba(16,185,129,0.18)] border-2 border-emerald-500/70 hover:border-emerald-400 text-white relative overflow-hidden space-y-6 transition-all">
-        <div
-          onClick={() => setIsDailyScheduleExpanded(!isDailyScheduleExpanded)}
-          className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-500/20 pb-5 cursor-pointer group/accordion"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-950/90 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-inner group-hover/accordion:scale-105 transition-transform">
-              <Calendar size={22} />
-            </div>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="text-xl font-black text-emerald-200 group-hover/accordion:text-emerald-300 transition-colors">
+      {/* ── SECTION 3: DAILY OPERATIONS SCHEDULE PANEL (قسم 3: جدول خطة الدخول والخروج اليومية - لون زمردي فاخر) ── */}
+      {isDailyScheduleExpanded && (
+        <div id="daily-schedule-section" className="bg-gradient-to-br from-[#042018] via-[#021812] to-[#042018] p-6 md:p-8 rounded-[2.5rem] shadow-[0_0_25px_rgba(16,185,129,0.18)] border-2 border-emerald-500/70 text-white relative overflow-hidden space-y-6 animate-fade-in transition-all">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-500/20 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-950/90 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-inner">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h3 className="text-base md:text-lg font-black text-emerald-200">
                   جدول وخطة حركة الدخول والخروج اليومية
                 </h3>
-                <span className="text-xs text-gray-300 font-bold bg-white/10 px-3 py-1 rounded-full border border-white/10">
-                  {isDailyScheduleExpanded ? 'انقر للطي' : 'انقر لعرض الجدول'}
-                </span>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">التفاصيل الكاملة لعملاء اليوم وغداً - اضغط على اسم العميل لعرض السجل الكامل</p>
               </div>
-              <p className="text-xs text-gray-400 font-bold mt-0.5">التفاصيل الكاملة لعملاء اليوم وغداً اضغط على اسم العميل لعرض السجل الكامل</p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3 self-end md:self-auto">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end md:self-auto">
               <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3.5 py-1.5 rounded-full text-xs font-black">
-                🛬 وصول اليوم: {todaySchedule.in.length}
+                🛬 وصول: {todaySchedule.in.length}
               </span>
               <span className="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3.5 py-1.5 rounded-full text-xs font-black">
-                🛫 مغادرة اليوم: {todaySchedule.out.length}
+                🛫 خروج: {todaySchedule.out.length}
               </span>
-            </div>
-
-            <div className="w-10 h-10 rounded-xl bg-white/10 group-hover/accordion:bg-emerald-500 group-hover/accordion:text-black text-white flex items-center justify-center transition-all duration-300 shadow-md">
-              {isDailyScheduleExpanded ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
+              <button
+                type="button"
+                onClick={() => setIsDailyScheduleExpanded(false)}
+                className="text-xs font-bold text-emerald-300 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/40 px-3 py-1.5 rounded-xl border border-emerald-500/40 transition-colors cursor-pointer"
+              >
+                إغلاق ✕
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* Detailed Operations Grid (Collapsible) */}
-        {isDailyScheduleExpanded && (
+          {/* Detailed Operations Grid */}
           <div className="animate-fade-in grid lg:grid-cols-2 gap-6">
 
             {/* CHECK-INS TODAY */}
@@ -1385,8 +1510,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
             </div>
 
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── SECTION 4: TO-DO LIST & NOTES (جدول قائمة المهام والملاحظات) ── */}
       <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-[#EAE4D9] shadow-sm space-y-6 animate-fade-in">
@@ -1489,34 +1614,40 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
               </form>
             )}
 
-            {/* Todo List Table (Active / Pending Shift Tasks) */}
+            {/* Todo List Table (Active / Pending Shift Tasks & Completed Tasks kept until Moamen/Medhat removes them) */}
             <div className="overflow-x-auto rounded-2xl border border-[#EAE4D9]/80">
               <table className="w-full text-right text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#2A2723] text-white font-black text-xs">
                     <th className="p-4 w-12 text-center">#</th>
                     <th className="p-4 w-36 text-center">حالة المهمة</th>
-                    <th className="p-4">الملاحظة / المهمة (نشطة)</th>
+                    <th className="p-4">الملاحظة / المهمة</th>
                     <th className="p-4">ملاحظات إضافية</th>
-                    <th className="p-4 w-28 text-center">بواسطة</th>
-                    {canManageTodo && <th className="p-4 w-20 text-center">حذف</th>}
+                    <th className="p-4 w-32 text-center">المسؤول / المنفذ</th>
+                    <th className="p-4 w-28 text-center">إزالة (مؤمن ومدحت)</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
-                  {todos.filter((t: any) => !t.completed).length === 0 ? (
+                  {todos.length === 0 ? (
                     <tr>
-                      <td colSpan={canManageTodo ? 6 : 5} className="p-10 text-center text-gray-400 font-bold">
+                      <td colSpan={6} className="p-10 text-center text-gray-400 font-bold">
                         <div className="space-y-2">
-                          <p className="text-sm font-black text-[#2A2723]">🎉 لا توجد مهام أو ملاحظات معلقة اليوم</p>
-                          <p className="text-xs text-gray-400">جميع المهام تم تنفيذها بنجاح ومُرَحَّلَة تلقائياً إلى <button type="button" onClick={() => router.push('/admin/dashboard/tasks')} className="text-emerald-600 underline font-black">صفحة المهام الكاملة</button></p>
+                          <p className="text-sm font-black text-[#2A2723]">🎉 لا توجد مهام أو ملاحظات حالياً</p>
+                          <p className="text-xs text-gray-400">يمكنك إضافة مهمة جديدة بالأعلى أو مراجعة الأرشيف في <button type="button" onClick={() => router.push('/admin/dashboard/tasks')} className="text-emerald-600 underline font-black">صفحة المهام الكاملة</button></p>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    todos.filter((t: any) => !t.completed).map((item: any, idx: number) => (
+                    [...todos]
+                      .sort((a: any, b: any) => (!a.completed && b.completed ? -1 : a.completed && !b.completed ? 1 : 0))
+                      .map((item: any, idx: number) => (
                       <tr
                         key={item.id || idx}
-                        className="border-t border-[#EAE4D9]/60 transition-colors hover:bg-[#FDFBF7]"
+                        className={`border-t transition-colors ${
+                          item.completed
+                            ? 'bg-emerald-50/75 border-emerald-200/80 hover:bg-emerald-100/60'
+                            : 'border-[#EAE4D9]/60 hover:bg-[#FDFBF7]'
+                        }`}
                       >
                         <td className="p-4 text-center font-bold text-[#7A7061]">{idx + 1}</td>
                         <td className="p-4 text-center">
@@ -1531,7 +1662,8 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                               );
                               await updateDbTodoStatus(item.id, newStatus, currentAdmin);
                             }}
-                            className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 ${
+                            title={canManageTodo ? (item.completed ? 'اضغط لإلغاء إتمام المهمة' : 'اضغط للتحديد كمنجزة') : undefined}
+                            className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 mx-auto ${
                               item.completed
                                 ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                                 : 'bg-rose-600 text-white hover:bg-rose-700 active:scale-95'
@@ -1540,43 +1672,72 @@ const isUnitMatch = (b: any, unitId: string, unitTitleAr?: string) => {
                             {item.completed ? (
                               <>
                                 <CheckCircle2 size={14} />
-                                <span>🟢 تم التنفيذ</span>
+                                <span>🟢 منجزة ✔️</span>
                               </>
                             ) : (
                               <>
                                 <Clock size={14} />
-                                <span>🔴 لم يتم التنفيذ</span>
+                                <span>🔴 لم تنفذ</span>
                               </>
                             )}
                           </button>
                         </td>
                         <td className="p-4">
-                          <span className="text-xs md:text-sm font-normal text-[#2A2723]">
-                            {item.title}
-                          </span>
+                          {item.completed ? (
+                            <div className="flex items-center gap-2">
+                              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 shadow-sm">
+                                ✔️ تم التنفيذ
+                              </span>
+                              <span className="text-xs md:text-sm font-medium line-through text-emerald-950/80">
+                                {item.title}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs md:text-sm font-bold text-[#2A2723]">
+                              {item.title}
+                            </span>
+                          )}
                         </td>
-                        <td className="p-4 text-[#7A7061] font-normal text-xs">
+                        <td className={`p-4 text-xs ${item.completed ? 'text-emerald-900/70 font-medium' : 'text-[#7A7061] font-normal'}`}>
                           {item.notes || '—'}
                         </td>
-                        <td className="p-4 text-center text-gray-500 font-medium text-xs">
-                          {item.created_by || 'Admin'}
+                        <td className="p-4 text-center">
+                          {item.completed ? (
+                            <div className="space-y-0.5">
+                              <div className="text-[10px] text-gray-500 font-medium">كتبها: {item.created_by || 'Admin'}</div>
+                              <div className="text-[11px] font-black text-emerald-800">نفذها: {item.completed_by || 'Admin'}</div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-600 font-bold text-xs">
+                              {item.created_by || 'Admin'}
+                            </span>
+                          )}
                         </td>
-                        {canManageTodo && (
-                          <td className="p-4 text-center">
+                        <td className="p-4 text-center">
+                          {isMoamenOrMedhat() ? (
                             <button
                               type="button"
                               onClick={async () => {
-                                if (!confirm('هل تريد حذف هذه الملاحظة؟')) return;
+                                if (!confirm('هل تريد إزالة وحذف هذه المهمة نهائياً من الصفحة الرئيسية؟')) return;
                                 setTodos((prev) => prev.filter((t) => t.id !== item.id));
                                 await deleteDbTodo(item.id);
                               }}
-                              title="حذف الملاحظة"
-                              className="text-red-500 hover:text-red-700 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                              title="حذف نهائي من الصفحة الرئيسية (خاص بمؤمن ومدحت)"
+                              className="inline-flex items-center gap-1 text-red-600 hover:text-white hover:bg-red-600 transition-all px-2.5 py-1 rounded-lg text-xs font-black border border-red-200 cursor-pointer shadow-xs"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={13} />
+                              <span>إزالة</span>
                             </button>
-                          </td>
-                        )}
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-md font-bold cursor-not-allowed select-none"
+                              title="صلاحية مسح المهام مقتصرة حصرياً على مؤمن ومدحت"
+                            >
+                              <span>🔒</span>
+                              <span>مؤمن/مدحت</span>
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}

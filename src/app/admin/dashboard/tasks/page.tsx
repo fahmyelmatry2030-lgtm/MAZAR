@@ -63,6 +63,20 @@ export default function TasksPage() {
 
   const canManage = adminRole !== 'Partner' && adminRole !== 'Akoura';
 
+  const isMoamenOrMedhat = () => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = sessionStorage.getItem('adminInfo') || localStorage.getItem('adminInfo');
+      if (!raw) return false;
+      const info = JSON.parse(raw);
+      const u = (info?.username || '').toLowerCase().trim();
+      const n = (info?.name || '').toLowerCase().trim();
+      return ['medhat', 'mo2men', 'moamen', 'momen'].includes(u) || ['مدحت', 'مؤمن', 'مأمون'].some(name => n.includes(name));
+    } catch {
+      return false;
+    }
+  };
+
   const getLoggedInAdminName = () => {
     if (typeof window === 'undefined') return 'قائد الشيفت';
     try {
@@ -167,7 +181,11 @@ export default function TasksPage() {
 
   const handleDelete = async (id: string) => {
     if (!canManage) return;
-    if (!window.confirm('هل تريد حذف هذه المهمة نهائياً؟')) return;
+    if (!isMoamenOrMedhat()) {
+      alert('عذراً، صلاحية حذف المهام نهائياً مقتصرة حصرياً على مؤمن ومدحت فقط.');
+      return;
+    }
+    if (!window.confirm('هل تريد حذف هذه المهمة نهائياً من قاعدة البيانات؟')) return;
     setTodos((prev) => prev.filter((t) => t.id !== id));
     try {
       await deleteDbTodo(id);
@@ -281,7 +299,7 @@ export default function TasksPage() {
                 <th className="p-4">ملاحظات إضافية</th>
                 <th className="p-4 w-28 text-center">سُجلت بواسطة</th>
                 <th className="p-4 w-28 text-center">نُفذت بواسطة</th>
-                {canManage && <th className="p-4 w-16 text-center">حذف</th>}
+                {canManage && <th className="p-4 w-24 text-center">إزالة (مؤمن/مدحت)</th>}
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -357,14 +375,25 @@ export default function TasksPage() {
                     </td>
                     {canManage && (
                       <td className="p-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id)}
-                          title="حذف المهمة"
-                          className="text-red-500 hover:text-red-700 transition-colors p-1.5 rounded-lg hover:bg-red-50"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {isMoamenOrMedhat() ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            title="حذف المهمة نهائياً (خاص بمؤمن ومدحت)"
+                            className="inline-flex items-center gap-1 text-red-600 hover:text-white hover:bg-red-600 transition-all px-2.5 py-1 rounded-lg text-xs font-black border border-red-200 cursor-pointer shadow-xs"
+                          >
+                            <Trash2 size={13} />
+                            <span>إزالة</span>
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-md font-bold cursor-not-allowed select-none"
+                            title="صلاحية مسح المهام مقتصرة حصرياً على مؤمن ومدحت"
+                          >
+                            <span>🔒</span>
+                            <span>مؤمن/مدحت</span>
+                          </span>
+                        )}
                       </td>
                     )}
                   </tr>
