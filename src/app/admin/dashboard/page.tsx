@@ -64,7 +64,7 @@ export default function DashboardOverview() {
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoNotes, setNewTodoNotes] = useState('');
   const [isSavingTodo, setIsSavingTodo] = useState(false);
-  const [isTodoExpanded, setIsTodoExpanded] = useState(true);
+  const [isTodoExpanded, setIsTodoExpanded] = useState(false);
 
   // Customer Profile Modal State
   const [profileModal, setProfileModal] = useState<{ isOpen: boolean; name: string | null; phone?: string | null; mode?: 'history' | 'notes' }>({
